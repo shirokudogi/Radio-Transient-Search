@@ -4,20 +4,20 @@ import mpi4py.MPI as MPI
 import os
 import sys
 import numpy
-import getopt
 import drx
 import time
 import matplotlib.pyplot as plt
 import errors
 
 def main(args):
-        totalrank = 12
         comm  = MPI.COMM_WORLD
         rank  = comm.Get_rank()
+	totalrank = comm.Get_size()
 	t0 = time.time()
 	nChunks = 10000 #the temporal shape of a file.
 	LFFT = 4096 #Length of the FFT.4096 is the size of a frame readed.
 	nFramesAvg = 1*4*LFFT/4096 # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
+	filename = args[0]
 	
 	#for offset_i in range(4306, 4309):# one offset = nChunks*nFramesAvg skiped
 	for offset_i in range(100, 1000 ):# one offset = nChunks*nFramesAvg skiped
@@ -25,10 +25,10 @@ def main(args):
 		offset = nChunks*nFramesAvg*offset_i
 		# Build the DRX file
 		try:
-                        fh = open(getopt.getopt(args,':')[1][0], "rb")
-                        nFramesFile = os.path.getsize(getopt.getopt(args,':')[1][0]) / drx.FrameSize #drx.FrameSize = 4128
+                        fh = open(filename, "rb")
+                        nFramesFile = os.path.getsize(filename) / drx.FrameSize #drx.FrameSize = 4128
 		except:
-			print getopt.getopt(args,':')[1][0],' not found'
+			print filename,' not found'
 			sys.exit(1)
 		try:
 			junkFrame = drx.readFrame(fh)
@@ -127,7 +127,7 @@ def main(args):
 			#sys.exit()
 			#if i % 100 ==1 :
 			#	print i, ' / ', nChunks
-                outname = "%s_%i_fft_offset_%.9i_frames" % (getopt.getopt(args,':')[1][0], beam,offset)
+                outname = "%s_%i_fft_offset_%.9i_frames" % (filename, beam,offset)
 		numpy.save('waterfall' + outname, masterSpectra.mean(0) )
 	#print time.time()-t0
 	#print masterSpectra.shape
