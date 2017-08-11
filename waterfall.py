@@ -9,34 +9,6 @@ import drx
 import time
 import matplotlib.pyplot as plt
 
-def Decimate_ts(ts, ndown=2):
-    """
-    Takes a N dimension array and decimates it by a factore of ndown, default = 2. with axis = 0
-    Code adapted from analysis.binarray module: 
-      http://www.astro.ucla.edu/~ianc/python/_modules/analysis.html#binarray 
-    from Ian's Python Code (http://www.astro.ucla.edu/~ianc/python/index.html)
-    
-    Optimized for time series' with length = multiple of 2.  Will handle others, though.
-
-    Required:
-    
-    ts  -  input time series
-
-    Options:
-    
-    ndown  -  Factor by which to decimate time series. Default = 2.
-              if ndown = 1, returns ts       
-    """
-
-    if ndown==1:
-       return ts
-    ncols = len(ts)
-    n_rep = ncols / ndown
-    ts_ds = np.array([ts[i::ndown][0:n_rep] for i in range(ndown)]).mean(0)
-    return ts_ds
-
-
-
 def main(args):
         totalrank = 12
         comm  = MPI.COMM_WORLD
