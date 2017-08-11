@@ -17,19 +17,32 @@
 
 #module load mkl mpiblast python
 
-module reset
+#module reset
 #module swap openmpi
 #module swap mvapich2 openmpi
-module load mkl python openmpi
+#module load mkl python openmpi
 
 
-cd /work/hokieone/ilikeit/057139_000656029
-cp /home/ilikeit/hokieone/waterfall.py .
-cp /home/ilikeit/hokieone/errors.py .
-cp /home/ilikeit/hokieone/drx.py .
-cp /home/ilikeit/hokieone/dp.py .
+#cd /work/hokieone/ilikeit/057139_000656029
+#cp /home/ilikeit/hokieone/waterfall.py .
+#cp /home/ilikeit/hokieone/errors.py .
+#cp /home/ilikeit/hokieone/drx.py .
+#cp /home/ilikeit/hokieone/dp.py .
 
-mpirun -np $PBS_NP python waterfall.py 057139_000656029
+# Consult https://lwalab.phys.unm.edu/CompScreen/cs.php
+HOSTS=lwaucf2,lwaucf4,lwaucf5
+PROCS=5
 
-echo "done"
-exit;
+INDIR=/data/network/recent_data/jtsai
+INFILE=057974_001488585
+WORKDIR=/mnt/toaster/cleague/work1b
+CODEDIR=$HOME/Radio-Transient-Search
+
+export PYTHONPATH=$CODEDIR:
+
+mkdir -p $WORKDIR
+mpirun -host $HOSTS -npernode 1 mkdir -v -p $WORKDIR
+cd $WORKDIR
+mpirun -host $HOSTS -npernode 1 ln -svf $INDIR/$INFILE .
+time mpirun -host $HOSTS -np $PROCS -x PYTHONPATH python $CODEDIR/waterfall.py $INFILE |& tee runlog.$$
+
