@@ -8,6 +8,7 @@ import getopt
 import drx
 import time
 import matplotlib.pyplot as plt
+import errors
 
 def main(args):
         totalrank = 12
