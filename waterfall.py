@@ -26,8 +26,7 @@ def main(args):
 	nFramesAvg = 1*4*LFFT/4096 # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
 	filename = args[0]
 	
-	#for offset_i in range(4306, 4309):# one offset = nChunks*nFramesAvg skiped
-	for offset_i in range(100, 1000 ):# one offset = nChunks*nFramesAvg skiped
+	for offset_i in range(0, 1000 ):# one offset = nChunks*nFramesAvg skiped
                 offset_i = 1.*totalrank*offset_i + rank
 		offset = nChunks*nFramesAvg*offset_i
 		log("Working on offset %d" % offset)
