@@ -4,6 +4,10 @@ import glob
 import os
 import time
 import sys
+import matplotlib
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 
 def savitzky_golay(y, window_size, order, deriv=0):
@@ -128,21 +132,24 @@ for tuning in (0,1):
 for tuning in (0,1):
     sp[:,tuning,:][ np.where( ( abs(sp[:,tuning,:]) > 3.*sp[:,tuning,:].std()) )] = sp[:,tuning,:].mean()
 
+cmap = 'Greys_r'   # Grey
+#cmap = 'YlOrBr_r'
+
 #'''
-plt.imshow(sp[:,0,:].T, cmap='Greys_r', origin = 'low', aspect = 'auto')
+plt.imshow(sp[:,0,:].T, cmap=cmap, origin = 'low', aspect = 'auto')
 plt.suptitle('Spectrogram Low Tuning', fontsize = 30)
-plt.xlabel('Time (14 sec)',fontdict={'fontsize':16})
-plt.ylabel('Frequency (4.7 kHz)',fontdict={'fontsize':14})
+plt.xlabel('Time',fontdict={'fontsize':16})
+plt.ylabel('Frequency',fontdict={'fontsize':14})
 plt.colorbar().set_label('std',size=18)
 #plt.show()
-plt.savefig('Low')
+plt.savefig('waterfall-low')
 #'''
 plt.clf()
 
-plt.imshow(sp[:,1,:].T, cmap='Greys_r', origin = 'low', aspect = 'auto')
+plt.imshow(sp[:,1,:].T, cmap=cmap, origin = 'low', aspect = 'auto')
 plt.suptitle('Spectrogram High Tuning', fontsize = 30)
-plt.xlabel('Time (14 sec)',fontdict={'fontsize':16})
-plt.ylabel('Frequency (4.7 kHz)',fontdict={'fontsize':14})
+plt.xlabel('Time',fontdict={'fontsize':16})
+plt.ylabel('Frequency',fontdict={'fontsize':14})
 plt.colorbar().set_label('std',size=18)
 #plt.show()
-plt.savefig('High')
+plt.savefig('waterfall-high')

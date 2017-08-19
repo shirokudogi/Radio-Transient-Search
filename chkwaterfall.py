@@ -1,59 +1,22 @@
-#from mpi4py import MPI
-import mpi4py 
-import mpi4py.MPI as MPI
+from mpisetup import totalrank, rank, log
 import os
 import sys
 import numpy
-import getopt
 import drx
-import time
-import matplotlib.pyplot as plt
 import glob
-
-
-def Decimate_ts(ts, ndown=2):
-    """
-    Takes a N dimension array and decimates it by a factore of ndown, default = 2. with axis = 0
-    Code adapted from analysis.binarray module: 
-      http://www.astro.ucla.edu/~ianc/python/_modules/analysis.html#binarray 
-    from Ian's Python Code (http://www.astro.ucla.edu/~ianc/python/index.html)
-    
-    Optimized for time series' with length = multiple of 2.  Will handle others, though.
-
-    Required:
-    
-    ts  -  input time series
-
-    Options:
-    
-    ndown  -  Factor by which to decimate time series. Default = 2.
-              if ndown = 1, returns ts       
-    """
-
-    if ndown==1:
-       return ts
-    ncols = len(ts)
-    n_rep = ncols / ndown
-    ts_ds = numpy.array([ts[i::ndown][0:n_rep] for i in range(ndown)]).mean(0)
-    return ts_ds
-
+import errors
 
 
 def main(args):
-        totalrank = 12
-	nodes = 2
-	pps = 6
-        comm  = MPI.COMM_WORLD
-        rank  = comm.Get_rank()
-	t0 = time.time()
 	nChunks = 10000 #the temporal shape of a file.
 	LFFT = 4096 #Length of the FFT.4096 is the size of a frame readed.
 	nFramesAvg = 1*4*LFFT/4096 # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
+        filename = args[0]
 
 	fn = sorted(glob.glob('waterfall05*.npy'))
 	j = numpy.zeros((len(fn)))
 	for i in range(len(fn)):
-		j[i] = fn[i][39:48]
+		j[i] = fn[i][39:48]  # This pulls the offset number from the filename
 
 	#x = total perfect offset
 	x = numpy.arange(j[-1]/nChunks/nFramesAvg)*nChunks*nFramesAvg
@@ -68,12 +31,13 @@ def main(args):
                 #offset_i = 1.*totalrank*offset_i + rank
 		#offset = nChunks*nFramesAvg*offset_i
 		offset = k[m*totalrank + rank]
+		log("Working on offset %d" % offset)
 		# Build the DRX file
 		try:
-                        fh = open(getopt.getopt(args,':')[1][0], "rb")
-                        nFramesFile = os.path.getsize(getopt.getopt(args,':')[1][0]) / drx.FrameSize #drx.FrameSize = 4128
+                        fh = open(filename, "rb")
+                        nFramesFile = os.path.getsize(filename) / drx.FrameSize #drx.FrameSize = 4128
 		except:
-			print getopt.getopt(args,':')[1][0],' not found'
+			log('%s not found' % filename)
 			sys.exit(1)
 		try:
 			junkFrame = drx.readFrame(fh)
@@ -81,10 +45,11 @@ def main(args):
 				srate = junkFrame.getSampleRate()
 				pass
 			except ZeroDivisionError:
-				print 'zero division error'
+				log('zero division error')
 				break
 		except errors.syncError:
-			print 'assuming the srate is 19.6 MHz'
+			log('assuming the srate is 19.6 MHz')
+                        srate = 19600000.0
 			fh.seek(-drx.FrameSize+1, 1)
 		fh.seek(-drx.FrameSize, 1)
 		beam,tune,pol = junkFrame.parseID()
@@ -123,8 +88,8 @@ def main(args):
 		# Master loop over all of the file chunks
 		freq = numpy.fft.fftshift(numpy.fft.fftfreq(LFFT, d = 1.0/srate))
 		tInt = 1.0*LFFT/srate
-                print 'Temporal resl = ',tInt
-                print 'Channel width = ',1./tInt
+                log('Temporal resl = %f' % tInt)
+                log('Channel width = %f' % (1./tInt))
 		freq1 = freq+centralFreq1
 		freq2 = freq+centralFreq2
 		#print tInt,freq1.mean(),freq2.mean()
@@ -144,7 +109,7 @@ def main(args):
 			data = numpy.zeros((4,framesWork*4096/beampols), dtype=numpy.csingle)
 			# If there are fewer frames than we need to fill an FFT, skip this chunk
 			if data.shape[1] < LFFT:
-				print 'data.shape[1]< LFFT, break'
+				log('data.shape[1]< LFFT, break')
 				break
 			# Inner loop that actually reads the frames into the data array
 			for j in xrange(framesWork):
@@ -152,16 +117,20 @@ def main(args):
 				try:
 					cFrame = drx.readFrame(fh, Verbose=False)
 				except errors.eofError:
-					print "EOF Error"
+					log("EOF Error")
 					break
 				except errors.syncError:
-					print "Sync Error"
+					log("Sync Error")
 					continue
 				beam,tune,pol = cFrame.parseID()
 				if tune == 0:
 					tune += 1
 				aStand = 2*(tune-1) + pol
-				data[aStand, count[aStand]*4096:(count[aStand]+1)*4096] = cFrame.data.iq
+				try:
+					data[aStand, count[aStand]*4096:(count[aStand]+1)*4096] = cFrame.data.iq
+				except ValueError:
+					log("Value Error with cFrame.data.iq")
+					continue
 				count[aStand] +=  1
 			# Calculate the spectra for this block of data
 			masterSpectra[i,0,:] = ((numpy.fft.fftshift(numpy.abs(numpy.fft.fft2(data[:2,:]))[:,1:]))**2.).mean(0)/LFFT/2. #in unit of energy
@@ -172,7 +141,8 @@ def main(args):
 			#sys.exit()
 			#if i % 100 ==1 :
 			#	print i, ' / ', nChunks
-                outname = "%s_%i_fft_offset_%.9i_frames" % (getopt.getopt(args,':')[1][0], beam,offset)
+                outname = "%s_%i_fft_offset_%.9i_frames" % (filename, beam,offset)
+		log('Writing %s' % outname)
 		numpy.save('waterfall' + outname, masterSpectra.mean(0) )
 	#print time.time()-t0
 	#print masterSpectra.shape

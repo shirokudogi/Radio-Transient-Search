@@ -5,11 +5,11 @@ HOSTS=lwaucf1,lwaucf2,lwaucf3,lwaucf4,lwaucf5
 PROCS=5
 
 INDIR=/data/network/recent_data/jtsai
-INFILE=057974_001488585
+INFILE=057979_000049183
 CODEDIR=$HOME/Radio-Transient-Search
 
 #WORKDIR=/mnt/toaster/cleague/work1b
-WORKDIR=$HOME/g296853/work1b
+WORKDIR=$HOME/g297595
 
 export PYTHONPATH=$CODEDIR:
 
