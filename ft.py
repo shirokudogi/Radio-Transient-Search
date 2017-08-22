@@ -1,45 +1,43 @@
-#from mpi4py import MPI
-import mpi4py 
-import mpi4py.MPI as MPI
 import os
 import sys
 import numpy
 import getopt
 import drx
 import time
-import matplotlib.pyplot as plt
+from mpisetup import totalrank, rank, log
 
 def main(args):
-	nodes = 4 #total blades used
-	pps = 6   #process per blade
+        log("Hello, world.")
 
 	windownumber = 4 # The length of FFT = windownumber * 4096
 
 	#Low tuning frequency range
-	Lfcl = 1700 * windownumber
-	Lfch = 2100 * windownumber
+	Lfcl = 1000 * windownumber
+	Lfch = 1350 * windownumber
 	#High tuning frequency range
-	Hfcl =  670 * windownumber
-	Hfch = 1070 * windownumber
+	Hfcl = 1825 * windownumber
+	Hfch = 2175 * windownumber
 
-	totalrank = nodes*pps
-        comm  = MPI.COMM_WORLD
-        rank  = comm.Get_rank()
-	t0 = time.time()
 	nChunks = 3000 #the temporal shape of a file.
 	LFFT = 4096 * windownumber #Length of the FFT. 4096 is the size of a frame readed. The mini quantized window lenght is 4096
 	nFramesAvg = 1*4* windownumber # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
-	
-	#for offset_i in range(4306, 4309):# one offset = nChunks*nFramesAvg skiped
-	for offset_i in range(0, 1000 ):# one offset = nChunks*nFramesAvg*worker_rank skiped
+
+	filename = args[0]
+        nFramesFile = os.path.getsize(filename) / drx.FrameSize #drx.FrameSize = 4128
+	lastOffset = int(nFramesFile / (totalrank * nChunks * nFramesAvg))
+	log("fileSize %d" % os.path.getsize(filename))
+	log("nFramesFile %d" % nFramesFile)
+	log("lastOffset %d" % lastOffset)
+
+	for offset_i in xrange(lastOffset):# one offset = nChunks*nFramesAvg*worker_rank skiped
                 offset_i = 1.*totalrank*offset_i + rank
 		offset = nChunks*nFramesAvg*offset_i
+                log("Working on offset %d" % offset)
 		# Build the DRX file
 		try:
-                        fh = open(getopt.getopt(args,':')[1][0], "rb")
-                        nFramesFile = os.path.getsize(getopt.getopt(args,':')[1][0]) / drx.FrameSize #drx.FrameSize = 4128
+                        fh = open(filename, "rb")
 		except:
-			print getopt.getopt(args,':')[1][0],' not found'
+			log("File not fonud: %s" % filename)
 			sys.exit(1)
 		try:
 			junkFrame = drx.readFrame(fh)
@@ -47,10 +45,11 @@ def main(args):
 				srate = junkFrame.getSampleRate()
 				pass
 			except ZeroDivisionError:
-				print 'zero division error'
+				log('zero division error')
 				break
 		except errors.syncError:
-			print 'assuming the srate is 19.6 MHz'
+			log('assuming the srate is 19.6 MHz')
+                        srate = 19600000.0
 			fh.seek(-drx.FrameSize+1, 1)
 		fh.seek(-drx.FrameSize, 1)
 		beam,tune,pol = junkFrame.parseID()
@@ -110,7 +109,7 @@ def main(args):
 			data = numpy.zeros((4,framesWork*4096/beampols), dtype=numpy.csingle)
 			# If there are fewer frames than we need to fill an FFT, skip this chunk
 			if data.shape[1] < LFFT:
-				print 'data.shape[1]< LFFT, break'
+				log('data.shape[1]< LFFT, break')
 				break
 			# Inner loop that actually reads the frames into the data array
 			for j in xrange(framesWork):
@@ -118,10 +117,10 @@ def main(args):
 				try:
 					cFrame = drx.readFrame(fh, Verbose=False)
 				except errors.eofError:
-					print "EOF Error"
+					log("EOF Error")
 					break
 				except errors.syncError:
-					print "Sync Error"
+					log("Sync Error")
 					continue
 				beam,tune,pol = cFrame.parseID()
 				if tune == 0:
@@ -133,7 +132,8 @@ def main(args):
 			masterSpectra[i,0,:] = ((numpy.fft.fftshift(numpy.abs(numpy.fft.fft2(data[:2,:]))[:,1:])[:,Lfcl:Lfch])**2.).mean(0)/LFFT/2.
 			masterSpectra[i,1,:] = ((numpy.fft.fftshift(numpy.abs(numpy.fft.fft2(data[2:,:]))[:,1:])[:,Hfcl:Hfch])**2.).mean(0)/LFFT/2.
 		# Save the results to the various master arrays
-                outname = "%s_%i_fft_offset_%.9i_frames" % (getopt.getopt(args,':')[1][0], beam,offset)
+                outname = "%s_%i_fft_offset_%.9i_frames" % (filename, beam,offset)
+                log("Writing %s" % outname)
 		numpy.save(outname,masterSpectra)
 if __name__ == "__main__":
 	main(sys.argv[1:])
