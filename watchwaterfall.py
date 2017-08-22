@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import sys
 import numpy as np
 import glob
@@ -9,6 +10,10 @@ import matplotlib
 matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
+
+
+RFI_STD = float(sys.argv[1]) if len(sys.argv) > 1 else 5.0
+FILE_PREFIX = sys.argv[2]+"-" if len(sys.argv) > 2 else ""
 
 def savitzky_golay(y, window_size, order, deriv=0):
     """Smooth (and optionally differentiate) data with a Savitzky-Golay filter
@@ -124,7 +129,7 @@ for tuning in (0,1):
     sp[:,tuning,:] = (sp[:,tuning,:].T - bl[:,tuning].T).T
 
 for tuning in (0,1):
-    sp[:,tuning,:] = RFI(sp[:,tuning,:],5.*sp[:,tuning,:].std())
+    sp[:,tuning,:] = RFI(sp[:,tuning,:], RFI_STD * sp[:,tuning,:].std())
 
 for tuning in (0,1):
     sp[:,tuning,:] = snr(sp[:,tuning,:])
@@ -137,19 +142,23 @@ cmap = 'Greys_r'   # Grey
 
 #'''
 plt.imshow(sp[:,0,:].T, cmap=cmap, origin = 'low', aspect = 'auto')
-plt.suptitle('Spectrogram Low Tuning', fontsize = 30)
+plt.suptitle(u"%sWF RFI %.3fσ Low" % (FILE_PREFIX, RFI_STD), fontsize = 30)
 plt.xlabel('Time',fontdict={'fontsize':16})
 plt.ylabel('Frequency',fontdict={'fontsize':14})
 plt.colorbar().set_label('std',size=18)
 #plt.show()
-plt.savefig('waterfall-low')
+filename = '%swaterfall-%.3fsigma-low.png' % (FILE_PREFIX, RFI_STD)
+print "Writing", filename
+plt.savefig(filename)
 #'''
 plt.clf()
 
 plt.imshow(sp[:,1,:].T, cmap=cmap, origin = 'low', aspect = 'auto')
-plt.suptitle('Spectrogram High Tuning', fontsize = 30)
+plt.suptitle(u'%sWF RFI %.3fσ High' % (FILE_PREFIX, RFI_STD), fontsize = 30)
 plt.xlabel('Time',fontdict={'fontsize':16})
 plt.ylabel('Frequency',fontdict={'fontsize':14})
 plt.colorbar().set_label('std',size=18)
 #plt.show()
-plt.savefig('waterfall-high')
+filename = '%swaterfall-%.3fsigma-high.png' % (FILE_PREFIX, RFI_STD)
+print "Writing", filename
+plt.savefig(filename)

@@ -12,8 +12,10 @@ def main(args):
 	LFFT = 4096 #Length of the FFT.4096 is the size of a frame readed.
 	nFramesAvg = 1*4*LFFT/4096 # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
         filename = args[0]
+	log("Hello world")
 
 	fn = sorted(glob.glob('waterfall05*.npy'))
+	log("Looking at %d files" % len(fn))
 	j = numpy.zeros((len(fn)))
 	for i in range(len(fn)):
 		j[i] = fn[i][39:48]  # This pulls the offset number from the filename
@@ -147,6 +149,7 @@ def main(args):
 	#print time.time()-t0
 	#print masterSpectra.shape
 	#print masterSpectra.shape
+	log('OK!')
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
