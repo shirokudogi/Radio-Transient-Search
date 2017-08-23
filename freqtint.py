@@ -20,8 +20,6 @@ def main(args):
 
 	filename = args[0]
         nFramesFile = os.path.getsize(filename) / drx.FrameSize #drx.FrameSize = 4128
-	log("fileSize %d" % os.path.getsize(filename))
-	log("nFramesFile %d" % nFramesFile)
 
 	#for offset_i in range(4306, 4309):# one offset = nChunks*nFramesAvg skiped
 	for offset_i in range(0, 1):# one offset = nChunks*nFramesAvg skiped
