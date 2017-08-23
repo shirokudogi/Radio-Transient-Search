@@ -6,27 +6,31 @@ import drx
 
 def main(args):
 	windownumber = 4
-
-	#Low tuning frequency range
-	Lfcl = 2700 * windownumber
-	Lfch = 2800 * windownumber
-	#High tuning frequency range
-	Hfcl = 1500 * windownumber
-	Hfch = 1600 * windownumber
-
 	nChunks = 3000 #the temporal shape of a file.
+
+    	#Low tuning frequency range
+	Lfcl = 1000 * windownumber
+	Lfch = 1350 * windownumber
+	#High tuning frequency range
+	Hfcl = 1825 * windownumber
+	Hfch = 2175 * windownumber
+
 	LFFT = 4096 * windownumber #Length of the FFT.4096 is the size of a frame readed.
 	nFramesAvg = 1 * 4 * windownumber # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
+
+	filename = args[0]
+        nFramesFile = os.path.getsize(filename) / drx.FrameSize #drx.FrameSize = 4128
+	log("fileSize %d" % os.path.getsize(filename))
+	log("nFramesFile %d" % nFramesFile)
 
 	#for offset_i in range(4306, 4309):# one offset = nChunks*nFramesAvg skiped
 	for offset_i in range(0, 1):# one offset = nChunks*nFramesAvg skiped
 		offset = 0
 		# Build the DRX file
 		try:
-                        fh = open(getopt.getopt(args,':')[1][0], "rb")
-                        nFramesFile = os.path.getsize(getopt.getopt(args,':')[1][0]) / drx.FrameSize #drx.FrameSize = 4128
+                        fh = open(filename, "rb")
 		except:
-			print getopt.getopt(args,':')[1][0],' not found'
+			print filename,' not found'
 			sys.exit(1)
 		try:
 			junkFrame = drx.readFrame(fh)
