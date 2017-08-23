@@ -1,4 +1,3 @@
-from mpi4py import MPI
 import disper
 import sys
 import numpy as np
@@ -6,6 +5,7 @@ import glob
 import os
 import time
 import sys
+from mpisetup import totalrank, rank, log
 
 def DMs(DMstart,DMend,dDM):
     """
@@ -42,9 +42,9 @@ def delay2(freq, dm):
 
 def Threshold(ts, thresh, clip=3, niter=1):
     """
-    Wrapper to scipy threshold a given time series using Scipy's threshold function (in 
-    scipy.stats.stats).  First it calculates the mean and rms of the given time series.  It then 
-    makes the time series in terms of SNR.  If a given SNR value is less than the threshold, it is 
+    Wrapper to scipy threshold a given time series using Scipy's threshold function (in
+    scipy.stats.stats).  First it calculates the mean and rms of the given time series.  It then
+    makes the time series in terms of SNR.  If a given SNR value is less than the threshold, it is
     set to "-1".  Returns a SNR array with values less than thresh = -1, all other values = SNR.
     Also returns the mean and rms of the timeseries.
     Required:
@@ -59,8 +59,8 @@ def Threshold(ts, thresh, clip=3, niter=1):
     #  Calculate, robustly, the mean and rms of the time series.  Any values greater than 3sigma are left
     #  out of the calculation.  This keeps the mean and rms free from sturation due to large deviations.
 
-    mean = np.mean(ts) 
-    std  = np.std(ts)  
+    mean = np.mean(ts)
+    std  = np.std(ts)
     #print mean,std
 
     if niter > 0:
@@ -76,19 +76,19 @@ def Threshold(ts, thresh, clip=3, niter=1):
 
 def Decimate_ts(ts, ndown=2):
     """
-    Takes a 1-D timeseries and decimates it by a factore of ndown, default = 2.  
-    Code adapted from analysis.binarray module: 
-      http://www.astro.ucla.edu/~ianc/python/_modules/analysis.html#binarray 
+    Takes a 1-D timeseries and decimates it by a factore of ndown, default = 2.
+    Code adapted from analysis.binarray module:
+      http://www.astro.ucla.edu/~ianc/python/_modules/analysis.html#binarray
     from Ian's Python Code (http://www.astro.ucla.edu/~ianc/python/index.html)
-    
+
     Optimized for time series' with length = multiple of 2.  Will handle others, though.
     Required:
-    
+
     ts  -  input time series
     Options:
-    
+
     ndown  -  Factor by which to decimate time series. Default = 2.
-              if ndown = 1, returns ts       
+              if ndown = 1, returns ts
     """
 
     if ndown==1:
@@ -115,7 +115,7 @@ class OutputSource():
 
       formatter = "{0.pulse:07d}    {0.SNR:10.6f}     {0.DM:10.4f}     {0.time:10.6f} "+\
                  "     {0.dtau:10.6f}     {0.dnu:.4f}     {0.nu:.4f}    {0.mean:.5f}"+\
-                 "    {0.rms:0.5f}\n " 
+                 "    {0.rms:0.5f}\n "
 
       def __str__(self):
           return self.formatter.format(self)
@@ -249,8 +249,6 @@ def massagesp(spectrometer, windows_x=43,windows_y=100):
 if __name__ == '__main__':
     fcl = 360/4
     fch = 3700/4
-    comm  = MPI.COMM_WORLD
-    rank  = comm.Get_rank()
     fpp   =  264/12 #spectrogram per processer you want, limited mainly by 64GB memory per node (32GB Hokieone)
     nodes =  2 #the number of node requensted in sh
     pps   =  6 #processer per node requensted in sh
@@ -259,7 +257,7 @@ if __name__ == '__main__':
     maxpw = 600 #Maximum pulse width to search in seconds. default = 1 s.
     thresh= 5.0 #SNR cut off
 
-    fn   = sorted(glob.glob('05*.npy')) 
+    fn   = sorted(glob.glob('05*.npy'))
     tInt = np.load('tInt.npy')
 
     pol = 1  # 0 = lower tunning, 1 = higher tunning.
@@ -273,23 +271,25 @@ if __name__ == '__main__':
 
     #cobimed spectrogram and remove background
     for i in range(fpp):
-        print '1',(np.load(fn[rank*fpp+i])[:,pol,fcl:fch]).shape
-        print '2',massagesp( np.load(fn[rank*fpp+i])[:,pol,fcl:fch] ).shape
+        log('1%s'%(np.load(fn[rank*fpp+i])[:,pol,fcl:fch]).shape)
+        log('2%s'%massagesp( np.load(fn[rank*fpp+i])[:,pol,fcl:fch] ).shape)
         spectarray[i,:,:] = massagesp( np.load(fn[rank*fpp+i])[:,pol,fcl:fch], 10, 50 )
 
-    np.save('spectarray%.2i' % rank, spectarray)
+    outname = 'spectarray%.2i' % rank
+    log("Writing %s" % outname)
+    np.save(outname, spectarray)
     #sys.exit()
 
     if  pol < 4:
         if pol==0:
             freq=np.load('freq1.npy')[fcl:fch]
-        else: 
+        else:
             freq=np.load('freq2.npy')[fcl:fch]
         freq /= 10**6
         cent_freq = np.median(freq)
         BW   = freq.max()-freq.min()
         DM = DMstart
-    
+
         txtsize=np.zeros((npws,2),dtype=np.int32) #fileno = txtsize[ranki,0], pulse number = txtsize[ranki,1],ranki is the decimated order of 2
         txtsize[:,0]=1 #fileno star from 1
 
@@ -313,7 +313,7 @@ if __name__ == '__main__':
             tb=np.round((delay2(freq,DM)/tInt)).astype(np.int32)
 
             ts=np.zeros((tb.max()+numberofFiles*np.load(fn[0],mmap_mode='r').shape[0]))
-            for freqbin in range(len(freq)): 
+            for freqbin in range(len(freq)):
                 for i in range(fpp):
                     ts[tb.max()-tb[freqbin] + (rank*fpp+i)*spect.shape[0] :tb.max()-tb[freqbin] + (rank*fpp+i+1)*spect.shape[0] ] += spectarray[i,:,freqbin]
 
@@ -351,7 +351,7 @@ if __name__ == '__main__':
                     pulse.nu = cent_freq
                     pulse.mean = mean
                     pulse.rms = rms
-                    outfile.write(pulse.formatter.format(pulse)[:-1]) 
+                    outfile.write(pulse.formatter.format(pulse)[:-1])
                     if txtsize[ranki,1] >200000*txtsize[ranki,0]:
                         outfile.close()
                         txtsize[ranki,0]+=1
