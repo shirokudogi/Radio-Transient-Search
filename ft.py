@@ -10,6 +10,7 @@ def main(args):
         log("Hello, world.")
 
 	windownumber = 4 # The length of FFT = windownumber * 4096
+	nChunks = 3000 #the temporal shape of a file.
 
 	#Low tuning frequency range
 	Lfcl = 1000 * windownumber
@@ -18,7 +19,6 @@ def main(args):
 	Hfcl = 1825 * windownumber
 	Hfch = 2175 * windownumber
 
-	nChunks = 3000 #the temporal shape of a file.
 	LFFT = 4096 * windownumber #Length of the FFT. 4096 is the size of a frame readed. The mini quantized window lenght is 4096
 	nFramesAvg = 1*4* windownumber # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
 
