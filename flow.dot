@@ -1,0 +1,71 @@
+digraph {
+  waterfall        [shape=box3d, label="1. waterfall"];
+  chkwaterfall     [shape=box3d, label="2. chkwaterfall"];
+  interpolate      [shape=box  , label="3. interpolate"];
+  eyexam           [shape=box  , label="4. eyexam"];
+  waterfallcombine [shape=box  , label="5. waterfallcombine"];
+  watchwaterfall   [shape=box  , label="6. watchwaterfall"];
+  bandpasscheck    [shape=box  , label="7. bandpasscheck"];
+  ft               [shape=box3d, label="8. ft" ];
+  chkspectogram    [shape=box3d, label="9/10. chkspectogram"];
+  freqtint         [shape=box  , label="11. freqtint"];
+  dv               [shape=box3d, label="12. dv"];
+  gnuplot          [shape=box  , label="13. awk/gnuplot"];
+  cadisp           [shape=box  , label="14a. cadisp"];
+  cadiplot         [shape=box  , label="14b. cadiplot"];
+
+  raw [shape=oval, label="RAW (057982_…)"];
+  wf_frames [shape=oval, label="waterfallF_B_fft_offset_I_frames.npy 6888,468M"];
+  raw -> waterfall -> wf_frames;
+  raw -> chkwaterfall;
+  wf_frames -> chkwaterfall -> wf_frames;
+  wf_frames -> interpolate -> wf_frames;
+  wf_frames -> eyexam;
+
+  wf [shape=oval, label="waterfall.npy 431M"];
+  wf_frames -> waterfallcombine -> wf;
+
+  wf_spec_png [shape=oval, label="waterfall-Xsigma-{high,low}.png"];
+  wf -> watchwaterfall -> wf_spec_png;
+
+  bp_png [shape=oval, label="bandpass-{high,low}.png"];
+  wf -> bandpasscheck -> bp_png;
+
+  ft_frames [shape=oval, label="F_B_fft_offset_I_frames.npy 5844,380G"];
+  fclimits [shape=oval, label="Lfcl= Lfch= Hfcl= Hfch="];
+  fclimits -> ft;
+  raw -> ft -> ft_frames;
+
+  fclimits -> chkspectogram;
+  raw -> chkspectogram;
+  ft_frames -> chkspectogram -> ft_frames;
+  // ft_frames -> eyexam [label="adjust glob"];
+  // ft_frames -> interpolate [label="adjust glob"];
+  // interpolate -> ft_frames;
+
+  fti_npy [shape=oval, label="tInt.npy, freq1.npy, freq2.npy 25K"];
+  raw -> freqtint -> fti_npy;
+
+  ft_frames -> dv;
+  fti_npy -> dv;
+  spectarray [shape=oval, label="spectarrayN.npy (421M×12=5G)"];
+  ppc [shape=oval, label="ppc_SNR_pol_X_td_Y_no_N.txt 12,2M"];
+  fclimits -> dv;
+  dv -> spectarray;
+  dv -> ppc;
+
+  evtime [shape=oval, label="event_time="];
+  ppc -> gnuplot;
+  gnuplot -> evtime [style=dotted];
+
+  caspect [shape=oval, label="candiF_B_fft_offset_I_frames.npy"];
+  fclimits -> cadisp;
+  evtime -> cadisp;
+  raw -> cadisp -> caspect;
+
+  cadi_png [shape=oval, label="cadi.png"];
+  caspect -> cadiplot -> cadi_png;
+
+  bp_png -> fclimits [style=dotted];
+  wf_spec_png -> fclimits [style=dotted];
+}
