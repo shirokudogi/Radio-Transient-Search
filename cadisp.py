@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 
 def main(args):
 	t0 = time.time()
-	event_time = 6259.5
+	event_time = 176.5
 	nChunks = 4000 #the temporal shape of a file.
 	LFFT = 4096*4 #Length of the FFT.4096 is the size of a frame readed.
 	nFramesAvg = 1*4*LFFT/4096 # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
-	fcl = 1700*4
-	fch = 2100*4 #60000
+	fcl = 1000*4
+	fch = 1350*4 #60000
 	srate = 19600000
 	#for offset_i in range(4306, 4309):# one offset = nChunks*nFramesAvg skiped
 	for offset_i in range(0, 1):# one offset = nChunks*nFramesAvg skiped

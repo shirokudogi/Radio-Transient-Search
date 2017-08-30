@@ -5,7 +5,8 @@ import glob
 import os
 import time
 import sys
-from mpisetup import totalrank, rank, log
+from mpi4py import MPI
+from mpisetup import totalrank, rank, log, comm
 
 def DMs(DMstart,DMend,dDM):
     """
@@ -271,8 +272,8 @@ if __name__ == '__main__':
 
     #cobimed spectrogram and remove background
     for i in range(fpp):
-        log('1%s'%(np.load(fn[rank*fpp+i])[:,pol,fcl:fch]).shape)
-        log('2%s'%massagesp( np.load(fn[rank*fpp+i])[:,pol,fcl:fch] ).shape)
+        log('1'+str((np.load(fn[rank*fpp+i])[:,pol,fcl:fch]).shape))
+        log('2'+str(massagesp( np.load(fn[rank*fpp+i])[:,pol,fcl:fch] ).shape))
         spectarray[i,:,:] = massagesp( np.load(fn[rank*fpp+i])[:,pol,fcl:fch], 10, 50 )
 
     outname = 'spectarray%.2i' % rank
