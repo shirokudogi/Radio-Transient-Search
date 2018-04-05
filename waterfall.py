@@ -11,14 +11,14 @@ def main(args):
     LFFT = 4096 #Length of the FFT.4096 is the size of a frame readed.
     nFramesAvg = 1*4*LFFT/4096 # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
     filename = args[0]
-        nFramesFile = os.path.getsize(filename) / drx.FrameSize #drx.FrameSize = 4128
+    nFramesFile = os.path.getsize(filename) / drx.FrameSize #drx.FrameSize = 4128
     lastOffset = int(nFramesFile / (totalrank * nChunks * nFramesAvg))
     log("fileSize %d" % os.path.getsize(filename))
     log("nFramesFile %d" % nFramesFile)
     log("lastOffset %d" % lastOffset)
     #for offset in [19320000,  19520000,  19720000,  19920000]:
     for offset_i in xrange(lastOffset):# one offset = nChunks*nFramesAvg skiped
-                offset_i = 1.*totalrank*offset_i + rank
+        offset_i = 1.*totalrank*offset_i + rank
         offset = nChunks*nFramesAvg*offset_i
         log("Working on offset %d" % offset)
         # Build the DRX file
@@ -76,8 +76,8 @@ def main(args):
         # Master loop over all of the file chunks
         freq = numpy.fft.fftshift(numpy.fft.fftfreq(LFFT, d = 1.0/srate))
         tInt = 1.0*LFFT/srate
-                log('Temporal resl = %f' % tInt)
-                log('Channel width = %f' % (1./tInt))
+        log('Temporal resl = %f' % tInt)
+        log('Channel width = %f' % (1./tInt))
         freq1 = freq+centralFreq1
         freq2 = freq+centralFreq2
         #print tInt,freq1.mean(),freq2.mean()
@@ -125,7 +125,7 @@ def main(args):
             #sys.exit()
             #if i % 100 ==1 :
             #   print i, ' / ', nChunks
-                outname = "%s_%i_fft_offset_%.9i_frames" % (filename, beam,offset)
+        outname = "%s_%i_fft_offset_%.9i_frames" % (filename, beam,offset)
         log("Writing %s" % outname)
         numpy.save('waterfall' + outname, masterSpectra.mean(0) )
     #print time.time()-t0
