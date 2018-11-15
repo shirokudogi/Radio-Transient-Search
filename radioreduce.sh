@@ -84,7 +84,7 @@ radioreduce.sh
 #
 
 DATA_PATH=           # Path to the radio time-series data file.
-SPECTINTEGTIME=      # Spectral integration time in seconds.
+SPECTINTEGTIME=      # Spectral integration time in milliseconds.
 WORK_DIR=            # Working directory.
 RESULTS_DIR=         # Results directory.
 MEM_LIMIT=           # Total memory usage limit, in MB, for spectrogram tiles among all processes.
@@ -320,7 +320,7 @@ report_resumecmd
 if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
    resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
       transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-      "${COARSEFILE}.npy" "${SPECTFILE}-T0.npy" "${SPECTFILE}-T1.npy"
+      "${COARSEFILE}-T0.npy" "${COARSEFILE}-T1.npy" "waterfall*.npy"
    report_resumecmd
 fi
 
