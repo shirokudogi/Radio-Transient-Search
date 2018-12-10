@@ -15,9 +15,9 @@
 #
 # OUTPUT:
 #     
-# NOTE: The ${INSTALL_PATH} template variable is replaced by my git-export.sh script with the path to which
+# NOTE: The ${INSTALL_DIR} template variable is replaced by my git-export.sh script with the path to which
 #       the package is installed.  If you don't have my git-export.sh script, then you can just manually 
-#       replace all instances of ${INSTALL_PATH} as necessary.
+#       replace all instances of ${INSTALL_DIR} as necessary.
 
 
 # Make sure extended regular expressions are supported.
@@ -26,18 +26,13 @@ shopt -s extglob
 # Comparison strings for affirmative input from user.
 AFFIRMATIVE='^(y|yes|yup|yea|yeah|ya)$'
 
-# Set the install path for the radio transient search workflow scripts.  
-# NOTE: the string 'OPT-INSTALL_DIR' is replaced by the git-export.sh script with the path to directory 
-# in which the radio transient scripts have been installed.  However, the user is free to manually change
-# this.
-INSTALL_PATH="OPT-INSTALL_DIR"
 
 
 USAGE='
 radioreduce.sh
 
    radioreduce.sh [-t | --integrate-time <time>] [-n | --nprocs <num>] [-i | --install-dir <path>]
-   [-w | --work-dir <path>] [-r | --results-dir <path>] [-c | --super-cluster] [-h | --help] 
+   [-w | --work-dir <path>] [-r | --results-dir <path>] [-s | --super-cluster] [-h | --help] 
    [-m | --memory-limit <MB>] <data-file-path>
 
    Implements the phase of the radio transient search workflow that reduces the raw data to a
@@ -74,6 +69,9 @@ radioreduce.sh
                                     This is the size of a single spectrogram tile multiplied by the total
                                     number of processes.
 
+      -c | --config-file <name>:    Name of the common configuration file.  This file is created in the
+                                    working directory and then later moved to the results directory.
+
       -h | --help:                  Display this help message.
 '
 
@@ -82,6 +80,11 @@ radioreduce.sh
 # ==== MAIN WORKFLOW FOR RADIOREDUCE.SH ===
 #
 #
+# Set the install path for the radio transient search workflow scripts.  
+# NOTE: the string 'OPT-INSTALL_DIR' is replaced by the git-export.sh script with the path to directory 
+# in which the radio transient scripts have been installed.  However, the user is free to manually change
+# this.
+INSTALL_DIR=
 
 DATA_PATH=           # Path to the radio time-series data file.
 SPECTINTEGTIME=      # Spectral integration time in milliseconds.
@@ -92,6 +95,8 @@ LABEL=               # User label attached to output files from data reduction.
                      
 NUM_PROCS=           # Number of concurrent processes to use under MPI
 SUPERCLUSTER=        # Flag denoting whether we should initialize for being on a supercluster.
+
+COMMCONFIG_FILE=     # Name of the common configuration file.
 
 
 # Parse command-line arguments, but be sure to only accept the first value of an option or argument.
@@ -104,8 +109,8 @@ if [[ ${#} -gt 0 ]]; then
             exit 0
             ;;
          -i | --install-dir) # Specify the install directory path to the radio transient scripts.
-            if [ -z "${INSTALL_PATH}" ]; then
-               INSTALL_PATH="${2}"
+            if [ -z "${INSTALL_DIR}" ]; then
+               INSTALL_DIR="${2}"
             fi
             shift; shift
             ;;
@@ -164,6 +169,14 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         -c | --config-file) # Specify the name of the common configuration file.
+            if [ -z "${COMMCONFIG_FILE}" ]; then
+               # Just in case the user gives a full path, strip off the directory component.  We only
+               # need a name, and the file is going to be created in ${WORK_DIR}.
+               COMMCONFIG_FILE=$(basename "${2}")
+            fi
+            shift; shift
+            ;;
          -*) # Unknown option
             echo "WARNING: radioreduce.sh -> Unknown option"
             echo "     ${1}"
@@ -171,8 +184,8 @@ if [[ ${#} -gt 0 ]]; then
             shift 
             ;;
          *) # Get the data file path
-            if [ -z "${DATA_PATH}" ]
-               DATA_PATH="${2}"
+            if [ -z "${DATA_PATH}" ]; then
+               DATA_PATH="${1}"
             fi
             shift
             ;;
@@ -202,14 +215,14 @@ else
 fi
 
 # Check that specified install path exists and that all necessary components are contained.
-if [ -z "${INSTALL_PATH}" ]; then
-   INSTALL_PATH="."
+if [ -z "${INSTALL_DIR}" ]; then
+   INSTALL_DIR="OPT-INSTALL_DIR"
 fi
-if [ -d "${INSTALL_PATH}" ]; then
+if [ -d "${INSTALL_DIR}" ]; then
    package_modules=(drx.py dp.py errors.py waterfall.py waterfallcombine.py apputils.py resume.sh 
                      utils.sh)
    for module in ${package_modules[*]}; do
-      MODULE_PATH="${INSTALL_PATH}/${module}"
+      MODULE_PATH="${INSTALL_DIR}/${module}"
       if [ ! -f "${MODULE_PATH}" ]; then
          echo "ERROR: radioreduce.sh -> Missing package module"
          echo "     ${MODULE_PATH}"
@@ -218,7 +231,7 @@ if [ -d "${INSTALL_PATH}" ]; then
    done
 else
    echo "ERROR: radioreduce.sh -> Install path does not exist"
-   echo "     ${INSTALL_PATH}"
+   echo "     ${INSTALL_DIR}"
    exit 1
 fi
 
@@ -242,18 +255,23 @@ if [ ! -d "${RESULTS_DIR}" ]; then
    exit 1
 fi
 
+# Ensure that the common configuration filename is set.
+if [ -z "${COMMCONFIG_FILE}" ]; then
+   COMMCONFIG_FILE="radiotrans.ini"
+fi
+
 # Check that the memory limits are specified.
 if [ -z "${MEM_LIMIT}" ]; then
    MEM_LIMIT=16
 fi
 
 # Source the utility functions.
-source ${INSTALL_PATH}/utils.sh
+source ${INSTALL_DIR}/utils.sh
 
 # Source the resume functionality.
 RESUME_CMD_FILEPATH="${WORK_DIR}/radiotrans_cmd.resume"
 RESUME_VAR_FILEPATH="${WORK_DIR}/radiotrans_var.resume"
-source ${INSTALL_PATH}/resume.sh
+source ${INSTALL_DIR}/resume.sh
 
 # If this is on a supercluster, then load the necessary modules for the supercluster to be able to 
 # execute python scripts.
@@ -266,7 +284,7 @@ fi
 
 # = RADIO TRANSIENT SEARCH DATA REDUCTION PHASE WORKFLOW =
 #
-echo "Starting radiotrans workflow:"
+echo "radioreduce.sh: Starting radio data reduction workflow:"
 # Workflow resume labels.  These are to label each executable stage of the workflow for use with
 # resumecmd.
 #
@@ -278,38 +296,39 @@ LBL_CLEAN="Cleanup_Reduce"
 
 
 # Generate the coarse spectrogram
-COMMCONFIGFILE="${WORK_DIR}/radiotrans.ini"
-echo "    Generating waterfall samples for spectrogram from ${DATA_PATH}..."
-resumecmd -l ${LBL_WATERFALL} mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/waterfall.py \
+echo "radioreduce.sh: Generating waterfall samples for spectrogram from ${DATA_PATH}..."
+resumecmd -l ${LBL_WATERFALL} mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
    --integrate-time ${SPECTINTEGTIME} --work-dir ${WORK_DIR} \
-   --commconfig "${COMMCONFIGFILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
 report_resumecmd
 
 
-# Combine the individual waterfall sample files into singular coarse and detailed spectrogram files.
-echo "    Combining waterfall sample files into coarse and detailed spectrogram files..."
+# Combine the individual waterfall files into singular coarse spectrogram files for tuning 0 and tuning
+# 1, separately..
+echo "radioreduce.sh: Combining waterfall sample files into coarse spectrogram files..."
 # DATAFILENAME=$(basename ${DATA_PATH})
 # DATANAME="${DATAFILENAME%.*}"
-COARSEFILE="coarsewaterfall"
-SPECTFILE="combinedwaterfall"
+COARSEPREFIX="coarsespect"
+echo "radioreduce.sh: Combining tuning 0 waterfall files into coarse spectrogram..."
 resumecmd -l ${LBL_COMBINE0} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np 1 python ${INSTALL_PATH}/waterfallcombine.py \
+   mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
    --work-dir "${WORK_DIR}" \
-   --outfile "${WORK_DIR}/${COARSEFILE}-T0" \
-   --commconfig "${COMMCONFIGFILE}" "${WORK_DIR}/waterfall*T0.npy"
+   --outfile "${WORK_DIR}/${COARSEPREFIX}-T0" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T0.npy"
 report_resumecmd
 
+echo "radioreduce.sh: Combining tuning 1 waterfall files into coarse spectrogram..."
 resumecmd -l ${LBL_COMBINE1} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np 1 python ${INSTALL_PATH}/waterfallcombine.py \
+   mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
    --work-dir "${WORK_DIR}" \
-   --outfile "${WORK_DIR}/${COARSEFILE}-T1" \
-   --commconfig "${COMMCONFIGFILE}" "${WORK_DIR}/waterfall*T1.npy"
+   --outfile "${WORK_DIR}/${COARSEPREFIX}-T1" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T1.npy"
 report_resumecmd
 
 
 # Delete the waterfall files and other temporary files from the working directory.  We shouldn't need
 # them after this point.
-echo "Cleaning up waterfall and other temporary files (this may take a few minutes)..."
+echo "radioreduce.sh: Cleaning up temporary and intermediate files (this may take a few minutes)..."
 resumecmd -l ${LBL_CLEAN} -k ${RESUME_LASTCMD_SUCCESS} \
    delete_files "${WORK_DIR}/*.dtmp"
 report_resumecmd
@@ -318,9 +337,14 @@ report_resumecmd
 # Move the remaining results files to the specified results directory, if it is different from the
 # working directory.
 if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
+   echo "radioreduce.sh: Transferring key results files to directory ${RESULTS_DIR}..."
    resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
       transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-      "${COARSEFILE}-T0.npy" "${COARSEFILE}-T1.npy" "waterfall*.npy"
+      "${COARSEPREFIX}-T0.npy" "${COARSEPREFIX}-T1.npy" "waterfall*.npy" "${COMMCONFIG_FILE}"
    report_resumecmd
+else
+   echo "radioreduce.sh: Skipping results transfer => working and results directories are the same."
 fi
 
+echo "radioreduce.sh: Radio data reduction workflow complete!"
+exit 0

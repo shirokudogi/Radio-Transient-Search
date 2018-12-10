@@ -12,9 +12,13 @@ from mpi4py import MPI
 
 def procMessage(msg, root=-1):
    if root == -1 or root == MPI.COMM_WORLD.Get_rank():
-      print 'From process {rank}:'.format(rank=MPI.COMM_WORLD.Get_rank()), msg
+      print 'From process {rank}=> {msg}'.format(rank=MPI.COMM_WORLD.Get_rank(), msg=msg)
    # endif
 # end procMessage()
+
+def DEBUG_MSG(msg):
+   procMessage("DEBUG: {msg}".format(msg=msg), -1)
+# end debugMsg()
 
 def clipValue(inValue, lower, upper, valueType=None):
    # CCY - NOTE: while this works, it needs to be smarter about checking that the type specified is a

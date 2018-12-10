@@ -10,9 +10,13 @@ import time
 import matplotlib.pyplot as plt
 import ConfigParser
 import mmap
+from math import ceil
+from math import floor
 from optparse import OptionParser
 from apputils import procMessage
 from apputils import Decimate
+from apputils import forceIntValue
+from apputils import DEBUG_MSG
 
 
 
@@ -162,8 +166,8 @@ def main_radiotrans(argv):
                           action="store",
                           help="Common parameters file path.", metavar="PATH")
    cmdlnParser.add_option("-m", "--memory-limit", dest="memLimit", type=int, default=16, action="store",
-                           help="Total memory usage limit, in MB to a maximum of 64 MB, of " + 
-                                "spectrogram tiles among all processes.",
+                           help="Total memory usage limit, in MB, with minimum of 100 MB and a" + 
+                           "maximum of 64000 MB, for all processes when generating spectrogram tiles.", 
                            metavar="MB")
    (cmdlnOpts, args) = cmdlnParser.parse_args(argv)
    if len(args) == 0:
@@ -171,15 +175,8 @@ def main_radiotrans(argv):
       sys.exit(1)
    # endif
    spectIntegTime = cmdlnOpts.spectIntTime/1000.0
-   memLimit = (1024**2)*min(cmdlnOpts.memLimit, 64)
+   memLimit = forceIntValue(cmdlnOpts.memLimit, 100, 64000)*1e6
 
-   # Open the raw data file.
-   try:
-      rawDataFile = open(args[0], "rb")
-   except:
-      print args[0],' not found'
-      sys.exit(1)
-   # endtry
 
    # Obtain common parameters for the data reduction and subsequent parts of the transient search.
    rawDataFilePath = args[0]
@@ -189,6 +186,14 @@ def main_radiotrans(argv):
    rawDataNumFrames = rawDataFileSize/rawDataFrameSize
    rawDataNumFramesPerPol = rawDataNumFrames/4
    rawDataSamplesPerFrame = 4096
+
+   # Open the raw data file.
+   try:
+      rawDataFile = open(rawDataFilePath, 'rb')
+   except:
+      print rawDataFilePath,' not found'
+      sys.exit(1)
+   # endtry
    # Obtain metadata for the raw data file.
    try:
       junkFrame = drx.readFrame(rawDataFile)
@@ -207,12 +212,12 @@ def main_radiotrans(argv):
       # endtry
 
       # Obtain the tuning frequencies by reading the first 4 frames.
-      rawDataFile.seek(-rawDataFrameSize, 1)
+      rawDataFile.seek(-rawDataFrameSize, os.SEEK_CUR)
       rawDataTuningFreq0 = 0.0
       rawDataTuningFreq1 = 0.0
-      for i in xrange(nFramesBeam):
+      for i in xrange(nFramesPerBeam):
          junkFrame = drx.readFrame(rawDataFile)
-         beam,tune,pol = junkFrame.parseID()
+         (beam, tune, pol) = junkFrame.parseID()
          if pol == 0:
             if tune == 0:
                   rawDataTuningFreq0 = junkFrame.getCentralFreq()
@@ -221,58 +226,62 @@ def main_radiotrans(argv):
             # endif
          # endif
       # endfor
-      rawDataFile.seek(-nFramesPerBeam*rawDataFrameSize, 1)
-   except:
-      print 'Could not read radio data file for metadata.'
+      rawDataFile.seek(-nFramesPerBeam*rawDataFrameSize, os.SEEK_CUR)
+   except Exception as anError:
+      print 'Could not obtain metadata for radio data file.'
+      print anError
       rawDataFile.close()
       sys.exit(1)
    # endtry
 
    # Compute data reduction parameters.
-   # CCY - We need to redo the distribution of spectral lines to the various processsors.  Basically,
-   # the waterfall files should be much smaller and avoid having to make use of memory maps, as they are
-   # cumbersome and likely prone to usage error.
-   numDFTsPerSpectLine = ceil(spectIntegTime/rawDataFrameTime)
-   numSpectLines = max(1, floor(rawDataNumFramesPerPol/numDFTsPerSpectLine))
-   numSpectLinesPerProc = floor(memLimit/(nProcs*LFFT*numpy.dtype(numpy.float32).itemsize))
+   numDFTsPerSpectLine = int(ceil(spectIntegTime/rawDataFrameTime))
+   numSpectLines = int( max(1, floor(rawDataNumFramesPerPol/numDFTsPerSpectLine)) )
+   numSpectLinesPerProc = int(floor(numSpectLines/nProcs))
+   memSpectLinesPerProc = int( floor(memLimit/(nProcs*LFFT*numpy.dtype(numpy.float32).itemsize)) )
+   numSpectLinesPerProc = min(numSpectLinesPerProc, memSpectLinesPerProc)
    
-   # Output common parameters to the common parameters file.  NOTE: the common parameters filename is
-   # currently hard-coded.  This may be changed later.
-   try:
-      commConfigFile = open(cmdlnOpts.configFilepath, 'w')
-      commConfigObj = ConfigParser.ConfigParser()
-      commConfigObj.add_section('Raw Data')
-      commConfigObj.add_section('Reduced DFT Data')
-      commConfigObj.set('Raw Data', 'filepath', rawDataFilePath)
-      commConfigObj.set('Raw Data', 'filename', rawDataFilename)
-      commConfigObj.set('Raw Data', 'filesize', rawDataFileSize)
-      commConfigObj.set('Raw Data', 'framesize', rawDataFrameSize)
-      commConfigObj.set('Raw Data', 'numframes', rawDataNumFrames)
-      commConfigObj.set('Raw Data', 'numframesperpol', rawDataNumFramesPerPol)
-      commConfigObj.set('Raw Data', 'numsamplesperframe', rawDataSamplesPerFrame)
-      commConfigObj.set('Raw Data', 'samplerate', rawDataSampleRate)
-      commConfigObj.set('Raw Data', 'sampletime', rawDataSampleTime)
-      commConfigObj.set('Raw Data', 'frametime', rawDataFrameTime)
-      commConfigObj.set('Raw Data', 'tuningfreq0', rawDataTuningFreq0)
-      commConfigObj.set('Raw Data', 'tuningfreq1', rawDataTuningFreq1)
-      commConfigObj.set('Raw Data', 'beam', rawDataBeamID)
-      commConfigObj.set('Reduced DFT Data', 'DFTlength', LFFT)
-      commConfigObj.set('Reduced DFT Data', 'integrationtime', spectIntegTime)
-      commConfigObj.set('Reduced DFT Data', 'numspectrogramlines', numSpectLines)
-      commConfigObj.set('Reduced DFT Data', 'numDFTsperspectrogramline', numDFTsPerSpectLine)
-      commConfigObj.set('Reduced DFT Data', 'numspectrogramlinespertile', numSpectLinesPerProc)
-      commConfigObj.write(commConfigFile)
-      commConfigFile.close()
-   except:
-      print 'Could not open or write common parameters file.'
-      commConfigFile.close()
-      sys.exit(1)
-   # endtry
+   # Have process 0 output common parameters to the common parameters file to avoid collision issues.
+   if procRank == 0:
+      try:
+         commConfigFile = open(cmdlnOpts.configFilepath, 'w')
+         commConfigObj = ConfigParser.ConfigParser()
+         commConfigObj.add_section('Raw Data')
+         commConfigObj.add_section('Reduced DFT Data')
+         commConfigObj.set('Raw Data', 'filepath', rawDataFilePath)
+         commConfigObj.set('Raw Data', 'filename', rawDataFilename)
+         commConfigObj.set('Raw Data', 'filesize', rawDataFileSize)
+         commConfigObj.set('Raw Data', 'framesize', rawDataFrameSize)
+         commConfigObj.set('Raw Data', 'numframes', rawDataNumFrames)
+         commConfigObj.set('Raw Data', 'numframesperpol', rawDataNumFramesPerPol)
+         commConfigObj.set('Raw Data', 'numsamplesperframe', rawDataSamplesPerFrame)
+         commConfigObj.set('Raw Data', 'samplerate', rawDataSampleRate)
+         commConfigObj.set('Raw Data', 'sampletime', rawDataSampleTime)
+         commConfigObj.set('Raw Data', 'frametime', rawDataFrameTime)
+         commConfigObj.set('Raw Data', 'tuningfreq0', rawDataTuningFreq0)
+         commConfigObj.set('Raw Data', 'tuningfreq1', rawDataTuningFreq1)
+         commConfigObj.set('Raw Data', 'beam', rawDataBeamID)
+         commConfigObj.set('Reduced DFT Data', 'DFTlength', LFFT)
+         commConfigObj.set('Reduced DFT Data', 'integrationtime', spectIntegTime)
+         commConfigObj.set('Reduced DFT Data', 'numspectrogramlines', numSpectLines)
+         commConfigObj.set('Reduced DFT Data', 'numDFTsperspectrogramline', numDFTsPerSpectLine)
+         commConfigObj.set('Reduced DFT Data', 'numspectrogramlinespertile', numSpectLinesPerProc)
+         commConfigObj.set('Reduced DFT Data', 'numspectrogramlinesresiduetile', 
+                              numSpectLines - nProcs*numSpectLinesPerProc)
+         commConfigObj.write(commConfigFile)
+         commConfigFile.flush()
+         commConfigFile.close()
+      except:
+         print 'Could not open or write common parameters file.'
+         commConfigFile.close()
+         sys.exit(1)
+      # endtry
+   # endif
 
    # Each process creates spectrogram tiles that are limited in size by the memory limits specified by
    # the user.  So we need to figure out how each process will step through the raw data file for each
    # spectrogram tile that it is supposed to create.
-   fileStep = 4*frameSize*numDFTsPerSpect*numSpectPerProc
+   fileStep = 4*rawDataFrameSize*numDFTsPerSpectLine*numSpectLinesPerProc
    fileOffset = fileStep*procRank
 
    # Precompute indices for the spectrogram tile and counting the raw DFTs.
@@ -293,7 +302,7 @@ def main_radiotrans(argv):
    # Create spectrogram tiles.
    tileIndex = numSpectLinesPerProc*procRank
    while fileOffset < rawDataFileSize:
-      dataFile.seek(fileOffset)
+      dataFile.seek(fileOffset, os.SEEK_CUR)
       for i in lineIndices:
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
@@ -303,14 +312,14 @@ def main_radiotrans(argv):
                frameDFT = numpy.fft.fftshift(numpy.fft.fft2(currFrame.data.iq))
                # Determine the tuning and polarization of the computed DFT.
                (beam, tune, pol) = currFrame.parseID()
-               if tune = 0:
-                  if pol = 0:
+               if tune == 0:
+                  if pol == 0:
                      DFTX0 = frameDFT
-                  else
+                  else:
                      DFTY0 = frameDFT
                   # endif
-               else
-                  if pol = 0:
+               else:
+                  if pol == 0:
                      DFTX1 = frameDFT
                   else:
                      DFTY1 = frameDFT
@@ -354,7 +363,8 @@ def main_radiotrans(argv):
             numFramesRemain = fileRemain/rawDataFrameSize
             numDFTsRemain = numFramesRemain/4
             numSpectLinesPerProc = floor(numDFTsRemain/numDFTsPerSpectLine)
-            # Resize the spectrogram tile arrays to the new, smaller size.
+            # Resize the spectrogram tile arrays and indexing to the new, smaller size.
+            lineIndices = range(numSpectLinesPerProc)
             spectTile0.resize((numSpectLinesPerProc, LFFT))
             spectTile1.resize((numSpectLinesPerProc, LFFT))
          # endif

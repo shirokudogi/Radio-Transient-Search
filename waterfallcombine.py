@@ -62,7 +62,7 @@ def main_radiotrans(args):
 
    # Create memory mapped array for combined waterfall.
    try:
-      mmapSize = DFTLength*numSpectLines*4
+      mmapSize = DFTLength*numSpectLines*np.dtype(np.float32).itemsize
       filename = '{dir}/tempcombwaterfall.dtmp'.format(dir=cmdlnOpts.workDir)
       tempSpectFile = open(filename, "w+b") 
       tempSpectFile.write('\0'*mmapSize)
