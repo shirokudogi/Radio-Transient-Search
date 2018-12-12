@@ -206,28 +206,50 @@ def __readData(filehandle):
    return newData
 
 def readFrame(filehandle, Verbose=False):
+	"""Function to read in a single DRX frame (header+data) and store the 
+	contents as a Frame object.  This function wraps readerHeader and 
+	readData."""
+	
+	try:
+		hdr = __readHeader(filehandle, Verbose=Verbose)
+	except syncError, err:
+		# Why?  If we run into a sync error here, then the following frame is invalid.  
+		# Thus, we need to skip over this frame be advancing the file pointer 8+8+4096 B 
+		currPos = filehandle.tell()
+		frameEnd = currPos + FrameSize - 16
+		filehandle.seek(frameEnd)
+		raise err
+
+
+	dat = __readData(filehandle)
+	
+	# Create the new frame object and return
+	newFrame = Frame()
+	newFrame.header = hdr
+	newFrame.data = dat
+
+	return newFrame
+# end readFrame()
+
+
+def readFrameOpt(filehandle, Verbose=False):
    """Function to read in a single DRX frame (header+data) and store the 
    contents as a Frame object.  This function wraps readerHeader and 
-   readData."""
+   readData.  This is an optimized version of readFrame()"""
    
-   # CCY - While it is technically better to use the underlying __readHeader() and __readData functions
-   # for code reuse, this particular function is called so many times that it is necessary to
-   # significantly reduce the number of file accesses and memory allocations necessary to extract a
-   # frame.  Thus, I have combined the logic from the two underlying functions into this singular
-   # function.  The underlying functions are kept, so the rest of the code sees no difference in the
-   # API.
    try:
       # A single frame is 4128 bytes.  Read the entire frame.  We'll parse it later.
-      s = filehandle.read(4128)
+      buff = filehandle.read(4128)
    except IOError:
       raise eofError()
 
    # Extract the elements of the frame header.
-   sync4, sync3, sync2, sync1 = struct.unpack(">BBBB", s[0:4])
-   m5cID, frameCount3, frameCount2, frameCount1 = struct.unpack(">BBBB", s[4:8])
+   sync4, sync3, sync2, sync1 = struct.unpack(">BBBB", buff[0:4])
+   m5cID, frameCount3, frameCount2, frameCount1 = struct.unpack(">BBBB", buff[4:8])
    frameCount = (long(frameCount3)<<16) | (long(frameCount2)<<8) | long(frameCount1)
-   secondsCount = struct.unpack(">L", s[8:12])
-   decimation, timeOffset = struct.unpack(">HH", s[12:16])
+   secondsCount = struct.unpack(">L", buff[8:12])
+   decimation, timeOffset = struct.unpack(">HH", buff[12:16])
+   # Check synchronization.
    if sync1 != 92 or sync2 != 222 or sync3 != 192 or sync4 != 222:
       currPos = filehandle.tell()
       frameEnd = currPos + FrameSize - 16
@@ -235,44 +257,31 @@ def readFrame(filehandle, Verbose=False):
       raise syncError(sync1=sync1, sync2=sync2, sync3=sync3, sync4=sync4)
 
    # Extract the time tag and the frame flags.
-   timeTag = struct.unpack(">Q", s[16:24])
-   flags = struct.unpack(">Q", s[24:32])
+   timeTag = struct.unpack(">Q", buff[16:24])
+   flags = struct.unpack(">Q", buff[24:32])
 
-   # Extract the time-series data block.
-   #
-   # CCY - The real and imaginary parts are signed 4bit numbers, with the real part being the more 
-   # significant bits and the imaginary part being the less significant bits.  For the real part, we 
-   # mask it off using the 0xF0 bit mask, convert it to a signed byte array, and then shift the bits 
-   # downward to obtain the final value.  For the imaginary part, we mask it off using the 0x0F bit mask.
-   # Then we have to shift the bits upward to put the sign bit in the correct place.  Then we convert it 
-   # to a signed byte.  Finally, we shift the bits downward to obtain the final value, with the sign being
-   # preserved.
-   #
-   # CCY - While this is likely harder to follow than the original code, it should be faster because it
-   # avoids the search comparison and subtraction math.
-   #
-   rawData = numpy.frombuffer(s[32:4128], dtype=numpy.uint8, count=4096)
-   data = numpy.zeros(4096, dtype=numpy.complex64) # Using 64bit complex number to save memory.
-   data.real = numpy.int8(rawData & 0xF0) >> 4
-   data.imag = numpy.int8((rawData & 0x0F) << 4) >> 4
-
-   # Now, construct the new frame object.
-   #
-   newFrame = Frame()
+   # Create the singleton Frame object buffer if it does not already exist.  Since readFrameOpt() is
+   # called a lot, we want to avoid as much new object creation as possible with each successive call.
+   if not hasattr(readFrameOpt, "frameObj"):
+      readFrameOpt.frameObj = Frame()
+      readFrameOpt.frameObj.data.iq = numpy.zeros(4096, dtype=numpy.complex64)
+   # endif
    # Copy frame header information.
-   drxID = m5cID
-   newFrame.header.frameCount = frameCount
-   newFrame.header.drxID = drxID
-   newFrame.header.secondsCount = secondsCount
-   newFrame.header.decimation = decimation
-   newFrame.header.timeOffset = timeOffset
-   newFrame.header.raw = s
+   readFrameOpt.frameObj.header.frameCount = frameCount
+   readFrameOpt.frameObj.header.drxID = m5cID
+   readFrameOpt.frameObj.header.secondsCount = secondsCount
+   readFrameOpt.frameObj.header.decimation = decimation
+   readFrameOpt.frameObj.header.timeOffset = timeOffset
+   readFrameOpt.frameObj.header.raw = s
    # Copy the frame data.
-   newFrame.data.timeTag = timeTag[0]
-   newFrame.data.flags = flags
-   newFrame.data.iq = data
+   readFrameOpt.frameObj.data.timeTag = timeTag[0]
+   readFrameOpt.frameObj.data.flags = flags
+   readFrameOpt.frameObj.data.iq.real[:] = numpy.float32(numpy.int8(numpy.uint8(buff[32:4128]) & 0xF0) >> 4)
+   readFrameOpt.frameObj.data.iq.imag[:] = numpy.float32(numpy.int8((numpy.uint8(buff[32:4128]) & 0x0F) << 
+                                             4) >> 4)
 
-   return newFrame
+   return frameObj
+# end readFrameOpt()
 
 
 def readBlock(filehandle):

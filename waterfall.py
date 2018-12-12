@@ -237,9 +237,8 @@ def main_radiotrans(argv):
    # Compute data reduction parameters.
    numDFTsPerSpectLine = int(ceil(spectIntegTime/rawDataFrameTime))
    numSpectLines = int( max(1, floor(rawDataNumFramesPerPol/numDFTsPerSpectLine)) )
-   numSpectLinesPerProc = int(floor(numSpectLines/nProcs))
-   memSpectLinesPerProc = int( floor(memLimit/(nProcs*LFFT*numpy.dtype(numpy.float32).itemsize)) )
-   numSpectLinesPerProc = min(numSpectLinesPerProc, memSpectLinesPerProc)
+   memSpectLinesPerProc = int( floor(memLimit/(2*nProcs*LFFT*numpy.dtype(numpy.float32).itemsize)) )
+   numSpectLinesPerProc = min(int(floor(numSpectLines/nProcs)), memSpectLinesPerProc)
    
    # Have process 0 output common parameters to the common parameters file to avoid collision issues.
    if procRank == 0:
@@ -290,39 +289,44 @@ def main_radiotrans(argv):
 
    # Build the working arrays for the computing DFTs, integrating the DFTs into a power spectrum, and
    # composing a single spectrogram tile.
+   frameDFT = numpy.zeros(LFFT, dtype=numpy.complex_)
    DFTX0 = numpy.zeros(LFFT, dtype=numpy.complex_)
    DFTY0 = numpy.zeros(LFFT, dtype=numpy.complex_)
    DFTX1 = numpy.zeros(LFFT, dtype=numpy.complex_)
    DFTY1 = numpy.zeros(LFFT, dtype=numpy.complex_)
-   powerDFT0 = numpy.zeros(LFFT, dtype=numpy.complex_)
-   powerDFT1 = numpy.zeros(LFFT, dtype=numpy.complex_)
+   powerDFT0 = numpy.zeros(LFFT, dtype=numpy.float32)
+   powerDFT1 = numpy.zeros(LFFT, dtype=numpy.float32)
    spectTile0 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
    spectTile1 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
 
    # Create spectrogram tiles.
    tileIndex = numSpectLinesPerProc*procRank
    while fileOffset < rawDataFileSize:
-      dataFile.seek(fileOffset, os.SEEK_CUR)
+      rawDataFile.seek(fileOffset, os.SEEK_CUR)
+      procMessage("Integrating tile => spectrogram lines {start} to {end}...".format(start=tileIndex,
+                  end=tileIndex + numSpectLinesPerProc - 1), root=0)
       for i in lineIndices:
+         procMessage("Integrating line={line} of tileIndex={tile}...".format(line=i, tile=tileIndex),
+                     root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
             for k in range(4):
                # Compute the DFT of the current frame.
-               currFrame = drx.readFrame(rawDataFile) 
-               frameDFT = numpy.fft.fftshift(numpy.fft.fft2(currFrame.data.iq))
+               currFrame = drx.readFrameOpt(rawDataFile)
+               frameDFT[:] = numpy.fft.fftshift(numpy.fft.fft(currFrame.data.iq))
                # Determine the tuning and polarization of the computed DFT.
                (beam, tune, pol) = currFrame.parseID()
                if tune == 0:
                   if pol == 0:
-                     DFTX0 = frameDFT
+                     DFTX0[:] = frameDFT[:]
                   else:
-                     DFTY0 = frameDFT
+                     DFTY0[:] = frameDFT[:]
                   # endif
                else:
                   if pol == 0:
-                     DFTX1 = frameDFT
+                     DFTX1[:] = frameDFT[:]
                   else:
-                     DFTY1 = frameDFT
+                     DFTY1[:] = frameDFT[:]
                   # endif
                # endif
             # endfor
@@ -342,10 +346,12 @@ def main_radiotrans(argv):
       # endfor
 
       # Write tuning 0  spectrogram tile to numpy file.
+      procMessage("Writing tuning 0 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
       outFilename = "{dir}/waterfall-S{tile}T{tune}".format(dataname=rawDataFilename, tile=tileIndex, 
                                                             tune=0, dir=cmdlnOpts.workDir)
       numpy.save(outFilename, spectTile0)
       # Write tuning 1 spectrogram tile to numpy file.
+      procMessage("Writing tuning 1 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
       outFilename = "{dir}/waterfall-S{tile}T{tune}".format(dataname=rawDataFilename, tile=tileIndex, 
                                                             tune=1, dir=cmdlnOpts.workDir)
       numpy.save(outFilename, spectTile1)
@@ -370,6 +376,7 @@ def main_radiotrans(argv):
          # endif
       # endif
    # endwhile
+   procMessage("Done!")
 # end main_cregg()
 
 if __name__ == "__main__":

@@ -16,8 +16,8 @@ def procMessage(msg, root=-1):
    # endif
 # end procMessage()
 
-def DEBUG_MSG(msg):
-   procMessage("DEBUG: {msg}".format(msg=msg), -1)
+def DEBUG_MSG(msg, root=-1):
+   procMessage("DEBUG: {msg}".format(msg=msg), root)
 # end debugMsg()
 
 def clipValue(inValue, lower, upper, valueType=None):
