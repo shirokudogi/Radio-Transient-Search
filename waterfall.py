@@ -289,11 +289,6 @@ def main_radiotrans(argv):
 
    # Build the working arrays for the computing DFTs, integrating the DFTs into a power spectrum, and
    # composing a single spectrogram tile.
-   frameDFT = numpy.zeros(LFFT, dtype=numpy.complex_)
-   DFTX0 = numpy.zeros(LFFT, dtype=numpy.complex_)
-   DFTY0 = numpy.zeros(LFFT, dtype=numpy.complex_)
-   DFTX1 = numpy.zeros(LFFT, dtype=numpy.complex_)
-   DFTY1 = numpy.zeros(LFFT, dtype=numpy.complex_)
    powerDFT0 = numpy.zeros(LFFT, dtype=numpy.float32)
    powerDFT1 = numpy.zeros(LFFT, dtype=numpy.float32)
    spectTile0 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
@@ -313,26 +308,15 @@ def main_radiotrans(argv):
             for k in range(4):
                # Compute the DFT of the current frame.
                currFrame = drx.readFrameOpt(rawDataFile)
-               frameDFT[:] = numpy.fft.fftshift(numpy.fft.fft(currFrame.data.iq))
-               # Determine the tuning and polarization of the computed DFT.
+               frameDFT = numpy.fft.fftshift(numpy.fft.fft(currFrame.data.iq))
+               # Determine the tuning of the computed DFT and add its power to the appropriate power DFT.
                (beam, tune, pol) = currFrame.parseID()
                if tune == 0:
-                  if pol == 0:
-                     DFTX0[:] = frameDFT[:]
-                  else:
-                     DFTY0[:] = frameDFT[:]
-                  # endif
+                  powerDFT0 = powerDFT0 + frameDFT.real**2 + frameDFT.imag**2
                else:
-                  if pol == 0:
-                     DFTX1[:] = frameDFT[:]
-                  else:
-                     DFTY1[:] = frameDFT[:]
-                  # endif
+                  powerDFT1 = powerDFT1 + frameDFT.real**2 + frameDFT.imag**2
                # endif
             # endfor
-            # Integrate the Stokes parameter power DFTs for each tuning
-            powerDFT0 = powerDFT0 + (DFTX0.real**2 + DFTX0.imag**2 + DFTY0.real**2 + DFTY0.imag**2)
-            powerDFT1 = powerDFT1 + (DFTX1.real**2 + DFTX1.imag**2 + DFTY1.real**2 + DFTY1.imag**2)
          # endfor
          
          # Normalize the integrated power DFTs to units of energy and save them in the appropriate
