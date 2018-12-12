@@ -260,6 +260,9 @@ def readFrameOpt(filehandle, Verbose=False):
    timeTag = struct.unpack(">Q", buff[16:24])
    flags = struct.unpack(">Q", buff[24:32])
 
+   # Extract the frame time-series data as uint8.
+   data = numpy.frombuffer(buff, dtype=numpy.uint8, count=4096, offset=32)
+
    # Create the singleton Frame object buffer if it does not already exist.  Since readFrameOpt() is
    # called a lot, we want to avoid as much new object creation as possible with each successive call.
    if not hasattr(readFrameOpt, "frameObj"):
@@ -272,15 +275,14 @@ def readFrameOpt(filehandle, Verbose=False):
    readFrameOpt.frameObj.header.secondsCount = secondsCount
    readFrameOpt.frameObj.header.decimation = decimation
    readFrameOpt.frameObj.header.timeOffset = timeOffset
-   readFrameOpt.frameObj.header.raw = s
+   readFrameOpt.frameObj.header.raw = buff
    # Copy the frame data.
    readFrameOpt.frameObj.data.timeTag = timeTag[0]
    readFrameOpt.frameObj.data.flags = flags
-   readFrameOpt.frameObj.data.iq.real[:] = numpy.float32(numpy.int8(numpy.uint8(buff[32:4128]) & 0xF0) >> 4)
-   readFrameOpt.frameObj.data.iq.imag[:] = numpy.float32(numpy.int8((numpy.uint8(buff[32:4128]) & 0x0F) << 
-                                             4) >> 4)
+   readFrameOpt.frameObj.data.iq.real[:] = numpy.float32(numpy.int8(data & 0xF0) >> 4)
+   readFrameOpt.frameObj.data.iq.imag[:] = numpy.float32(numpy.int8((data & 0x0F) << 4) >> 4)
 
-   return frameObj
+   return readFrameOpt.frameObj
 # end readFrameOpt()
 
 
