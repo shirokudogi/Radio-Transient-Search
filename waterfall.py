@@ -306,8 +306,8 @@ def main_radiotrans(argv):
       procMessage("Integrating tile => spectrogram lines {start} to {end}...".format(start=tileIndex,
                   end=tileIndex + numSpectLinesPerProc - 1), root=0)
       for i in lineIndices:
-         procMessage("Integrating line={line} of tileIndex={tile}...".format(line=i, tile=tileIndex),
-                     root=0)
+         procMessage("Integrating line={line} of {total} in tileIndex={tile}...".format(line=i, 
+                     tile=tileIndex, total=numSpectLinesPerProc), root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
             for k in range(4):
