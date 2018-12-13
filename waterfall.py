@@ -319,10 +319,10 @@ def main_radiotrans(argv):
             # endfor
          # endfor
          
-         # Normalize the integrated power DFTs to units of energy and save them in the appropriate
-         # spectrogram tile.
-         spectTile0[i,:] = powerDFT0[:]/(4*LFFT)
-         spectTile1[i,:] = powerDFT1[:]/(4*LFFT)
+         # Normalize to units of energy and time average the integrated power DFTs and save them 
+         # in the appropriate spectrogram tile.
+         spectTile0[i,:] = powerDFT0[:]/(4*LFFT*numDFTsPerSpectLine)
+         spectTile1[i,:] = powerDFT1[:]/(4*LFFT*numDFTsPerSpectLine)
 
          # Reset for the next integrated power DFTs.
          powerDFT0.fill(0)
@@ -352,7 +352,7 @@ def main_radiotrans(argv):
          if fileRemain < fileStep:
             numFramesRemain = fileRemain/rawDataFrameSize
             numDFTsRemain = numFramesRemain/4
-            numSpectLinesPerProc = floor(numDFTsRemain/numDFTsPerSpectLine)
+            numSpectLinesPerProc = int(floor(numDFTsRemain/numDFTsPerSpectLine))
             # Resize the spectrogram tile arrays and indexing to the new, smaller size.
             lineIndices = range(numSpectLinesPerProc)
             spectTile0.resize((numSpectLinesPerProc, LFFT))

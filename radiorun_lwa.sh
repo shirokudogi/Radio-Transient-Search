@@ -5,7 +5,7 @@ DATA_DIR="/data/network/recent_data/jtsai"   # Directory path containing radio d
 DATA_FILENAME="057974_001488582"             # Radio data filename.
 DATA_PATH="${DATA_DIR}/${DATA_FILENAME}"     # Full path to the radio data file.
 
-INTEGTIME=9.405            # Spectral integration time in milliseconds.
+INTEGTIME=6.89633          # Spectral integration time in milliseconds.
 NUM_PROCS=$(nproc --all)   # Number of processes to use in the MPI environment.
 MEM_LIMIT=32768            # Memory limit, in MBs, for creating waterfall tiles in memory.
 
