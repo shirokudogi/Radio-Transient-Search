@@ -348,11 +348,11 @@ def main_radiotrans(argv):
       if fileOffset < rawDataFileSize:
          # Compute how much remains of the raw data file and determine whether there is enough to create
          # a full spectrogram tile or whether we need to create a smaller tile.
-         fileRemain = fileOffset + 1 - rawDataFileSize
-         if fileRemain < fileStep:
-            numFramesRemain = fileRemain/rawDataFrameSize
-            numDFTsRemain = numFramesRemain/4
-            numSpectLinesPerProc = int(floor(numDFTsRemain/numDFTsPerSpectLine))
+         fileRemain = rawDataFileSize - fileOffset - 1
+         if fileRemain > 0 and fileRemain < fileStep:
+            numFramesRemain = int( floor(fileRemain/rawDataFrameSize) )
+            numDFTsRemain = int( floor(numFramesRemain/4) )
+            numSpectLinesPerProc = int( floor(numDFTsRemain/numDFTsPerSpectLine) )
             # Resize the spectrogram tile arrays and indexing to the new, smaller size.
             lineIndices = range(numSpectLinesPerProc)
             spectTile0.resize((numSpectLinesPerProc, LFFT))
