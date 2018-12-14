@@ -79,6 +79,11 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         -S | --small-node) # Lower the memory limit for the smaller nodes (ones having 32 GB total RAM)
+                            # LWA.
+            MEM_LIMIT=16384
+            shift
+            ;;
          *) # Ignore anything else.
             shift
             ;;
