@@ -2,8 +2,8 @@ import os
 import sys
 import glob
 import numpy as np
-from optparse import OptParser
-import ConfigParser
+from optparse import OptionParser
+from ConfigParser import ConfigParser
 import mmap
 from apputils import Decimate
 
@@ -21,7 +21,7 @@ def main_orig(args):
 
 def main_radiotrans(args):
    # Setup commandline options
-   cmdlnParser = OptParser()
+   cmdlnParser = OptionParser()
    cmdlnParser.add_option("-o","--outfile", dest="outFilepath", type="string",
                            default="./coarsespectrogram.npy", action="store",
                            help="Path of the output coarse spectrogram file",
@@ -49,7 +49,7 @@ def main_radiotrans(args):
    # Read common parameters file
    try:
       configFile = open(cmdlnOpts.configFilepath,"r")
-      commConfigObj = ConfigParser.ConfigParser()
+      commConfigObj = ConfigParser()
       commConfigObj.readfp(configFile, cmdlnOpts.commconfigpath)
       numSpectLines = commConfigObj.get('Reduced DFT Data', 'numspectrogramlines')
       DFTLength = commConfigObj.get('Reduced DFT Data', 'DFTlength')

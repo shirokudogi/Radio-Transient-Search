@@ -243,46 +243,50 @@ def readFrameOpt(filehandle, Verbose=False):
    except IOError:
       raise eofError()
 
-   # Extract the elements of the frame header.
-   sync4, sync3, sync2, sync1 = struct.unpack(">BBBB", buff[0:4])
-   m5cID, frameCount3, frameCount2, frameCount1 = struct.unpack(">BBBB", buff[4:8])
-   frameCount = (long(frameCount3)<<16) | (long(frameCount2)<<8) | long(frameCount1)
-   secondsCount = struct.unpack(">L", buff[8:12])
-   decimation, timeOffset = struct.unpack(">HH", buff[12:16])
-   # Check synchronization.
-   if sync1 != 92 or sync2 != 222 or sync3 != 192 or sync4 != 222:
-      currPos = filehandle.tell()
-      frameEnd = currPos + FrameSize - 16
-      filehandle.seek(frameEnd)
-      raise syncError(sync1=sync1, sync2=sync2, sync3=sync3, sync4=sync4)
+   if len(buff) > 0:
+      # Extract the elements of the frame header.
+      sync4, sync3, sync2, sync1 = struct.unpack(">BBBB", buff[0:4])
+      m5cID, frameCount3, frameCount2, frameCount1 = struct.unpack(">BBBB", buff[4:8])
+      frameCount = (long(frameCount3)<<16) | (long(frameCount2)<<8) | long(frameCount1)
+      secondsCount = struct.unpack(">L", buff[8:12])
+      decimation, timeOffset = struct.unpack(">HH", buff[12:16])
+      # Check synchronization.
+      if sync1 != 92 or sync2 != 222 or sync3 != 192 or sync4 != 222:
+         currPos = filehandle.tell()
+         frameEnd = currPos + FrameSize - 16
+         filehandle.seek(frameEnd)
+         raise syncError(sync1=sync1, sync2=sync2, sync3=sync3, sync4=sync4)
 
-   # Extract the time tag and the frame flags.
-   timeTag = struct.unpack(">Q", buff[16:24])
-   flags = struct.unpack(">Q", buff[24:32])
+      # Extract the time tag and the frame flags.
+      timeTag = struct.unpack(">Q", buff[16:24])
+      flags = struct.unpack(">Q", buff[24:32])
 
-   # Extract the frame time-series data as uint8.
-   data = numpy.frombuffer(buff, dtype=numpy.uint8, count=4096, offset=32)
+      # Extract the frame time-series data as uint8.
+      data = numpy.frombuffer(buff, dtype=numpy.uint8, count=4096, offset=32)
 
-   # Create the singleton Frame object buffer if it does not already exist.  Since readFrameOpt() is
-   # called a lot, we want to avoid as much new object creation as possible with each successive call.
-   if not hasattr(readFrameOpt, "frameObj"):
-      readFrameOpt.frameObj = Frame()
-      readFrameOpt.frameObj.data.iq = numpy.zeros(4096, dtype=numpy.complex64)
+      # Create the singleton Frame object buffer if it does not already exist.  Since readFrameOpt() is
+      # called a lot, we want to avoid as much new object creation as possible with each successive call.
+      if not hasattr(readFrameOpt, "frameObj"):
+         readFrameOpt.frameObj = Frame()
+         readFrameOpt.frameObj.data.iq = numpy.zeros(4096, dtype=numpy.complex64)
+      # endif
+      # Copy frame header information.
+      readFrameOpt.frameObj.header.frameCount = frameCount
+      readFrameOpt.frameObj.header.drxID = m5cID
+      readFrameOpt.frameObj.header.secondsCount = secondsCount
+      readFrameOpt.frameObj.header.decimation = decimation
+      readFrameOpt.frameObj.header.timeOffset = timeOffset
+      readFrameOpt.frameObj.header.raw = buff
+      # Copy the frame data.
+      readFrameOpt.frameObj.data.timeTag = timeTag[0]
+      readFrameOpt.frameObj.data.flags = flags
+      readFrameOpt.frameObj.data.iq.real[:] = numpy.float32(numpy.int8(data & 0xF0) >> 4)
+      readFrameOpt.frameObj.data.iq.imag[:] = numpy.float32(numpy.int8((data & 0x0F) << 4) >> 4)
+
+      return readFrameOpt.frameObj
+   else:
+      return None
    # endif
-   # Copy frame header information.
-   readFrameOpt.frameObj.header.frameCount = frameCount
-   readFrameOpt.frameObj.header.drxID = m5cID
-   readFrameOpt.frameObj.header.secondsCount = secondsCount
-   readFrameOpt.frameObj.header.decimation = decimation
-   readFrameOpt.frameObj.header.timeOffset = timeOffset
-   readFrameOpt.frameObj.header.raw = buff
-   # Copy the frame data.
-   readFrameOpt.frameObj.data.timeTag = timeTag[0]
-   readFrameOpt.frameObj.data.flags = flags
-   readFrameOpt.frameObj.data.iq.real[:] = numpy.float32(numpy.int8(data & 0xF0) >> 4)
-   readFrameOpt.frameObj.data.iq.imag[:] = numpy.float32(numpy.int8((data & 0x0F) << 4) >> 4)
-
-   return readFrameOpt.frameObj
 # end readFrameOpt()
 
 

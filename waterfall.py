@@ -8,7 +8,7 @@ import getopt
 import drx
 import time
 import matplotlib.pyplot as plt
-import ConfigParser
+from ConfigParser import ConfigParser
 import mmap
 from math import ceil
 from math import floor
@@ -150,9 +150,6 @@ def main_radiotrans(argv):
    nProcs = MPIComm.Get_size()
    procRank = MPIComm.Get_rank()
 
-   LFFT = 4096 # Length of the FFT. 4096 is the size of a frame read.
-   nFramesPerBeam = 4   # Number of data frames per beam in the raw data file.
-
    # Initialize command-line parser and then parse the command-line
    usage = " Usage: %prog [options] <radio filepath>"
    cmdlnParser = OptionParser(usage=usage)
@@ -179,13 +176,15 @@ def main_radiotrans(argv):
 
 
    # Obtain common parameters for the data reduction and subsequent parts of the transient search.
+   rawDataFramesPerBeam = 4   # Number of data frames per beam in the raw data file.
    rawDataFilePath = args[0]
    rawDataFilename = os.path.basename(os.path.splitext(rawDataFilePath)[0])
    rawDataFileSize = os.path.getsize(rawDataFilePath)
    rawDataFrameSize = drx.FrameSize
-   rawDataNumFrames = rawDataFileSize/rawDataFrameSize
-   rawDataNumFramesPerPol = rawDataNumFrames/4
+   rawDataNumFrames = int(rawDataFileSize/rawDataFrameSize)
+   rawDataNumFramesPerPol = int(rawDataNumFrames/rawDataFramesPerBeam)
    rawDataSamplesPerFrame = 4096
+   LFFT = rawDataSamplesPerFrame # Length of the FFT.
 
    # Open the raw data file.
    try:
@@ -215,7 +214,7 @@ def main_radiotrans(argv):
       rawDataFile.seek(-rawDataFrameSize, os.SEEK_CUR)
       rawDataTuningFreq0 = 0.0
       rawDataTuningFreq1 = 0.0
-      for i in xrange(nFramesPerBeam):
+      for i in xrange(rawDataFramesPerBeam):
          junkFrame = drx.readFrame(rawDataFile)
          (beam, tune, pol) = junkFrame.parseID()
          if pol == 0:
@@ -226,7 +225,7 @@ def main_radiotrans(argv):
             # endif
          # endif
       # endfor
-      rawDataFile.seek(-nFramesPerBeam*rawDataFrameSize, os.SEEK_CUR)
+      rawDataFile.seek(-rawDataFramesPerBeam*rawDataFrameSize, os.SEEK_CUR)
    except Exception as anError:
       print 'Could not obtain metadata for radio data file.'
       print anError
@@ -235,16 +234,16 @@ def main_radiotrans(argv):
    # endtry
 
    # Compute data reduction parameters.
-   numDFTsPerSpectLine = int(ceil(spectIntegTime/rawDataFrameTime))
-   numSpectLines = int( max(1, floor(rawDataNumFramesPerPol/numDFTsPerSpectLine)) )
-   memSpectLinesPerProc = int( floor(memLimit/(2*nProcs*LFFT*numpy.dtype(numpy.float32).itemsize)) )
-   numSpectLinesPerProc = min(int(floor(numSpectLines/nProcs)), memSpectLinesPerProc)
+   numDFTsPerSpectLine = max(1, int(spectIntegTime/rawDataFrameTime))
+   numSpectLines = max(1, int( rawDataNumFramesPerPol/numDFTsPerSpectLine ))
+   memSpectLinesPerProc = int( memLimit/(2*nProcs*LFFT*numpy.dtype(numpy.float32).itemsize) )
+   numSpectLinesPerProc = min(int(numSpectLines/nProcs), memSpectLinesPerProc)
    
    # Have process 0 output common parameters to the common parameters file to avoid collision issues.
    if procRank == 0:
       try:
          commConfigFile = open(cmdlnOpts.configFilepath, 'w')
-         commConfigObj = ConfigParser.ConfigParser()
+         commConfigObj = ConfigParser()
          commConfigObj.add_section('Raw Data')
          commConfigObj.add_section('Reduced DFT Data')
          commConfigObj.set('Raw Data', 'filepath', rawDataFilePath)
@@ -252,6 +251,7 @@ def main_radiotrans(argv):
          commConfigObj.set('Raw Data', 'filesize', rawDataFileSize)
          commConfigObj.set('Raw Data', 'framesize', rawDataFrameSize)
          commConfigObj.set('Raw Data', 'numframes', rawDataNumFrames)
+         commConfigObj.set('Raw Data', 'numframesperbeam', rawDataFramesPerBeam)
          commConfigObj.set('Raw Data', 'numframesperpol', rawDataNumFramesPerPol)
          commConfigObj.set('Raw Data', 'numsamplesperframe', rawDataSamplesPerFrame)
          commConfigObj.set('Raw Data', 'samplerate', rawDataSampleRate)
@@ -305,18 +305,24 @@ def main_radiotrans(argv):
                      tile=tileIndex, total=numSpectLinesPerProc), root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
-            for k in range(4):
+            k = 0
+            while k < rawDataFramesPerBeam:
                # Compute the DFT of the current frame.
                currFrame = drx.readFrameOpt(rawDataFile)
-               frameDFT = numpy.fft.fftshift(numpy.fft.fft(currFrame.data.iq))
-               # Determine the tuning of the computed DFT and add its power to the appropriate power DFT.
-               (beam, tune, pol) = currFrame.parseID()
-               if tune == 0:
-                  powerDFT0 = powerDFT0 + frameDFT.real**2 + frameDFT.imag**2
+               if currFrame is not None:
+                  frameDFT = numpy.fft.fftshift(numpy.fft.fft(currFrame.data.iq))
+                  # Determine the tuning of the computed DFT and add its power to the appropriate power DFT.
+                  (beam, tune, pol) = currFrame.parseID()
+                  if tune == 0:
+                     powerDFT0 = powerDFT0 + frameDFT.real**2 + frameDFT.imag**2
+                  else:
+                     powerDFT1 = powerDFT1 + frameDFT.real**2 + frameDFT.imag**2
+                  # endif
+                  k += 1
                else:
-                  powerDFT1 = powerDFT1 + frameDFT.real**2 + frameDFT.imag**2
+                  k = rawDataFramesPerBeam
                # endif
-            # endfor
+            # endwhile
          # endfor
          
          # Normalize to units of energy and time average the integrated power DFTs and save them 
