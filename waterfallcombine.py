@@ -68,7 +68,7 @@ def main_radiotrans(args):
       #tempSpectFile = open(tempFilepath, "w+b") 
       print 'waterfallcombine.py: Creating memmap array of size {size} bytes...'.format(size=mmapSize)
       combWaterfall = np.memmap(filename=tempFilepath, shape=(numSpectLines, DFTLength), 
-                                 dtype=np.float32, mode='w')
+                                 dtype=np.float32, mode='w+')
    except Exception as anError:
       print 'Could not create memmap array for combined waterfall: ', tempFilepath
       print anError
