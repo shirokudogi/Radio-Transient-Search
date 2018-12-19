@@ -95,7 +95,7 @@ def main_radiotrans(args):
 
    # Save the final combined coarse waterfall.
    print 'waterfallcombine.py: Decimating memmap to final combined coarse spectrogram...'
-   np.save(cmdlnOpt.coarseFilepath, Decimate(combWaterfall, int(combWaterfall.shape[0]/10000) ) )
+   np.save(cmdlnOpts.coarseFilepath, Decimate(combWaterfall, int(combWaterfall.shape[0]/10000) ) )
 # end main_radiotrans()
 
 if __name__ == "__main__":
