@@ -109,7 +109,7 @@ fi
 CMD="${INSTALL_DIR}/radioreduce.sh"
 CMD_OPTS=( --install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
       --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
-      --work-dir "${WORK_DIR}" --config-file "${WORK_DIR}/${COMMCONFIG_FILE}" \
+      --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
       --results-dir "${RESULTS_DIR}")
 
 # Run the radiotrans.sh script.

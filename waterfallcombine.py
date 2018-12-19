@@ -30,16 +30,16 @@ def main_radiotrans(args):
                            default="./config.ini", action="store",
                            help="Path to the common parameters file.",
                            metavar="PATH")
-   cmdlnParser.add_options("-w", "--work-dir", dest="workDir", type="string",
+   cmdlnParser.add_option("-w", "--work-dir", dest="workDir", type="string",
                            default=".", action="store",
                            help="Path to the working directory.",
                            metavar="PATH")
-   cmdlnParser.add_options("-c", "--commconfig", dest="configFilepath", type="string",
+   cmdlnParser.add_option("-c", "--commconfig", dest="configFilepath", type="string",
                            default="./radiotrans.ini", action="store",
                            help="Path to the common parameters file.",
                            metavar="PATH")
    # Parse command line
-   (cmdlnOpts, tileFilepaths) = cmdlnParser.parse_args(argv)
+   (cmdlnOpts, tileFilepaths) = cmdlnParser.parse_args(args)
    if len(tileFilepaths) == 0:
       print "Must provide paths to waterfall files to be combined."
       sys.exit(1)
@@ -50,12 +50,13 @@ def main_radiotrans(args):
    try:
       configFile = open(cmdlnOpts.configFilepath,"r")
       commConfigObj = ConfigParser()
-      commConfigObj.readfp(configFile, cmdlnOpts.commconfigpath)
-      numSpectLines = commConfigObj.get('Reduced DFT Data', 'numspectrogramlines')
-      DFTLength = commConfigObj.get('Reduced DFT Data', 'DFTlength')
+      commConfigObj.readfp(configFile, cmdlnOpts.configFilepath)
+      numSpectLines = commConfigObj.getint('Reduced DFT Data', 'numspectrogramlines')
+      DFTLength = commConfigObj.getint('Reduced DFT Data', 'DFTlength')
       configFile.close()
-   except:
-      print 'Could not read common parameters configuration file: ', cmdlnOpts.commConfigpath
+   except Exception as anError:
+      print 'Could not read common parameters configuration file: ', cmdlnOpts.configFilepath
+      print anError
       configFile.close()
       sys.exit(1)
    # endtry
@@ -63,34 +64,37 @@ def main_radiotrans(args):
    # Create memory mapped array for combined waterfall.
    try:
       mmapSize = DFTLength*numSpectLines*np.dtype(np.float32).itemsize
-      filename = '{dir}/tempcombwaterfall.dtmp'.format(dir=cmdlnOpts.workDir)
-      tempSpectFile = open(filename, "w+b") 
-      tempSpectFile.write('\0'*mmapSize)
-      tempSpectFile.flush()
-      mmapBuff = mmap.mmap(tempSpectFile.fileno(), mmapSize)
-   except:
-      print 'Could not create tempory memory mapped file for combined waterfall.'
+      tempFilepath = '{dir}/tempcombwaterfall.dtmp'.format(dir=cmdlnOpts.workDir)
+      #tempSpectFile = open(tempFilepath, "w+b") 
+      print 'waterfallcombine.py: Creating memmap array of size {size} bytes...'.format(size=mmapSize)
+      combWaterfall = np.memmap(filename=tempFilepath, shape=(numSpectLines, DFTLength), 
+                                 dtype=np.float32, mode='w')
+   except Exception as anError:
+      print 'Could not create memmap array for combined waterfall: ', tempFilepath
+      print anError
       sys.exit(1)
    # endtry
-   combWaterfall = np.ndarray(shape=(numSpectLines, DFTLength), dtype=np.float32, buffer=mmapBuff)
 
    # Load each waterfall file and add it to the final combined waterfall.
    beginIndex = 0
-   for fileIndex in range(len(tileFilepaths)):
+   for filepath in tileFilepaths:
       try:
-         waterfallTile = np.load(tileFilepaths[fileIndex])
+         print 'waterfallcombine.py: Loading {path} into memmap array...'.format(path=filepath)
+         waterfallTile = np.load(filepath)
       except:
-         print 'Could not load waterfall file: ', tileFilepaths[fileIndex]
+         print 'Could not load waterfall file {path}.'.format(path=filepath)
          sys.exit(1)
       # endtry
 
       numLines = len(waterfallTile)
-      endIndex = fileIndex + numLines
-      combWaterfall[beginIndex:endIndex, : ] = spectTile[:,:]
+      endIndex = beginIndex + numLines
+      combWaterfall[beginIndex:endIndex, : ] = waterfallTile[:,:]
       beginIndex += numLines
    # endfor
-   #
+   combWaterfall.flush()
+
    # Save the final combined coarse waterfall.
+   print 'waterfallcombine.py: Decimating memmap to final combined coarse spectrogram...'
    np.save(cmdlnOpt.coarseFilepath, Decimate(combWaterfall, int(combWaterfall.shape[0]/10000) ) )
 # end main_radiotrans()
 
