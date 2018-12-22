@@ -92,11 +92,13 @@ WORK_DIR=            # Working directory.
 RESULTS_DIR=         # Results directory.
 MEM_LIMIT=           # Total memory usage limit, in MB, for spectrogram tiles among all processes.
 LABEL=               # User label attached to output files from data reduction.
+ENABLE_HANN=         # Commandline option string to enable Hann windowing in the data reduction.
                      
 NUM_PROCS=           # Number of concurrent processes to use under MPI
 SUPERCLUSTER=        # Flag denoting whether we should initialize for being on a supercluster.
 
 COMMCONFIG_FILE=     # Name of the common configuration file.
+
 
 
 # Parse command-line arguments, but be sure to only accept the first value of an option or argument.
@@ -176,6 +178,10 @@ if [[ ${#} -gt 0 ]]; then
                COMMCONFIG_FILE=$(basename "${2}")
             fi
             shift; shift
+            ;;
+         --enable-hann) # Enable Hann windowing on the raw DFTs during reduction.
+            ENABLE_HANN="--enable-hann"
+            shift
             ;;
          -*) # Unknown option
             echo "WARNING: radioreduce.sh -> Unknown option"
@@ -291,14 +297,17 @@ echo "radioreduce.sh: Starting radio data reduction workflow:"
 LBL_WATERFALL="Waterfall"
 LBL_COMBINE0="WaterfallCombine_Tune0"
 LBL_COMBINE1="WaterfallCombine_Tune1"
-LBL_RESULTS="Results_Reduce"
+LBL_COARSEIMG0="WaterfallCoarseImg_Tune0"
+LBL_COARSEIMG1="WaterfallCoarseImg_Tune1"
+LBL_RESULTS="Results_Transfer"
 LBL_CLEAN="Cleanup_Reduce"
 
 
-# Generate the coarse spectrogram
-echo "radioreduce.sh: Generating waterfall samples for spectrogram from ${DATA_PATH}..."
+# Generate the waterfall tiles for the reduced-data spectrogram
+echo "radioreduce.sh: Generating waterfall tiles for spectrogram from ${DATA_PATH}..."
 resumecmd -l ${LBL_WATERFALL} mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
-   --integrate-time ${SPECTINTEGTIME} --work-dir ${WORK_DIR} \
+   --integrate-time ${SPECTINTEGTIME} --work-dir "${WORK_DIR}" \
+   ${ENABLE_HANN} --label "${LABEL}" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
 report_resumecmd
 
@@ -306,23 +315,32 @@ report_resumecmd
 # Combine the individual waterfall files into singular coarse spectrogram files for tuning 0 and tuning
 # 1, separately..
 echo "radioreduce.sh: Combining waterfall sample files into coarse spectrogram files..."
-# DATAFILENAME=$(basename ${DATA_PATH})
-# DATANAME="${DATAFILENAME%.*}"
 COARSEPREFIX="coarsespect"
+if [ -n "${LABEL}" ]; then
+   COARSEPREFIx="${COARSEPREFIX}_${LABEL}"
+fi
 echo "radioreduce.sh: Combining tuning 0 waterfall files into coarse spectrogram..."
 resumecmd -l ${LBL_COMBINE0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
-   --work-dir "${WORK_DIR}" \
-   --outfile "${WORK_DIR}/${COARSEPREFIX}-T0" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${COARSEPREFIX}-T0" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T0.npy"
+report_resumecmd
+echo "radioreduce.sh: Generating coarse spectrogram image for tuning 0..."
+resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   --work-dir "${WORK_DIR}" --outfilename "${COARSEPREFIX}-T0.png" "${WORK_DIR}/${COARSEPREFIX}-T0.npy"
 report_resumecmd
 
 echo "radioreduce.sh: Combining tuning 1 waterfall files into coarse spectrogram..."
 resumecmd -l ${LBL_COMBINE1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
-   --work-dir "${WORK_DIR}" \
-   --outfile "${WORK_DIR}/${COARSEPREFIX}-T1" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${COARSEPREFIX}-T1" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T1.npy"
+report_resumecmd
+echo "radioreduce.sh: Generating coarse spectrogram image for tuning 1..."
+resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   --work-dir "${WORK_DIR}" --outfilename "${COARSEPREFIX}-T1.png" "${WORK_DIR}/${COARSEPREFIX}-T1.npy"
 report_resumecmd
 
 
@@ -340,7 +358,7 @@ if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
    echo "radioreduce.sh: Transferring key results files to directory ${RESULTS_DIR}..."
    resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
       transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-      "${COARSEPREFIX}-T0.npy" "${COARSEPREFIX}-T1.npy" "waterfall*.npy" "${COMMCONFIG_FILE}"
+      "${COARSEPREFIX}-T0.*" "${COARSEPREFIX}-T1.*" "waterfall*.npy" "${COMMCONFIG_FILE}"
    report_resumecmd
 else
    echo "radioreduce.sh: Skipping results transfer => working and results directories are the same."

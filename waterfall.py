@@ -17,6 +17,7 @@ from apputils import procMessage
 from apputils import Decimate
 from apputils import forceIntValue
 from apputils import DEBUG_MSG
+from apputils import createWaterfallFilepaths
 
 
 
@@ -166,6 +167,12 @@ def main_radiotrans(argv):
                            help="Total memory usage limit, in MB, with minimum of 100 MB and a" + 
                            "maximum of 64000 MB, for all processes when generating spectrogram tiles.", 
                            metavar="MB")
+   cmdlnParser.add_option("-l", "--label", dest="label", type=string, default=None, action="store",
+                           help="Label attached to output files to help identify them to the user.",
+                           metavar="LABEL")
+   cmdlnParser.add_option("-h", "--enable-hann", dest="enableHann", action="store_true",
+                           default=False, 
+                           help="Apply Hann window to raw data DFTs to reduce harmonic leakage.")
    (cmdlnOpts, args) = cmdlnParser.parse_args(argv)
    if len(args) == 0:
       print "Must supply a path to the radio data file."
@@ -246,6 +253,7 @@ def main_radiotrans(argv):
          commConfigObj = ConfigParser()
          commConfigObj.add_section('Raw Data')
          commConfigObj.add_section('Reduced DFT Data')
+         commConfigObj.add_section('Run')
          commConfigObj.set('Raw Data', 'filepath', rawDataFilePath)
          commConfigObj.set('Raw Data', 'filename', rawDataFilename)
          commConfigObj.set('Raw Data', 'filesize', rawDataFileSize)
@@ -267,6 +275,8 @@ def main_radiotrans(argv):
          commConfigObj.set('Reduced DFT Data', 'numspectrogramlinespertile', numSpectLinesPerProc)
          commConfigObj.set('Reduced DFT Data', 'numspectrogramlinesresiduetile', 
                               numSpectLines - nProcs*numSpectLinesPerProc)
+         commConfigObj.set('Reduced DFT Data', 'enablehannwindowing', cmdlnOpts.enableHann)
+         commConfigObj.set('Run', 'label', cmdlnOpts.label)
          commConfigObj.write(commConfigFile)
          commConfigFile.flush()
          commConfigFile.close()
@@ -294,6 +304,13 @@ def main_radiotrans(argv):
    spectTile0 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
    spectTile1 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
 
+   hannDFT = None
+   # Compute the DFT of the Hann window, if enabled.
+   # CCY - Will not surprise me if I need to add parameters to adjust the Hann windowing.
+   if cmdlnOpts.enableHann:
+      hannDFT = numpy.ones(LFFT, dtype=numpy.float32)
+   # endif
+
    # Create spectrogram tiles.
    tileIndex = numSpectLinesPerProc*procRank
    while fileOffset < rawDataFileSize:
@@ -311,6 +328,10 @@ def main_radiotrans(argv):
                currFrame = drx.readFrameOpt(rawDataFile)
                if currFrame is not None:
                   frameDFT = numpy.fft.fftshift(numpy.fft.fft(currFrame.data.iq))
+                  # Apply Hann window, if specified.
+                  if cmdlnOpts.enableHann:
+                     frameDFT = frameDFT * hannDFT
+                  # endif
                   # Determine the tuning of the computed DFT and add its power to the appropriate power DFT.
                   (beam, tune, pol) = currFrame.parseID()
                   if tune == 0:
@@ -337,14 +358,18 @@ def main_radiotrans(argv):
 
       # Write tuning 0  spectrogram tile to numpy file.
       procMessage("Writing tuning 0 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
+      if cmdlnOpts.label is not None:
       outFilename = "{dir}/waterfall-S{tile}T{tune}".format(dataname=rawDataFilename, tile=tileIndex, 
                                                             tune=0, dir=cmdlnOpts.workDir)
-      numpy.save(outFilename, spectTile0)
+      else:
+      outFilepath = createWaterfallFilepath(tile=tileIndex, tuning=0, beam=rawDataBeamID,
+                                            label=cmdlnOpts.label, workDir=cmdlnOpts.workDir)
+      numpy.save(outFilepath, spectTile0)
       # Write tuning 1 spectrogram tile to numpy file.
       procMessage("Writing tuning 1 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
-      outFilename = "{dir}/waterfall-S{tile}T{tune}".format(dataname=rawDataFilename, tile=tileIndex, 
-                                                            tune=1, dir=cmdlnOpts.workDir)
-      numpy.save(outFilename, spectTile1)
+      outFilepath = createWaterfallFilepath(tile=tileIndex, tuning=1, beam=rawDataBeamID,
+                                            label=cmdlnOpts.label, workDir=cmdlnOpts.workDir)
+      numpy.save(outFilepath, spectTile1)
 
 
       # Compute the fileOffset in the raw data from which we will create the next spectrogram tile for

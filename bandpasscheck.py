@@ -18,7 +18,7 @@ cmdlnParser.add_option('-u', '--upper-cutoff',dest='upperCutoff', default=4095, 
                         action='store',
                         help='Upper FFT index (between 0 and 4095) for the bandpass.',
                         metavar='INDEX')
-cmdlnParser.add_option('-o', '--outfile', dest='outFilename', default='bandpass.png', type='string',
+cmdlnParser.add_option('-o', '--outfilename', dest='outFilename', default='bandpass.png', type='string',
                         action='store',
                         help='Filename of the output PNG file.', metavar='NAME')
 cmdlnParser.add_option("-w", "--work-dir", dest="workDir", default=".",
@@ -52,5 +52,5 @@ plt.plot(spectrogram[:,lowerCutoff:(upperCutoff + 1)].mean(0))
 plt.suptitle('Bandpass', fontsize = 30)
 plt.ylabel('Mean Power',fontdict={'fontsize':16})
 plt.xlabel('Frequency',fontdict={'fontsize':14})
-plt.savefig('{dir}/{name}'.format(dir=cmdlnOpts.workDir, name=cmdlnOpts.outFilepath))
+plt.savefig('{dir}/{name}'.format(dir=cmdlnOpts.workDir, name=cmdlnOpts.outFilename))
 plt.clf()

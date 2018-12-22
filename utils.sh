@@ -31,7 +31,7 @@ function transfer_files()
    local DEST_DIR="."
    local FILES=
 
-   if [ ${#} -gt 0]; then
+   if [ ${#} -gt 0 ]; then
       while [ -n "${1}" ]
       do
          case "${1}" in

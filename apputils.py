@@ -66,3 +66,38 @@ def Decimate(arry, ndown=2):
    else:
       return arry
 # end Decimate()
+
+def DecimateNPY(arry, ndown=2):
+   """
+   Takes an 1 dimesional array and decimates it by a factor of ndown.  This is a specialized adaption of
+   the original Decimate() function algorithm but optimized by assuming a 1 dimensional array and using
+   the Numpy API.
+   """
+   if ndown > 1:
+      n_rep = int( len(arry)/ndown )
+      if len(arry.shape) > 1:
+         shape = (n_rep, ndown) + arry.shape[1:]
+      else:
+         shape = (n_rep, ndown)
+      # endif
+      temp = numpy.ndarray(buffer=arry, dtype=arry.dtype, shape=shape)
+      return temp.mean(1)
+   else:
+      return arry
+   # endif
+# end DecimateNPY()
+
+def createWaterfallFilepath(tile=0, tuning=0, beam=0, label=None, workDir=None):
+   fileLabel = ""
+   fileDir = "."
+   if label is not None:
+      fileLabel = "_{label}".format(label=label)
+   # endif
+   if workDir is not None:
+      fileDir = workDir
+   # endif
+
+   return "{dir}/waterfall{label}-S{tile}-B{beam}T{tune}.npy".format(dir=fileDir, label=fileLabel,
+                                                                     tile=tile, beam=beam,
+                                                                     tune=tuning)
+# end createWaterfallFilepath()

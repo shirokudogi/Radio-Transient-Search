@@ -5,7 +5,7 @@ import numpy as np
 from optparse import OptionParser
 from ConfigParser import ConfigParser
 import mmap
-from apputils import Decimate
+from apputils import DecimateNPY
 
 
 
@@ -26,9 +26,9 @@ def main_radiotrans(args):
                            default="./coarsespectrogram.npy", action="store",
                            help="Path of the output coarse spectrogram file",
                            metavar="PATH")
-   cmdlnParser.add_option("-i","--commconfig-file", dest="commConfigpath", type="string",
-                           default="./config.ini", action="store",
-                           help="Path to the common parameters file.",
+   cmdlnParser.add_option("-i","--image-file", dest="imageFilepath", type="string",
+                           default="./coarsespectrogram.png", action="store",
+                           help="Path to the coarse spectrogram image file.",
                            metavar="PATH")
    cmdlnParser.add_option("-w", "--work-dir", dest="workDir", type="string",
                            default=".", action="store",
@@ -95,7 +95,7 @@ def main_radiotrans(args):
 
    # Save the final combined coarse waterfall.
    print 'waterfallcombine.py: Decimating memmap to final combined coarse spectrogram...'
-   np.save(cmdlnOpts.coarseFilepath, Decimate(combWaterfall, int(combWaterfall.shape[0]/10000) ) )
+   np.save(cmdlnOpts.outFilepath, DecimateNPY(combWaterfall, int(combWaterfall.shape[0]/10000) ) )
 # end main_radiotrans()
 
 if __name__ == "__main__":
