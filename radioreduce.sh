@@ -327,7 +327,9 @@ resumecmd -l ${LBL_COMBINE0} -k ${RESUME_LASTCMD_SUCCESS} \
 report_resumecmd
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 0..."
 resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
+   --lower-FFT-index 0 --upper-FFT-tuning 4095 --label "Lower Tuning" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfilename "${COARSEPREFIX}-T0.png" "${WORK_DIR}/${COARSEPREFIX}-T0.npy"
 report_resumecmd
 
@@ -339,7 +341,9 @@ resumecmd -l ${LBL_COMBINE1} -k ${RESUME_LASTCMD_SUCCESS} \
 report_resumecmd
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 1..."
 resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
+   --lower-FFT-index 0 --upper-FFT-tuning 4095 --label "Higher Tuning" --high-tuning \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfilename "${COARSEPREFIX}-T1.png" "${WORK_DIR}/${COARSEPREFIX}-T1.npy"
 report_resumecmd
 
