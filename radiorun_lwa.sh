@@ -84,6 +84,10 @@ if [[ ${#} -gt 0 ]]; then
             MEM_LIMIT=16384
             shift
             ;;
+         --enable-hann) # Enable Hann windowing on the time-series data.
+            ENABLE_HANN="--enable-hann"
+            shift
+            ;;
          *) # Ignore anything else.
             shift
             ;;
@@ -108,7 +112,7 @@ fi
 # Build the command-line to run radiotrans.sh
 CMD="${INSTALL_DIR}/radioreduce.sh"
 CMD_OPTS=( --install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
-      --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
+      --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
       --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
       --results-dir "${RESULTS_DIR}")
 

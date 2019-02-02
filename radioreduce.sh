@@ -271,6 +271,11 @@ if [ -z "${MEM_LIMIT}" ]; then
    MEM_LIMIT=16
 fi
 
+# If a label was specified, create the label option.
+if [ -n "${LABEL}" ]; then
+   LABEL_OPT="--label ${LABEL}"
+fi
+
 # Source the utility functions.
 source ${INSTALL_DIR}/utils.sh
 
@@ -307,7 +312,7 @@ LBL_CLEAN="Cleanup_Reduce"
 echo "radioreduce.sh: Generating waterfall tiles for spectrogram from ${DATA_PATH}..."
 resumecmd -l ${LBL_WATERFALL} mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
    --integrate-time ${SPECTINTEGTIME} --work-dir "${WORK_DIR}" \
-   ${ENABLE_HANN} --label "${LABEL}" \
+   ${ENABLE_HANN} ${LABEL_OPT} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
 report_resumecmd
 
@@ -328,7 +333,7 @@ report_resumecmd
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 0..."
 resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
-   --lower-FFT-index 0 --upper-FFT-tuning 4095 --label "Lower Tuning" \
+   --lower-FFT-index 0 --upper-FFT-index 4095 --label "Lower_Tuning" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfilename "${COARSEPREFIX}-T0.png" "${WORK_DIR}/${COARSEPREFIX}-T0.npy"
 report_resumecmd
@@ -342,7 +347,7 @@ report_resumecmd
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 1..."
 resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
-   --lower-FFT-index 0 --upper-FFT-tuning 4095 --label "Higher Tuning" --high-tuning \
+   --lower-FFT-index 0 --upper-FFT-index 4095 --label "Higher_Tuning" --high-tuning \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfilename "${COARSEPREFIX}-T1.png" "${WORK_DIR}/${COARSEPREFIX}-T1.npy"
 report_resumecmd
@@ -355,6 +360,8 @@ resumecmd -l ${LBL_CLEAN} -k ${RESUME_LASTCMD_SUCCESS} \
    delete_files "${WORK_DIR}/*.dtmp"
 report_resumecmd
 
+# Force fail resumecmd() for debugging purposes.
+forcehalt_resumecmd
 
 # Move the remaining results files to the specified results directory, if it is different from the
 # working directory.

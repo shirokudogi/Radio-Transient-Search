@@ -17,7 +17,7 @@ from apputils import procMessage
 from apputils import Decimate
 from apputils import forceIntValue
 from apputils import DEBUG_MSG
-from apputils import createWaterfallFilepaths
+from apputils import createWaterfallFilepath
 
 
 
@@ -167,10 +167,10 @@ def main_radiotrans(argv):
                            help="Total memory usage limit, in MB, with minimum of 100 MB and a" + 
                            "maximum of 64000 MB, for all processes when generating spectrogram tiles.", 
                            metavar="MB")
-   cmdlnParser.add_option("-l", "--label", dest="label", type=string, default=None, action="store",
+   cmdlnParser.add_option("-l", "--label", dest="label", type="string", default=None, action="store",
                            help="Label attached to output files to help identify them to the user.",
                            metavar="LABEL")
-   cmdlnParser.add_option("-h", "--enable-hann", dest="enableHann", action="store_true",
+   cmdlnParser.add_option("-e", "--enable-hann", dest="enableHann", action="store_true",
                            default=False, 
                            help="Apply Hann window to raw data DFTs to reduce harmonic leakage.")
    (cmdlnOpts, args) = cmdlnParser.parse_args(argv)
@@ -304,11 +304,11 @@ def main_radiotrans(argv):
    spectTile0 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
    spectTile1 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
 
-   hannDFT = None
    # Compute the DFT of the Hann window, if enabled.
-   # CCY - Will not surprise me if I need to add parameters to adjust the Hann windowing.
+   hannWindow = None
    if cmdlnOpts.enableHann:
-      hannDFT = numpy.ones(LFFT, dtype=numpy.float32)
+      hannWindow = 2*numpy.pi*numpy.arange(LFFT, dtype=numpy.float32)/(LFFT - 1)
+      hannWindow[:] = 0.5*(1 - numpy.cos(hannWindow[:]))
    # endif
 
    # Create spectrogram tiles.
@@ -327,11 +327,12 @@ def main_radiotrans(argv):
                # Compute the DFT of the current frame.
                currFrame = drx.readFrameOpt(rawDataFile)
                if currFrame is not None:
-                  frameDFT = numpy.fft.fftshift(numpy.fft.fft(currFrame.data.iq))
-                  # Apply Hann window, if specified.
                   if cmdlnOpts.enableHann:
-                     frameDFT = frameDFT * hannDFT
+                     timeData = currFrame.data.iq*hannWindow
+                  else:
+                     timeData = currFrame.data.iq
                   # endif
+                  frameDFT = numpy.fft.fftshift(numpy.fft.fft(timeData))
                   # Determine the tuning of the computed DFT and add its power to the appropriate power DFT.
                   (beam, tune, pol) = currFrame.parseID()
                   if tune == 0:
@@ -359,11 +360,12 @@ def main_radiotrans(argv):
       # Write tuning 0  spectrogram tile to numpy file.
       procMessage("Writing tuning 0 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
       if cmdlnOpts.label is not None:
-      outFilename = "{dir}/waterfall-S{tile}T{tune}".format(dataname=rawDataFilename, tile=tileIndex, 
-                                                            tune=0, dir=cmdlnOpts.workDir)
+         outFilename = "{dir}/waterfall-S{tile}T{tune}".format(dataname=rawDataFilename, tile=tileIndex, 
+                                                               tune=0, dir=cmdlnOpts.workDir)
       else:
-      outFilepath = createWaterfallFilepath(tile=tileIndex, tuning=0, beam=rawDataBeamID,
-                                            label=cmdlnOpts.label, workDir=cmdlnOpts.workDir)
+         outFilepath = createWaterfallFilepath(tile=tileIndex, tuning=0, beam=rawDataBeamID,
+                                               label=cmdlnOpts.label, workDir=cmdlnOpts.workDir)
+      # endif
       numpy.save(outFilepath, spectTile0)
       # Write tuning 1 spectrogram tile to numpy file.
       procMessage("Writing tuning 1 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))

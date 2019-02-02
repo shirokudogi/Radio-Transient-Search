@@ -5,7 +5,7 @@
 #
 import os
 import sys
-import numpy
+import numpy as np
 from mpi4py import MPI
 
 
@@ -62,7 +62,7 @@ def Decimate(arry, ndown=2):
 
    if ndown > 1:
       n_rep = int(len(arry) / ndown)
-      return numpy.array([arry[i::ndown][0:n_rep] for i in range(ndown)]).mean(0)
+      return np.array([arry[i::ndown][0:n_rep] for i in range(ndown)]).mean(0)
    else:
       return arry
 # end Decimate()
@@ -80,7 +80,7 @@ def DecimateNPY(arry, ndown=2):
       else:
          shape = (n_rep, ndown)
       # endif
-      temp = numpy.ndarray(buffer=arry, dtype=arry.dtype, shape=shape)
+      temp = np.ndarray(buffer=arry, dtype=arry.dtype, shape=shape)
       return temp.mean(1)
    else:
       return arry
@@ -101,6 +101,43 @@ def createWaterfallFilepath(tile=0, tuning=0, beam=0, label=None, workDir=None):
                                                                      tile=tile, beam=beam,
                                                                      tune=tuning)
 # end createWaterfallFilepath()
+
+def parseWaterfallFilepath(filepath=None):
+   if filepath == None:
+      return (None, None, None)
+   # endif
+ 
+   filename = os.path.basename(filepath)
+   fields = filename.split('-')
+   # Extract the tile index.
+   index = int(fields[1][1:])
+   # Extract the beam and tuning numbers.
+   beamTunePart = fields[2].split('.')[0].split('T')
+   beam = int(beamTunePart[0][1:])
+   tune = int(beamTunePart[1])
+
+   return (beam, tune, index)
+# end parserWaterfallFilepath()
+
+# Sort waterfall filepaths according the tile index in the file path.
+def sortWaterfallFilepaths(filepaths=None):
+   if filepaths == None:
+      return None
+   # endif
+
+   filemapping = dict()
+   indices = np.zeros(len(filepaths))
+   i = 0
+   for filepath in filepaths:
+      (beam, tune, index) = parseWaterfallFilepath(filepath)
+      indices[i] = index
+      filemapping[index] = filepath
+      i = i + 1
+   # endfor
+   indices.sort()
+
+   return [filemapping[i] for i in indices]
+# end sortWaterfallFilepaths()
 
 def savitzky_golay(y, window_size, order, deriv=0):
    """Smooth (and optionally differentiate) data with a Savitzky-Golay filter

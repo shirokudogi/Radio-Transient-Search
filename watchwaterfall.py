@@ -2,6 +2,8 @@ import sys
 import numpy as np
 import os
 import time
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from optparse import OptionParser
 from apputils import forceIntValue, savitzky_golay, RFI, snr
@@ -31,7 +33,7 @@ def main(args):
                            default="./radiotrans.ini", action="store",
                            help="Path to the common parameters file.",
                            metavar="PATH")
-   cmdlnParser.add_option('-1', '--tuning-1', dest='fTuning1', default=False, action='store_true',
+   cmdlnParser.add_option('-t', '--high-tuning', dest='fHighTuning', default=False, action='store_true',
                            help='Flag denoting whether this is tuning 1 (enabled) or tuning 0.')
 
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
@@ -42,36 +44,37 @@ def main(args):
    waterfall = np.load(cmdlnArgs[0])
    lowerIndex = forceIntValue(cmdlnOpts.lowerIndex, 0, 4095)
    upperIndex = forceIntValue(cmdlnOpts.upperIndex, 0, 4095)
-   if no upperIndex > lowerIndex:
+   if not upperIndex > lowerIndex:
       print 'Error (watchwaterfall.py): Upper FFT index must be greater than lower FFT index'
       sys.exit(1)
    # endif
 
-   bandpass = np.median(waterfall, 0).reshape((10,1))
-   baseline = np.median(waterfall, 1).reshape((10,1))
+   bandpass = np.median(waterfall, 0).reshape((waterfall.shape[1],))
+   baseline = np.median(waterfall, 1).reshape((waterfall.shape[0],))
    # CCY - NOTE: I don't know the reason for the particular choice in the parameters sent to
    # sativzky_golay.  I'm merely transcribing those parameters over.
-   if cmdlnParser.fTuning1:
-      bandpass[:] = savitzky_golay(bandpass, 111, 2)
+   if cmdlnOpts.fHighTuning:
+      bandpass = savitzky_golay(bandpass, 111, 2)
    else:
-      bandpass[:] = savitzky_golay(bandpass, 151, 2)
+      bandpass = savitzky_golay(bandpass, 151, 2)
    # endif
-   baseline[:] = savitzky_golay(baseline, 151, 2)
+   baseline = savitzky_golay(baseline, 151, 2)
 
    waterfall = waterfall - bandpass
    waterfall = (waterfall.T - baseline).T
    waterfall = RFI(waterfall, 5.0*waterfall.std())
    waterfall = snr(waterfall)
    noiseFloorSNR = waterfall.mean()
-   mask = abs(waterfall) > 3.0*waterfall.std()
+   mask = abs(waterfall) > 5.0*waterfall.std()
    waterfall[mask] = noiseFloorSNR
 
    plt.imshow(waterfall.T, cmap='Greys_r', origin = 'low', aspect = 'auto')
-   plt.suptitle('Spectrogram {label}'.format(label=cmdlnParser.label), fontsize = 30)
+   plt.suptitle('Spectrogram {label}'.format(label=cmdlnOpts.label), fontsize = 30)
    plt.xlabel('Time (14 sec)',fontdict={'fontsize':16})
    plt.ylabel('Frequency (4.7 kHz)',fontdict={'fontsize':14})
    plt.colorbar().set_label('SNR',size=18)
-   plt.savefig('{dir}/{name}'.format(dir=cmdlnParser.workDir, name=cmdlnParser.outFilename))
+   plt.savefig('{dir}/{name}'.format(dir=cmdlnOpts.workDir, name=cmdlnOpts.outFilename))
+   plt.clf()
 # end main()
 
 if __name__ == "__main__":
