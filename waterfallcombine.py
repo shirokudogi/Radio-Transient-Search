@@ -5,7 +5,7 @@ import numpy as np
 from optparse import OptionParser
 from ConfigParser import ConfigParser
 import mmap
-from apputils import DecimateNPY
+from apputils import DecimateNPY, sortWaterfallFilepaths
 
 
 
@@ -44,7 +44,7 @@ def main_radiotrans(args):
       print "Must provide paths to waterfall files to be combined."
       sys.exit(1)
    # endif
-   tileFilepaths.sort()
+   tileFilepaths = sortWaterfallFilepaths(tileFilepaths)
 
    # Read common parameters file
    try:
@@ -95,7 +95,7 @@ def main_radiotrans(args):
 
    # Save the final combined coarse waterfall.
    print 'waterfallcombine.py: Decimating memmap to final combined coarse spectrogram...'
-   np.save(cmdlnOpts.outFilepath, DecimateNPY(combWaterfall, int(combWaterfall.shape[0]/10000) ) )
+   np.save(cmdlnOpts.outFilepath, DecimateNPY(combWaterfall, int(combWaterfall.shape[0]/30000) ) )
 # end main_radiotrans()
 
 if __name__ == "__main__":

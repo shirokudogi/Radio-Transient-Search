@@ -84,56 +84,6 @@ function __getResumeStatus ()
    fi
    return 0
 }
-# end function __getResumeStatus()
-
-
-# Output the resume variable value associated with the variable label ${RESUME_LABEL}.  This should only 
-# be used by resumevar
-function __getResumeValue ()
-{
-   local RESUME_LABEL="${1}"
-   local RESUME_FILEPATH="${2}"
-
-   local LABEL=
-   local VARVAUE=
-   local DUMMY=
-
-   if [ -n "${RESUME_FILEPATH}" ]; then
-      if [ -f "${RESUME_FILEPATH}" ]; then
-         # Validate the resume label.
-         if [[ -z "${RESUME_LABEL}" ]] || [[ "${RESUME_LABEL}" =~ *([[:blank:]]|[[:space:]]) ]]; then
-            echo "__getResumeValue: Invalid resume label" >&2
-            return 2
-         fi
-
-         # Look for the resume line with the specified label and get the associated variable name and
-         # its value, if found.
-         while read -r LABEL DUMMY VARVALUE
-         do
-            if [[ "${LABEL}  -" == "${RESUME_LABEL}" ]]; then
-               break;
-            fi
-         done < "${RESUME_FILEPATH}"
-
-         if [[ "${LABEL}  -" == "${RESUME_LABEL}" ]]; then
-            echo "${VARVALUE[*]}"
-            return 0
-         else
-            echo
-            return 1
-         fi
-
-      else
-         echo "__getResumeValue: Cannot find resume file ${RESUME_FILEPATH}" >&2
-         return 2
-      fi
-   else
-      echo "__getResumeValue: No resume file path specified" >&2
-      return 2
-   fi
-}
-# end function __getResumeValue()
-
 
 # function resumecmd ()
 #
@@ -346,24 +296,68 @@ function resumecmd ()
       FLAG_ABORTSIG=0
    fi
 }
-# end function resumecmd()
 
 
-# Report the success or fail status of the last invocation of resumecmd().
-function report_resumecmd()
+# Force halt of execution of all following evocations of resumecmd()
+function forcehalt_resumecmd()
 {
-   if [ -n "${RESUME_LASTCMD_SUCCESS}" ]; then
-      if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
-         echo "resumecmd: task SUCCESS"
+   RESUME_LASTCMD_SUCCESS=0
+   echo "forcehalt_resumecmd: Forcing halt of execution of resumecmd()"
+}
+
+# Force resumption of execution of the following evocation of resumecmd(), even if the prior evocation
+# failed.
+function forcecontinue_resumecmd()
+{
+   RESUME_LASTCMD_SUCCESS=1
+   echo "forcecontinue_resumecmd: Forcing continuation of execution of resumecmd()"
+}
+
+# Output the resume variable value associated with the variable label ${RESUME_LABEL}.  This should only 
+# be used by resumevar
+function __getResumeValue ()
+{
+   local RESUME_LABEL="${1}"
+   local RESUME_FILEPATH="${2}"
+
+   local LABEL=
+   local VARVAUE=
+   local DUMMY=
+
+   if [ -n "${RESUME_FILEPATH}" ]; then
+      if [ -f "${RESUME_FILEPATH}" ]; then
+         # Validate the resume label.
+         if [[ -z "${RESUME_LABEL}" ]] || [[ "${RESUME_LABEL}" =~ *([[:blank:]]|[[:space:]]) ]]; then
+            echo "__getResumeValue: Invalid resume label" >&2
+            return 2
+         fi
+
+         # Look for the resume line with the specified label and get the associated variable name and
+         # its value, if found.
+         while read -r LABEL DUMMY VARVALUE
+         do
+            if [[ "${LABEL}  -" == "${RESUME_LABEL}" ]]; then
+               break;
+            fi
+         done < "${RESUME_FILEPATH}"
+
+         if [[ "${LABEL}  -" == "${RESUME_LABEL}" ]]; then
+            echo "${VARVALUE[*]}"
+            return 0
+         else
+            echo
+            return 1
+         fi
+
       else
-         echo "resumecmd: task FAIL"
+         echo "__getResumeValue: Cannot find resume file ${RESUME_FILEPATH}" >&2
+         return 2
       fi
    else
-      echo "resumecmd: task status UNKNOWN"
+      echo "__getResumeValue: No resume file path specified" >&2
+      return 2
    fi
 }
-# end function report_resumecmd()
-
 
 # function resumevar ()
 #
@@ -463,8 +457,21 @@ function resumevar ()
 
    return 0
 }
-# end function resumevar()
 
+
+
+function report_resumecmd()
+{
+   if [ -n "${RESUME_LASTCMD_SUCCESS}" ]; then
+      if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
+         echo "resumecmd: task SUCCESS"
+      else
+         echo "resumecmd: task FAIL"
+      fi
+   else
+      echo "resumecmd: task status UNKNOWN"
+   fi
+}
 
 # === END SCRIPT RESUMING CAPABILITY ==
 
