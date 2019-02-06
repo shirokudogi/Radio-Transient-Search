@@ -10,10 +10,11 @@ def main(args):
     nChunks = 10000 #the temporal shape of a file.
     LFFT = 4096 #Length of the FFT.4096 is the size of a frame readed.
     nFramesAvg = 1*4*LFFT/4096 # the intergration time under LFFT, 4 = beampols = 2X + 2Y (high and low tunes)
-    filename = args[0]
-    nFramesFile = os.path.getsize(filename) / drx.FrameSize #drx.FrameSize = 4128
+    filepath = args[0]
+    filename = os.path.basename(filepath)
+    nFramesFile = os.path.getsize(filepath) / drx.FrameSize #drx.FrameSize = 4128
     lastOffset = int(nFramesFile / (totalrank * nChunks * nFramesAvg))
-    log("fileSize %d" % os.path.getsize(filename))
+    log("fileSize %d" % os.path.getsize(filepath))
     log("nFramesFile %d" % nFramesFile)
     log("lastOffset %d" % lastOffset)
     #for offset in [19320000,  19520000,  19720000,  19920000]:
@@ -23,9 +24,9 @@ def main(args):
         log("Working on offset %d" % offset)
         # Build the DRX file
         try:
-                        fh = open(filename, "rb")
+                        fh = open(filepath, "rb")
         except:
-            log("File not found: %s" % filename)
+            log("File not found: %s" % filepath)
             sys.exit(1)
         try:
             junkFrame = drx.readFrame(fh)

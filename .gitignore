@@ -1,3 +1,6 @@
-*.pyc
+*~
 *.swp
+*.swo
+*.pyc
 /flow.png
+change.log
