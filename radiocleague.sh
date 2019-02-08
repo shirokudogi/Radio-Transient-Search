@@ -18,9 +18,9 @@ DATA_FILE="057974_001488582"
 DATA_PATH="${DATA_DIR}/${DATA_FILE}"
 
 # Ensure that the working directory exists.
-if [ -d "${WORK_DIR}" ]; then
+if [ ! -d "${WORK_DIR}" ]; then
    mkdir "${WORK_DIR}"
-   if [ -d "${WORK_DIR}" ]; then
+   if [ ! -d "${WORK_DIR}" ]; then
       echo "radiocleague.sh: ERROR => could not find or create working directory ${WORK_DIR}"
       exit 1
    fi
