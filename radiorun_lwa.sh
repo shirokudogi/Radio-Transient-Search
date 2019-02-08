@@ -36,6 +36,7 @@ if [[ ${#} -gt 0 ]]; then
             DEFAULT_DEBUG=1
             #DECIMATION=30000
             DECIMATION=4000
+            RFI_STD=5.0
             SKIPMOVE_OPT="--skip-transfer"
             shift
             ;;
@@ -70,17 +71,19 @@ if [[ ${#} -gt 0 ]]; then
                if [ -z "${WORK_DIR}" -a -d "${2}" ]; then
                   WORK_DIR="${2}"
                else
-                  echo "Cannot find install directory ${2}"
+                  echo "radiorun_lwa.sh: Cannot find install directory ${2}"
                fi
             fi
             shift; shift
             ;;
          -F | --data-file) # Set the radio data file to the specified path.
             if [ ${DEFAULT_DEBUG} -eq 0 ]; then
-               if [ -z "${DATA_PATH}" -a -f "${2}" ]; then
-                  DATA_PATH="${2}"
-               else
-                  echo "Cannont find radio data file ${2}"
+               if [ -z "${DATA_PATH}" ]; then
+                  if [ -f "${2}" ]; then
+                     DATA_PATH="${2}"
+                  else
+                     echo "radiorun_lwa.sh: Cannont find radio data file ${2}"
+                  fi
                fi
             fi
             shift; shift
@@ -134,6 +137,18 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         --rfi-std-cutoff) # Specify the RFI standard deviation cut-off.
+            if [ ${DEFAULT_DEBUG} -eq 0 ]; then
+               if [ -z "${RFI_STD}" ]; then
+                  if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                     if [ ${2} -gt 0 ]; then
+                        RFI_STD="${2}"
+                     fi
+                  fi
+               fi
+            fi
+            shift; shift
+            ;;
          --skip-transfer) # Skip transfer of results files to the results directory.
             SKIPMOVE_OPT="--skip-transfer"
             shift
@@ -143,6 +158,12 @@ if [[ ${#} -gt 0 ]]; then
             ;;
       esac
    done
+fi
+
+# Ensure the data file is specified and that it exists.
+if [ -z "${DATA_PATH}" ]; then
+   echo "radiorun_lwa.sh: ERROR => Data file path not specified."
+   exit -1
 fi
 
 # Create the working directory, if it doesn't exist.
@@ -177,9 +198,24 @@ if [ ! -d "${RESULTS_DIR}" ]; then
    fi
 fi
 
-# Set the common configuration file path
+# Check that the common parameters file is specified.
 if [ -z "${COMMCONFIG_FILE}" ]; then
    COMMCONFIG_FILE="radiotrans.ini"
+fi
+
+# Check that the integration time is specified.
+if [ -z "${INTEGTIME}" ]; then
+   INTEGTIME=2089.80
+fi
+
+# Check that the coarse spectrogram decimation is specified.
+if [ -z "${DECIMATION}" ]; then
+   DECIMATION=10000
+fi
+
+# Check that the RFI standard deviation cut-off is specified.
+if [ -z "${RFI_STD}" ]; then
+   RFI_STD=5.0
 fi
 
 # Build the command-line to run radiotrans.sh
@@ -187,7 +223,7 @@ CMD="${INSTALL_DIR}/radioreduce.sh"
 CMD_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
       --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
       --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-      --decimation ${DECIMATION} \
+      --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} \
       --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SKIPMOVE_OPT})
 
 # Run the radiotrans.sh script.

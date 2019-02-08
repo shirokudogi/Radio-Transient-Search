@@ -95,6 +95,7 @@ MEM_LIMIT=           # Total memory usage limit, in MB, for spectrogram tiles am
 LABEL=               # User label attached to output files from data reduction.
 ENABLE_HANN=         # Commandline option string to enable Hann windowing in the data reduction.
 DECIMATION=          # Decimation for producing coarse spectrogram.
+RFI_STD=             # RFI standard deviation cutoff.
                      
 NUM_PROCS=           # Number of concurrent processes to use under MPI
 SUPERCLUSTER=        # Flag denoting whether we should initialize for being on a supercluster.
@@ -202,6 +203,16 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         --rfi-std-cutoff) # Specify RFI standard deviation cutoff.
+            if [ -z "${RFI_STD}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  if [ ${2} -gt 0 ]; then
+                     RFI_STD=${2}
+                  fi
+               fi
+            fi
+            shift; shift
+            ;;
          -*) # Unknown option
             echo "WARNING: radioreduce.sh -> Unknown option"
             echo "     ${1}"
@@ -295,6 +306,11 @@ if [ -z "${DECIMATION}" ]; then
    DECIMATION=10000
 fi
 
+# Check that the RFI standard deviation cut-off is specified.
+if [ -z "${RFI_STD}" ]; then
+   RFI_STD=5.0
+fi
+
 # If a label was specified, create the label option.
 if [ -n "${LABEL}" ]; then
    LABEL_OPT="--label ${LABEL}"
@@ -368,7 +384,7 @@ echo "radioreduce.sh: Generating coarse spectrogram image for tuning 0..."
 resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
    --lower-FFT-index 0 --upper-FFT-index 4095 --label "Lower_Tuning" \
-   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff ${RFI_STD} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T0.png" \
    "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
@@ -376,7 +392,7 @@ echo "radioreduce.sh: Generating coarse spectrogram image for tuning 1..."
 resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
    --lower-FFT-index 0 --upper-FFT-index 4095 --label "Higher_Tuning" --high-tuning \
-   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff ${RFI_STD} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T1.png" \
    "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd

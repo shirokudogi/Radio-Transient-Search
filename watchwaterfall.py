@@ -36,6 +36,9 @@ def main(args):
                            metavar="PATH")
    cmdlnParser.add_option('-t', '--high-tuning', dest='fHighTuning', default=False, action='store_true',
                            help='Flag denoting whether this is tuning 1 (enabled) or tuning 0.')
+   cmdlnParser.add_option('-r', '--rfi-std-cutoff', dest='RFIStd', type='float', default=5.0,
+                           action='store',
+                           help='RFI standard deviation cut-off.', metavar='STD')
 
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
    if not len(cmdlnArgs[0]) > 0:
@@ -43,16 +46,24 @@ def main(args):
       sys.exit(1)
    # endif
 
-   # Read common parameters file for need common parameters and update with the decimation factor.
+   # Read common parameters file for need common parameters and update with the RFI std cutoff.
    try:
-      configFile = open(cmdlnOpts.configFilepath,"r")
       commConfigObj = ConfigParser()
+      # Read current common parameters.
+      configFile = open(cmdlnOpts.configFilepath,"r")
       commConfigObj.readfp(configFile, cmdlnOpts.configFilepath)
       samplerate = commConfigObj.getfloat('Raw Data', 'samplerate')
       numSamplesPerFrame = commConfigObj.getint('Raw Data', 'numsamplesperframe')
       decimation = commConfigObj.getint('Reduced DFT Data', 'decimation')
       integTime = commConfigObj.getfloat('Reduced DFT Data', 'integrationtime')
       numSpectLines = commConfigObj.getint('Reduced DFT Data', 'numspectrogramlines')
+      DFTLength = commConfigObj.getint('Reduced DFT Data', 'dftlength')
+      configFile.close()
+
+      # Update common parameters with RFI std cut-off.
+      configFile = open(cmdlnOpts.configFilepath,"w")
+      commConfigObj.set('Reduced DFT Data', 'rfistdcutoff', cmdlnOpts.RFIStd)
+      commConfigObj.write(configFile)
       configFile.close()
    except Exception as anError:
       print 'Could not read common parameters configuration file: ', cmdlnOpts.configFilepath
@@ -74,18 +85,20 @@ def main(args):
    # CCY - NOTE: I don't know the reason for the particular choice in the parameters sent to
    # sativzky_golay.  I'm merely transcribing those parameters over.
    if cmdlnOpts.fHighTuning:
-      bandpass = savitzky_golay(bandpass, 111, 2)
+      bandpass = savitzky_golay(bandpass, 111, 2).reshape((1,waterfall.shape[1]))
    else:
-      bandpass = savitzky_golay(bandpass, 151, 2)
+      bandpass = savitzky_golay(bandpass, 151, 2).reshape((1,waterfall.shape[1]))
    # endif
-   baseline = savitzky_golay(baseline, 151, 2)
-
+   # Correct bandpass.
    waterfall = waterfall - bandpass
-   waterfall = (waterfall.T - baseline).T
-   waterfall = RFI(waterfall, 5.0*waterfall.std())
+   baseline = savitzky_golay(baseline, 151, 2).reshape((waterfall.shape[0],1))
+   # Correct baseline.
+   waterfall = waterfall - baseline
+   # Correct RFI.
+   waterfall = RFI(waterfall, cmdlnOpts.RFTStd*waterfall.std())
    waterfall = snr(waterfall)
    noiseFloorSNR = waterfall.mean()
-   mask = abs(waterfall) > 3.0*waterfall.std()
+   mask = np.where( abs(waterfall) > 3.0*waterfall.std() )
    waterfall[mask] = noiseFloorSNR
 
    freqStep = samplerate/(numSamplesPerFrame*1000.0)
