@@ -95,7 +95,7 @@ def main(args):
    # Correct baseline.
    waterfall = waterfall - baseline
    # Correct RFI.
-   waterfall = RFI(waterfall, cmdlnOpts.RFTStd*waterfall.std())
+   waterfall = RFI(waterfall, cmdlnOpts.RFIStd*waterfall.std())
    waterfall = snr(waterfall)
    noiseFloorSNR = waterfall.mean()
    mask = np.where( abs(waterfall) > 3.0*waterfall.std() )
