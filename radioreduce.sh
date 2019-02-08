@@ -23,9 +23,10 @@
 # Make sure extended regular expressions are supported.
 shopt -s extglob
 
-# Comparison strings for affirmative input from user.
+# User input test patterns.
 AFFIRMATIVE='^(y|yes|yup|yea|yeah|ya)$'
-
+INTEGER_NUM='^[+-]?[0-9]+$'
+REAL_NUM='^[+-]?[0-9]+([.][0-9]+)?$'
 
 
 USAGE='
@@ -87,17 +88,21 @@ radioreduce.sh
 INSTALL_DIR=
 
 DATA_PATH=           # Path to the radio time-series data file.
-SPECTINTEGTIME=      # Spectral integration time in milliseconds.
+INTEGTIME=           # Spectral integration time in milliseconds.
 WORK_DIR=            # Working directory.
 RESULTS_DIR=         # Results directory.
 MEM_LIMIT=           # Total memory usage limit, in MB, for spectrogram tiles among all processes.
 LABEL=               # User label attached to output files from data reduction.
 ENABLE_HANN=         # Commandline option string to enable Hann windowing in the data reduction.
+DECIMATION=          # Decimation for producing coarse spectrogram.
                      
 NUM_PROCS=           # Number of concurrent processes to use under MPI
 SUPERCLUSTER=        # Flag denoting whether we should initialize for being on a supercluster.
 
 COMMCONFIG_FILE=     # Name of the common configuration file.
+
+FLAG_SKIPMOVE=0      # Flag denoting whether to skip the final stage to transfer of results files to the
+                     # results directory.
 
 
 
@@ -117,16 +122,16 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift
             ;;
          -t | --integrate-time) # Specify the spectrogram integration time.
-            if [ -z "${SPECTINTEGTIME}" ]; then
-               if [[ "${2}" =~ "${REAL_NUM}" ]]; then
-                  SPECTINTEGTIME=${2}
+            if [ -z "${INTEGTIME}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  INTEGTIME=${2}
                fi
             fi
             shift; shift
             ;;
          -n | --nprocs) # Specify the number of processes/processors to use
             if [ -z "${NUM_PROCS}" ]; then
-               if [[ "${2}" =~ "${INTEGER_NUM}" ]]; then
+               if [[ "${2}" =~ ${INTEGER_NUM} ]]; then
                   if [ ${2} -lt 1 ]; then
                      NUM_PROC=1
                   else
@@ -161,11 +166,11 @@ if [[ ${#} -gt 0 ]]; then
          -m | --memory-limit) # Specify the total memory usage limit for the spectrogram tiles
                               # multiplied to the total number of processes.
             if [ -z "${MEM_LIMIT}" ]; then
-               if [[ "${2}" =~ "${INTEGER_NUM}" ]]; then
+               if [[ "${2}" =~ ${INTEGER_NUM} ]]; then
                   if [ ${2} -gt 0 ]; then
                      MEM_LIMIT=${2}
                   else
-                     MEM_LIMIT=16
+                     MEM_LIMIT=16384
                   fi
                fi
             fi
@@ -182,6 +187,20 @@ if [[ ${#} -gt 0 ]]; then
          --enable-hann) # Enable Hann windowing on the raw DFTs during reduction.
             ENABLE_HANN="--enable-hann"
             shift
+            ;;
+         --skip-transfer) # Skip transferring results files to the results directory.
+            FLAG_SKIPMOVE=1
+            shift
+            ;;
+         -d | --decimation) # Specify decimation for the coarse spectrogram.
+            if [ -z "${DECIMATION}" ]; then
+               if [[ "${2}" =~ ${INTEGER_NUM} ]]; then
+                  if [ ${2} -gt 0 ]; then
+                     DECIMATION=${2}
+                  fi
+               fi
+            fi
+            shift; shift
             ;;
          -*) # Unknown option
             echo "WARNING: radioreduce.sh -> Unknown option"
@@ -204,8 +223,8 @@ else
 fi
 
 # Check that the spectral integration time was specified.
-if [ -z "${SPECTINTEGTIME}" ]; then
-   SPECTINTEGTIME=1000
+if [ -z "${INTEGTIME}" ]; then
+   INTEGTIME=1000
 fi
 
 # Check that a valid data file path has been specified and that the file exists.
@@ -268,7 +287,12 @@ fi
 
 # Check that the memory limits are specified.
 if [ -z "${MEM_LIMIT}" ]; then
-   MEM_LIMIT=16
+   MEM_LIMIT=16384
+fi
+
+# Check that the coarse spectrogram decimation is specified.
+if [ -z "${DECIMATION}" ]; then
+   DECIMATION=10000
 fi
 
 # If a label was specified, create the label option.
@@ -310,46 +334,51 @@ LBL_CLEAN="Cleanup_Reduce"
 
 # Generate the waterfall tiles for the reduced-data spectrogram
 echo "radioreduce.sh: Generating waterfall tiles for spectrogram from ${DATA_PATH}..."
-resumecmd -l ${LBL_WATERFALL} mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
-   --integrate-time ${SPECTINTEGTIME} --work-dir "${WORK_DIR}" \
+resumecmd -l ${LBL_WATERFALL} \
+   mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
+   --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" \
    ${ENABLE_HANN} ${LABEL_OPT} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
 report_resumecmd
 
 
-# Combine the individual waterfall files into singular coarse spectrogram files for tuning 0 and tuning
-# 1, separately..
+# Create the combined and coarse combined waterfalls for both tuning 0 and tuning 1.
 echo "radioreduce.sh: Combining waterfall sample files into coarse spectrogram files..."
-COARSEPREFIX="coarsespect"
+CMBPREFIX="spectrogram"
 if [ -n "${LABEL}" ]; then
-   COARSEPREFIx="${COARSEPREFIX}_${LABEL}"
+   CMBPREFIX="${CMBPREFIX}_${LABEL}"
 fi
 echo "radioreduce.sh: Combining tuning 0 waterfall files into coarse spectrogram..."
 resumecmd -l ${LBL_COMBINE0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
-   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${COARSEPREFIX}-T0" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T0" \
+   --decimation ${DECIMATION} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T0.npy"
 report_resumecmd
+echo "radioreduce.sh: Combining tuning 1 waterfall files into coarse spectrogram..."
+resumecmd -l ${LBL_COMBINE1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T1" \
+   --decimation ${DECIMATION} \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T1.npy"
+report_resumecmd
+
+# Create images of the coarse combined waterfalls for tuning 0 and tuning 1.
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 0..."
 resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
    --lower-FFT-index 0 --upper-FFT-index 4095 --label "Lower_Tuning" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
-   --work-dir "${WORK_DIR}" --outfilename "${COARSEPREFIX}-T0.png" "${WORK_DIR}/${COARSEPREFIX}-T0.npy"
-report_resumecmd
-
-echo "radioreduce.sh: Combining tuning 1 waterfall files into coarse spectrogram..."
-resumecmd -l ${LBL_COMBINE1} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
-   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${COARSEPREFIX}-T1" \
-   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T1.npy"
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T0.png" \
+   "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 1..."
 resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
    --lower-FFT-index 0 --upper-FFT-index 4095 --label "Higher_Tuning" --high-tuning \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
-   --work-dir "${WORK_DIR}" --outfilename "${COARSEPREFIX}-T1.png" "${WORK_DIR}/${COARSEPREFIX}-T1.npy"
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T1.png" \
+   "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 
 
@@ -360,20 +389,31 @@ resumecmd -l ${LBL_CLEAN} -k ${RESUME_LASTCMD_SUCCESS} \
    delete_files "${WORK_DIR}/*.dtmp"
 report_resumecmd
 
-# Force fail resumecmd() for debugging purposes.
-forcehalt_resumecmd
 
-# Move the remaining results files to the specified results directory, if it is different from the
-# working directory.
-if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
-   echo "radioreduce.sh: Transferring key results files to directory ${RESULTS_DIR}..."
-   resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
-      transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-      "${COARSEPREFIX}-T0.*" "${COARSEPREFIX}-T1.*" "waterfall*.npy" "${COMMCONFIG_FILE}"
-   report_resumecmd
+# Transfer results files to the results directory, if allowed by the user.
+if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
+   # Move results files if the working directory and results directory are different.
+   if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
+      echo "radioreduce.sh: Transferring key results files to directory ${RESULTS_DIR}..."
+      resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
+         transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
+         "${CMBPREFIX}*.npy" "coarse-${CMBPREFIX}*.npy" "waterfall*.npy" "*.png" \
+         "${COMMCONFIG_FILE}"
+      report_resumecmd
+   else
+      echo "radioreduce.sh: Skipping results transfer => working and results directories are the same."
+   fi
 else
-   echo "radioreduce.sh: Skipping results transfer => working and results directories are the same."
+      echo "radioreduce.sh: Skipping results transfer by user request."
 fi
 
-echo "radioreduce.sh: Radio data reduction workflow complete!"
-exit 0
+# Determine exit status
+if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
+   echo "radioreduce.sh: Radio data reduction workflow completed successfully!"
+   echo "radioreduce.sh: Workflow exiting with status 0."
+   exit 0
+else
+   echo "radioreduce.sh: Radio data reduction workflow ended, but not all components were executed."
+   echo "radioreduce.sh: Workflow exiting with status -1"
+   exit -1
+fi

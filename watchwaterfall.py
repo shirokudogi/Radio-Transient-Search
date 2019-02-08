@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import os
 import time
+from ConfigParser import ConfigParser
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -27,7 +28,7 @@ def main(args):
    cmdlnParser.add_option('-b', '--label', dest='label', default='coarse', type='string',
                            action='store',
                            help='Label for the plot', metavar='LABEL')
-   cmdlnParser.add_option('-o', '--outfilename', dest='outFilename', type='string', action='store',
+   cmdlnParser.add_option('-o', '--outfile', dest='outFilepath', type='string', action='store',
                            help='Output filename.', metavar='NAME')
    cmdlnParser.add_option("-c", "--commconfig", dest="configFilepath", type="string",
                            default="./radiotrans.ini", action="store",
@@ -41,9 +42,28 @@ def main(args):
       print 'Error (watchwaterfall.py): Must specify path to waterfall spectrogram file'
       sys.exit(1)
    # endif
+
+   # Read common parameters file for need common parameters and update with the decimation factor.
+   try:
+      configFile = open(cmdlnOpts.configFilepath,"r")
+      commConfigObj = ConfigParser()
+      commConfigObj.readfp(configFile, cmdlnOpts.configFilepath)
+      samplerate = commConfigObj.getfloat('Raw Data', 'samplerate')
+      numSamplesPerFrame = commConfigObj.getint('Raw Data', 'numsamplesperframe')
+      decimation = commConfigObj.getint('Reduced DFT Data', 'decimation')
+      integTime = commConfigObj.getfloat('Reduced DFT Data', 'integrationtime')
+      numSpectLines = commConfigObj.getint('Reduced DFT Data', 'numspectrogramlines')
+      configFile.close()
+   except Exception as anError:
+      print 'Could not read common parameters configuration file: ', cmdlnOpts.configFilepath
+      print anError
+      configFile.close()
+      sys.exit(1)
+   # endtry
+
    waterfall = np.load(cmdlnArgs[0])
-   lowerIndex = forceIntValue(cmdlnOpts.lowerIndex, 0, 4095)
-   upperIndex = forceIntValue(cmdlnOpts.upperIndex, 0, 4095)
+   lowerIndex = forceIntValue(cmdlnOpts.lowerIndex, 0, DFTLength - 1)
+   upperIndex = forceIntValue(cmdlnOpts.upperIndex, 0, DFTLength - 1)
    if not upperIndex > lowerIndex:
       print 'Error (watchwaterfall.py): Upper FFT index must be greater than lower FFT index'
       sys.exit(1)
@@ -65,15 +85,17 @@ def main(args):
    waterfall = RFI(waterfall, 5.0*waterfall.std())
    waterfall = snr(waterfall)
    noiseFloorSNR = waterfall.mean()
-   mask = abs(waterfall) > 5.0*waterfall.std()
+   mask = abs(waterfall) > 3.0*waterfall.std()
    waterfall[mask] = noiseFloorSNR
 
+   freqStep = samplerate/(numSamplesPerFrame*1000.0)
+   timeStep = integTime * int(numSpectLines/decimation)
    plt.imshow(waterfall.T, cmap='Greys_r', origin = 'low', aspect = 'auto')
    plt.suptitle('Spectrogram {label}'.format(label=cmdlnOpts.label), fontsize = 30)
-   plt.xlabel('Time (14 sec)',fontdict={'fontsize':16})
-   plt.ylabel('Frequency (4.7 kHz)',fontdict={'fontsize':14})
+   plt.xlabel('Time ({step:.4f} sec)'.format(step=timeStep),fontdict={'fontsize':16})
+   plt.ylabel('Frequency ({step:.3f} kHz)'.format(step=freqStep),fontdict={'fontsize':14})
    plt.colorbar().set_label('SNR',size=18)
-   plt.savefig('{dir}/{name}'.format(dir=cmdlnOpts.workDir, name=cmdlnOpts.outFilename))
+   plt.savefig(cmdlnOpts.outFilepath)
    plt.clf()
 # end main()
 

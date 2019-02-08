@@ -192,6 +192,7 @@ def main_radiotrans(argv):
    rawDataNumFramesPerPol = int(rawDataNumFrames/rawDataFramesPerBeam)
    rawDataSamplesPerFrame = 4096
    LFFT = rawDataSamplesPerFrame # Length of the FFT.
+   DFTLength = LFFT - 1
 
    # Open the raw data file.
    try:
@@ -268,14 +269,14 @@ def main_radiotrans(argv):
          commConfigObj.set('Raw Data', 'tuningfreq0', rawDataTuningFreq0)
          commConfigObj.set('Raw Data', 'tuningfreq1', rawDataTuningFreq1)
          commConfigObj.set('Raw Data', 'beam', rawDataBeamID)
-         commConfigObj.set('Reduced DFT Data', 'DFTlength', LFFT)
+         commConfigObj.set('Reduced DFT Data', 'DFTlength', DFTLength)
          commConfigObj.set('Reduced DFT Data', 'integrationtime', spectIntegTime)
          commConfigObj.set('Reduced DFT Data', 'numspectrogramlines', numSpectLines)
          commConfigObj.set('Reduced DFT Data', 'numDFTsperspectrogramline', numDFTsPerSpectLine)
          commConfigObj.set('Reduced DFT Data', 'numspectrogramlinespertile', numSpectLinesPerProc)
          commConfigObj.set('Reduced DFT Data', 'numspectrogramlinesresiduetile', 
                               numSpectLines - nProcs*numSpectLinesPerProc)
-         commConfigObj.set('Reduced DFT Data', 'enablehannwindowing', cmdlnOpts.enableHann)
+         commConfigObj.set('Reduced DFT Data', 'enablehannwindow', cmdlnOpts.enableHann)
          commConfigObj.set('Run', 'label', cmdlnOpts.label)
          commConfigObj.write(commConfigFile)
          commConfigFile.flush()
@@ -299,15 +300,16 @@ def main_radiotrans(argv):
 
    # Build the working arrays for the computing DFTs, integrating the DFTs into a power spectrum, and
    # composing a single spectrogram tile.
-   powerDFT0 = numpy.zeros(LFFT, dtype=numpy.float32)
-   powerDFT1 = numpy.zeros(LFFT, dtype=numpy.float32)
-   spectTile0 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
-   spectTile1 = numpy.ndarray(shape=(numSpectLinesPerProc, LFFT), dtype=numpy.float32)
+   powerDFT0 = numpy.zeros(DFTLength, dtype=numpy.float32)
+   powerDFT1 = numpy.zeros(DFTLength, dtype=numpy.float32)
+   spectTile0 = numpy.ndarray(shape=(numSpectLinesPerProc, DFTLength), dtype=numpy.float32)
+   spectTile1 = numpy.ndarray(shape=(numSpectLinesPerProc, DFTLength), dtype=numpy.float32)
 
    # Compute the DFT of the Hann window, if enabled.
    hannWindow = None
    if cmdlnOpts.enableHann:
-      hannWindow = 2*numpy.pi*numpy.arange(LFFT, dtype=numpy.float32)/(LFFT - 1)
+      hannWindow = 2*numpy.pi*numpy.arange(rawDataSamplesPerFrame, 
+                                           dtype=numpy.float32)/(rawDataSamplesPerFrame - 1)
       hannWindow[:] = 0.5*(1 - numpy.cos(hannWindow[:]))
    # endif
 
@@ -315,10 +317,10 @@ def main_radiotrans(argv):
    tileIndex = numSpectLinesPerProc*procRank
    while fileOffset < rawDataFileSize:
       rawDataFile.seek(fileOffset, os.SEEK_CUR)
-      procMessage("Integrating tile => spectrogram lines {start} to {end}...".format(start=tileIndex,
-                  end=tileIndex + numSpectLinesPerProc - 1), root=0)
+      procMessage("Integrating tile={tile} => spectrogram lines {start} to {end}...".format(start=tileIndex,
+                  end=tileIndex + numSpectLinesPerProc - 1, tile=tileIndex), root=0)
       for i in lineIndices:
-         procMessage("Integrating line={line} of {total} in tileIndex={tile}...".format(line=i, 
+         procMessage("Integrating line={line} of {total} in tileIndex={tile}...".format(line=i+1, 
                      tile=tileIndex, total=numSpectLinesPerProc), root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
@@ -332,7 +334,7 @@ def main_radiotrans(argv):
                   else:
                      timeData = currFrame.data.iq
                   # endif
-                  frameDFT = numpy.fft.fftshift(numpy.fft.fft(timeData))
+                  frameDFT = numpy.fft.fftshift(numpy.fft.fft(timeData)[1:])
                   # Determine the tuning of the computed DFT and add its power to the appropriate power DFT.
                   (beam, tune, pol) = currFrame.parseID()
                   if tune == 0:
@@ -359,13 +361,8 @@ def main_radiotrans(argv):
 
       # Write tuning 0  spectrogram tile to numpy file.
       procMessage("Writing tuning 0 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
-      if cmdlnOpts.label is not None:
-         outFilename = "{dir}/waterfall-S{tile}T{tune}".format(dataname=rawDataFilename, tile=tileIndex, 
-                                                               tune=0, dir=cmdlnOpts.workDir)
-      else:
-         outFilepath = createWaterfallFilepath(tile=tileIndex, tuning=0, beam=rawDataBeamID,
-                                               label=cmdlnOpts.label, workDir=cmdlnOpts.workDir)
-      # endif
+      outFilepath = createWaterfallFilepath(tile=tileIndex, tuning=0, beam=rawDataBeamID,
+                                            label=cmdlnOpts.label, workDir=cmdlnOpts.workDir)
       numpy.save(outFilepath, spectTile0)
       # Write tuning 1 spectrogram tile to numpy file.
       procMessage("Writing tuning 1 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
@@ -388,8 +385,8 @@ def main_radiotrans(argv):
             numSpectLinesPerProc = int( floor(numDFTsRemain/numDFTsPerSpectLine) )
             # Resize the spectrogram tile arrays and indexing to the new, smaller size.
             lineIndices = range(numSpectLinesPerProc)
-            spectTile0.resize((numSpectLinesPerProc, LFFT))
-            spectTile1.resize((numSpectLinesPerProc, LFFT))
+            spectTile0.resize((numSpectLinesPerProc, DFTLength))
+            spectTile1.resize((numSpectLinesPerProc, DFTLength))
          # endif
       # endif
    # endwhile

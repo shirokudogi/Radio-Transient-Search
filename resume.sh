@@ -178,6 +178,7 @@ function resumecmd ()
                                  # is 0, then resumecmd returns immediately with return value 0.  This
                                  # is used for dealing with commands that are dependent on the
                                  # successful execution of prior commands.
+   local DEBUG=0                 # Flag denoting debug mode.
 
 
    # Set the default resume-status filepath, if one has not been specified.
@@ -212,6 +213,10 @@ function resumecmd ()
                echo "${RESUME_USAGE}"
                return 0
                ;;
+            -d | --debug) # Execute in debug mode.
+               DEBUG=1
+               shift
+               ;;
             *) # Obtain the command to execute and its arguments; then construct the label to identify it
                # in the resume-status file.
                RESUME_CMD=("${@}")
@@ -241,7 +246,11 @@ function resumecmd ()
       if [ ! -f "${RESUME_CMD_FILEPATH}" ]; then
          echo "resumecmd: Could not find or create resume file ${RESUME_CMD_FILEPATH}" >&2
          echo "resumecmd: Command executing without saved resume status => ${RESUME_CMD[*]}" >&2
-         ${RESUME_CMD[*]}
+         if [ ${DEBUG} -eq 0 ]; then
+            ${RESUME_CMD[*]}
+         else
+            echo "resumecmd: ${RESUME_CMD[*]}"
+         fi
          # Capture the success/fail state of the command.
          local CMD_RETURN=${?}
          RESUME_LASTCMD_SUCCESS=1
@@ -262,9 +271,16 @@ function resumecmd ()
    if [[ ${RESUME_STATUS} -eq ${RESUME_REPEAT} ]] || [[ ${RESUME_STATUS} -ne ${RESUME_DONE} ]] || \
       [[ ${RESUME_FORCE_EXEC} -eq 1 ]]; then
       # Execute the command and obtain its return status.
-      ${RESUME_CMD[*]}
-      local CMD_RETURN=${?}
+      local CMD_RETURN=
       local NEW_STATUS=
+
+      if [ ${DEBUG} -eq 0 ]; then
+         ${RESUME_CMD[*]}
+         CMD_RETURN=${?}
+      else
+         echo "resumecmd: ${RESUME_CMD[*]}"
+         CMD_RETURN=-1
+      fi
 
       # Capture the success/fail state of the command.
       if [[ ${CMD_RETURN} -ne 0 ]] || [[ ${FLAG_ABORTSIG} -eq 1 ]]; then
