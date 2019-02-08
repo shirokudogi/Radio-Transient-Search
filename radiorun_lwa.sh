@@ -92,9 +92,7 @@ if [[ ${#} -gt 0 ]]; then
             if [ ${DEFAULT_DEBUG} -eq 0 ]; then
                if [ -z "${INTEGTIME}" ]; then
                   if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                     if [ ${2} -gt 0 ]; then
-                        INTEGTIME="${2}"
-                     fi
+                     INTEGTIME="${2}"
                   fi
                fi
             fi
@@ -141,9 +139,7 @@ if [[ ${#} -gt 0 ]]; then
             if [ ${DEFAULT_DEBUG} -eq 0 ]; then
                if [ -z "${RFI_STD}" ]; then
                   if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                     if [ ${2} -gt 0 ]; then
-                        RFI_STD="${2}"
-                     fi
+                     RFI_STD="${2}"
                   fi
                fi
             fi

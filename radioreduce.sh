@@ -206,9 +206,7 @@ if [[ ${#} -gt 0 ]]; then
          --rfi-std-cutoff) # Specify RFI standard deviation cutoff.
             if [ -z "${RFI_STD}" ]; then
                if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                  if [ ${2} -gt 0 ]; then
-                     RFI_STD=${2}
-                  fi
+                  RFI_STD=${2}
                fi
             fi
             shift; shift
