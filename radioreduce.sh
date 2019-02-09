@@ -218,6 +218,14 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         --snr-cutoff) # Specify SNR ceiling cutoff.
+            if [ -z "${SNR_CUTOFF}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  SNR_CUTOFF=${2}
+               fi
+            fi
+            shift; shift
+            ;;
          -*) # Unknown option
             echo "WARNING: radioreduce.sh -> Unknown option"
             echo "     ${1}"
@@ -316,6 +324,11 @@ if [ -z "${RFI_STD}" ]; then
    RFI_STD=5.0
 fi
 
+# Check that the SNR ceiling cutoff is specified.
+if [ -z "${SNR_CUTOFF}" ]; then
+   SNR_CUTOFF=3.0
+fi
+
 # If a label was specified, create the label option.
 if [ -n "${LABEL}" ]; then
    LABEL_OPT="--label ${LABEL}"
@@ -392,7 +405,7 @@ resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    --lower-FFT-index 0 --upper-FFT-index 4095 --label "Lower_Tuning" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff ${RFI_STD} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T0.png" \
-   "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+   --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 1..."
 resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
@@ -400,7 +413,7 @@ resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    --lower-FFT-index 0 --upper-FFT-index 4095 --label "Higher_Tuning" --high-tuning \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff ${RFI_STD} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T1.png" \
-   "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+   --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 
 

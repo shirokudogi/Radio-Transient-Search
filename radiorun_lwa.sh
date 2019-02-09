@@ -37,7 +37,8 @@ if [[ ${#} -gt 0 ]]; then
             #INTEGTIME="2089.80"
             DECIMATION=10000
             #DECIMATION=4000
-            RFI_STD=5.0
+            RFI_STD=7.0
+            SNR_CUTOFF=5.0
 
             DEFAULT_DEBUG=1
             shift
@@ -147,6 +148,16 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         --snr-cutoff) # Specify the SNR ceiling cut-off.
+            if [ ${DEFAULT_DEBUG} -eq 0 ]; then
+               if [ -z "${SNR_CUTOFF}" ]; then
+                  if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                     SNR_CUTOFF="${2}"
+                  fi
+               fi
+            fi
+            shift; shift
+            ;;
          --skip-transfer) # Skip transfer of results files to the results directory.
             SKIPMOVE_OPT="--skip-transfer"
             shift
@@ -220,12 +231,17 @@ if [ -z "${RFI_STD}" ]; then
    RFI_STD=5.0
 fi
 
+# Check that the SNR ceiling cut-off is specified.
+if [ -z "${SNR_CUTOFF}" ]; then
+   SNR_CUTOFF=3.0
+fi
+
 # Build the command-line to run radiotrans.sh
 CMD="${INSTALL_DIR}/radioreduce.sh"
 CMD_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
       --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
       --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-      --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} \
+      --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
       --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SKIPMOVE_OPT} ${DELWATERFALLS_OPT})
 
 # Run the radiotrans.sh script.

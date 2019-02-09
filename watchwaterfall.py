@@ -39,6 +39,9 @@ def main(args):
    cmdlnParser.add_option('-r', '--rfi-std-cutoff', dest='RFIStd', type='float', default=5.0,
                            action='store',
                            help='RFI standard deviation cut-off.', metavar='STD')
+   cmdlnParser.add_option('-s', '--snr-cutoff', dest='SNRCutoff', type='float', default=3.0,
+                           action='store',
+                           help='SNR cut-off.', metavar='SNR')
 
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
    if not len(cmdlnArgs[0]) > 0:
@@ -60,9 +63,13 @@ def main(args):
       DFTLength = commConfigObj.getint('Reduced DFT Data', 'dftlength')
       configFile.close()
 
-      # Update common parameters with RFI std cut-off.
+      # Update common parameters with RFI std cut-off and SNR ceiling cutoff.
       configFile = open(cmdlnOpts.configFilepath,"w")
-      commConfigObj.set('Reduced DFT Data', 'rfistdcutoff', cmdlnOpts.RFIStd)
+      if not commConfigObj.has_section('RFI Bandpass'):
+         commConfigObj.add_section('RFI Bandpass')
+      # endif
+      commConfigObj.set('RFI Bandpass', 'rfistdcutoff', cmdlnOpts.RFIStd)
+      commConfigObj.set('RFI Bandpass', 'snrcutoff', cmdlnOpts.SNRCutoff)
       commConfigObj.write(configFile)
       configFile.close()
    except Exception as anError:
@@ -99,7 +106,7 @@ def main(args):
    # Correct RFI.
    waterfall = RFI(waterfall, cmdlnOpts.RFIStd*waterfall.std())
    waterfall = snr(waterfall)
-   mask = np.where( abs(waterfall) > 3.0*(waterfall[:,:].std()) )
+   mask = np.where( abs(waterfall) > cmdlnOpts.SNRCutoff*(waterfall[:,:].std()) )
    waterfall[:,:][mask] = waterfall[:,:].mean()
 
    freqStep = samplerate/(numSamplesPerFrame*1000.0)
