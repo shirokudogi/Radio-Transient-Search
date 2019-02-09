@@ -80,26 +80,27 @@ def main(args):
       sys.exit(1)
    # endif
 
-   bandpass = np.median(waterfall, 0).reshape((waterfall.shape[1],))
-   baseline = np.median(waterfall, 1).reshape((waterfall.shape[0],))
    # CCY - NOTE: I don't know the reason for the particular choice in the parameters sent to
    # sativzky_golay.  I'm merely transcribing those parameters over.
+   # Correct bandpass.
+   bandpass = np.median(waterfall, 0).reshape((waterfall.shape[1],))
    if cmdlnOpts.fHighTuning:
       bandpass = savitzky_golay(bandpass, 111, 2).reshape((1,waterfall.shape[1]))
    else:
       bandpass = savitzky_golay(bandpass, 151, 2).reshape((1,waterfall.shape[1]))
    # endif
-   # Correct bandpass.
    waterfall = waterfall - bandpass
-   baseline = savitzky_golay(baseline, 151, 2).reshape((waterfall.shape[0],1))
+
    # Correct baseline.
+   baseline = np.median(waterfall, 1).reshape((waterfall.shape[0],))
+   baseline = savitzky_golay(baseline, 151, 2).reshape((waterfall.shape[0],1))
    waterfall = waterfall - baseline
+
    # Correct RFI.
    waterfall = RFI(waterfall, cmdlnOpts.RFIStd*waterfall.std())
    waterfall = snr(waterfall)
-   noiseFloorSNR = waterfall.mean()
-   mask = np.where( abs(waterfall) > 3.0*waterfall.std() )
-   waterfall[mask] = noiseFloorSNR
+   mask = np.where( abs(waterfall) > 3.0*(waterfall[:,:].std()) )
+   waterfall[:,:][mask] = waterfall[:,:].mean()
 
    freqStep = samplerate/(numSamplesPerFrame*1000.0)
    timeStep = integTime * int(numSpectLines/decimation)

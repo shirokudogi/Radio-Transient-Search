@@ -15,6 +15,8 @@ INSTALL_DIR="${HOME}/local/radiotrans"
 DEFAULT_DEBUG=0
 SKIPMOVE_OPT=
 
+DELWATERFALLS_OPT=
+
 
 # Select whether we are using the release install of radiotrans or still using the developer version to
 # debug issues.
@@ -27,17 +29,17 @@ if [[ ${#} -gt 0 ]]; then
             DATA_DIR="/data/network/recent_data/jtsai"
             DATA_FILENAME="057974_001488582"
             DATA_PATH="${DATA_DIR}/${DATA_FILENAME}"
-            LABEL="GWRDEBUG"
+            LABEL="GWR20170809"
             INSTALL_DIR="${HOME}/dev/radiotrans"
             WORK_DIR="/mnt/toaster/cyancey/${LABEL}"
             RESULTS_DIR="${HOME}/analysis/${LABEL}"
-            #INTEGTIME="6.89633"
-            INTEGTIME="2089.80"
-            DEFAULT_DEBUG=1
-            #DECIMATION=30000
-            DECIMATION=4000
+            INTEGTIME="6.89633"
+            #INTEGTIME="2089.80"
+            DECIMATION=10000
+            #DECIMATION=4000
             RFI_STD=5.0
-            SKIPMOVE_OPT="--skip-transfer"
+
+            DEFAULT_DEBUG=1
             shift
             ;;
          -I | --install-dir) # Set the install directory to the specified location.
@@ -149,6 +151,10 @@ if [[ ${#} -gt 0 ]]; then
             SKIPMOVE_OPT="--skip-transfer"
             shift
             ;;
+         --delete-waterfalls) # Delete waterfall file from the working directory at the end of the run.
+            DELWATERFALLS_OPT="--delete-waterfalls"
+            shift
+            ;;
          *) # Ignore anything else.
             shift
             ;;
@@ -220,7 +226,7 @@ CMD_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
       --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
       --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
       --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} \
-      --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SKIPMOVE_OPT})
+      --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SKIPMOVE_OPT} ${DELWATERFALLS_OPT})
 
 # Run the radiotrans.sh script.
 ${CMD} ${CMD_OPTS[*]} "${DATA_PATH}"

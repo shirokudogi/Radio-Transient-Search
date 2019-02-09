@@ -105,6 +105,9 @@ COMMCONFIG_FILE=     # Name of the common configuration file.
 FLAG_SKIPMOVE=0      # Flag denoting whether to skip the final stage to transfer of results files to the
                      # results directory.
 
+FLAG_DELWATERFALLS=0   # Flag denoting whether to delete waterfall files at the end of the run to
+                           # help save space.
+
 
 
 # Parse command-line arguments, but be sure to only accept the first value of an option or argument.
@@ -191,6 +194,10 @@ if [[ ${#} -gt 0 ]]; then
             ;;
          --skip-transfer) # Skip transferring results files to the results directory.
             FLAG_SKIPMOVE=1
+            shift
+            ;;
+         --delete-waterfalls) # Specify deletion of waterfall files at the end of the run.
+            FLAG_DELWATERFALLS=1
             shift
             ;;
          -d | --decimation) # Specify decimation for the coarse spectrogram.
@@ -344,6 +351,7 @@ LBL_COARSEIMG0="WaterfallCoarseImg_Tune0"
 LBL_COARSEIMG1="WaterfallCoarseImg_Tune1"
 LBL_RESULTS="Results_Transfer"
 LBL_CLEAN="Cleanup_Reduce"
+LBL_DELWATERFALL="Delete_Waterfalls"
 
 
 # Generate the waterfall tiles for the reduced-data spectrogram
@@ -402,6 +410,13 @@ echo "radioreduce.sh: Cleaning up temporary and intermediate files (this may tak
 resumecmd -l ${LBL_CLEAN} -k ${RESUME_LASTCMD_SUCCESS} \
    delete_files "${WORK_DIR}/*.dtmp"
 report_resumecmd
+
+if [ ${FLAG_DELWATERFALLS} -ne 0 ]; then
+   echo "radioreduce.sh: Deleting waterfall files from working directory..."
+   resumecmd -l ${LBL_DELWATERFALL} -k ${RESUME_LASTCMD_SUCCESS} \
+      delete_files "${WORK_DIR}/waterfall*.npy"
+   report_resumecmd
+fi
 
 
 # Transfer results files to the results directory, if allowed by the user.
