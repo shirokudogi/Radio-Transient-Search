@@ -173,6 +173,10 @@ def main_radiotrans(argv):
    cmdlnParser.add_option("-e", "--enable-hann", dest="enableHann", action="store_true",
                            default=False, 
                            help="Apply Hann window to raw data DFTs to reduce harmonic leakage.")
+   cmdlnParser.add_option('-u', '--data-utilization', dest='dataUtilFrac', default=1.0, type='float',
+                           action='store',
+                           help='Fraction (0 < abs(x) <= 1.0) of total spectrogram lines to create.',
+                           metavar='FRAC')
    (cmdlnOpts, args) = cmdlnParser.parse_args(argv)
    if len(args) == 0:
       print "Must supply a path to the radio data file."
@@ -180,6 +184,11 @@ def main_radiotrans(argv):
    # endif
    spectIntegTime = cmdlnOpts.spectIntTime/1000.0
    memLimit = forceIntValue(cmdlnOpts.memLimit, 100, 64000)*1e6
+   dataUtilFrac = cmdlnOpts.dataUtilFrac
+   if abs(dataUtilFrac) > 1.0 or dataUtilFrac == 0.0:
+      print 'waterfall.py: WARNING => Invalid value for data utilization.  Forcing to 1.0'
+      dataUtilFrac = 1.0
+   # endif
 
 
    # Obtain common parameters for the data reduction and subsequent parts of the transient search.
@@ -243,7 +252,8 @@ def main_radiotrans(argv):
 
    # Compute data reduction parameters.
    numDFTsPerSpectLine = max(1, int(spectIntegTime/rawDataFrameTime))
-   numSpectLines = max(1, int( rawDataNumFramesPerPol/numDFTsPerSpectLine ))
+   rawDataNumSpectLines = max(1, int( rawDataNumFramesPerPol/numDFTsPerSpectLine ))
+   numSpectLines = max(1, int( abs(dataUtilFrac)*rawDataNumSpectLines ))
    memSpectLinesPerProc = int( memLimit/(2*nProcs*LFFT*numpy.dtype(numpy.float32).itemsize) )
    numSpectLinesPerProc = min(int(numSpectLines/nProcs), memSpectLinesPerProc)
    
@@ -263,12 +273,14 @@ def main_radiotrans(argv):
          commConfigObj.set('Raw Data', 'numframesperbeam', rawDataFramesPerBeam)
          commConfigObj.set('Raw Data', 'numframesperpol', rawDataNumFramesPerPol)
          commConfigObj.set('Raw Data', 'numsamplesperframe', rawDataSamplesPerFrame)
+         commConfigObj.set('Raw Data', 'numspectrogramlines', rawDataNumSpectLines)
          commConfigObj.set('Raw Data', 'samplerate', rawDataSampleRate)
          commConfigObj.set('Raw Data', 'sampletime', rawDataSampleTime)
          commConfigObj.set('Raw Data', 'frametime', rawDataFrameTime)
          commConfigObj.set('Raw Data', 'tuningfreq0', rawDataTuningFreq0)
          commConfigObj.set('Raw Data', 'tuningfreq1', rawDataTuningFreq1)
          commConfigObj.set('Raw Data', 'beam', rawDataBeamID)
+         commConfigObj.set('Raw Data', 'datautilfrac', dataUtilFrac)
          commConfigObj.set('Reduced DFT Data', 'DFTlength', DFTLength)
          commConfigObj.set('Reduced DFT Data', 'integrationtime', spectIntegTime)
          commConfigObj.set('Reduced DFT Data', 'numspectrogramlines', numSpectLines)
@@ -293,6 +305,15 @@ def main_radiotrans(argv):
    # spectrogram tile that it is supposed to create.
    fileStep = 4*rawDataFrameSize*numDFTsPerSpectLine*numSpectLinesPerProc
    fileOffset = fileStep*procRank
+   endFileOffset = rawDataFileSize
+   if dataUtilFrac < 0.0:
+      numSkipSpectLines = int( numpy.ceil( (1 + dataUtilFrac)*rawDataNumSpectLines ) )
+      fileOffset = fileOffset + 4*rawDataFrameSize*numDFTsPerSpectLine*numSkipSpectLines 
+   else:
+      if dataUtilFrac < 1.0 :
+         endFileOffset = numpy.ceil(dataUtilFrac*rawDataFileSize)
+      # endif
+   # endif
 
    # Precompute indices for the spectrogram tile and counting the raw DFTs.
    lineIndices = range(numSpectLinesPerProc)
@@ -315,7 +336,7 @@ def main_radiotrans(argv):
 
    # Create spectrogram tiles.
    tileIndex = numSpectLinesPerProc*procRank
-   while fileOffset < rawDataFileSize:
+   while fileOffset < endFileOffset:
       rawDataFile.seek(fileOffset, os.SEEK_CUR)
       procMessage("Integrating tile={tile} => spectrogram lines {start} to {end}...".format(start=tileIndex,
                   end=tileIndex + numSpectLinesPerProc - 1, tile=tileIndex), root=0)
@@ -375,10 +396,10 @@ def main_radiotrans(argv):
       # this process and determine if that is past the end of the file (in which case, we stop).
       fileOffset = fileOffset + fileStep*nProcs
       tileIndex = tileIndex + numSpectLinesPerProc*nProcs
-      if fileOffset < rawDataFileSize:
+      if fileOffset < endFileOffset:
          # Compute how much remains of the raw data file and determine whether there is enough to create
          # a full spectrogram tile or whether we need to create a smaller tile.
-         fileRemain = rawDataFileSize - fileOffset - 1
+         fileRemain = endFileOffset - fileOffset - 1
          if fileRemain > 0 and fileRemain < fileStep:
             numFramesRemain = int( floor(fileRemain/rawDataFrameSize) )
             numDFTsRemain = int( floor(numFramesRemain/4) )

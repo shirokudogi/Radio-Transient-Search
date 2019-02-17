@@ -42,6 +42,10 @@ def main(args):
    cmdlnParser.add_option('-s', '--snr-cutoff', dest='SNRCutoff', type='float', default=3.0,
                            action='store',
                            help='SNR cut-off.', metavar='SNR')
+   cmdlnParser.add_option('-g', '--savitzky-golay', dest='SGParams', default='151,2,151,2',
+                           type='string', action='store',
+                           help='Savitzky-Golay parameters for bandpass and baseline smoothing',
+                           metavar='PARAMS')
 
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
    if not len(cmdlnArgs[0]) > 0:
@@ -87,20 +91,26 @@ def main(args):
       sys.exit(1)
    # endif
 
+   # Parse Savitzky-Golay parameters.
+   SGParams = [151, 2, 151, 2]
+   cmdlnSGParams = cmdlnOpts.SGParams.split(',')
+   numSGParams = len(cmdlnSGParams)
+   if numSGParams > 3:
+      SGParams[:4] = [int(x) for x in cmdlnSGParams[:4]]
+   else:
+      SGParams[:numSGParams] = [int(x) for x in cmdlnParams[:numSGParams]]
+   # endif
+
    # CCY - NOTE: I don't know the reason for the particular choice in the parameters sent to
    # sativzky_golay.  I'm merely transcribing those parameters over.
    # Correct bandpass.
    bandpass = np.median(waterfall, 0).reshape((waterfall.shape[1],))
-   if cmdlnOpts.fHighTuning:
-      bandpass = savitzky_golay(bandpass, 111, 2).reshape((1,waterfall.shape[1]))
-   else:
-      bandpass = savitzky_golay(bandpass, 151, 2).reshape((1,waterfall.shape[1]))
-   # endif
+   bandpass = savitzky_golay(bandpass, SGParams[0], SGParams[1]).reshape((1,waterfall.shape[1]))
    waterfall = waterfall - bandpass
 
    # Correct baseline.
    baseline = np.median(waterfall, 1).reshape((waterfall.shape[0],))
-   baseline = savitzky_golay(baseline, 151, 2).reshape((waterfall.shape[0],1))
+   baseline = savitzky_golay(baseline, SGParams[2], SGParams[3]).reshape((waterfall.shape[0],1))
    waterfall = waterfall - baseline
 
    # Correct RFI.
@@ -112,10 +122,11 @@ def main(args):
    freqStep = samplerate/(numSamplesPerFrame*1000.0)
    timeStep = integTime * int(numSpectLines/decimation)
    plt.imshow(waterfall.T, cmap='Greys_r', origin = 'low', aspect = 'auto')
-   plt.suptitle('Spectrogram {label}'.format(label=cmdlnOpts.label), fontsize = 30)
+   plt.suptitle('{label} RFI {std:.2f}$\sigma$'.format(label=cmdlnOpts.label,
+                  std=cmdlnOpts.RFIStd), fontsize = 28)
    plt.xlabel('Time ({step:.4f} sec)'.format(step=timeStep),fontdict={'fontsize':16})
-   plt.ylabel('Frequency ({step:.3f} kHz)'.format(step=freqStep),fontdict={'fontsize':14})
-   plt.colorbar().set_label('SNR',size=18)
+   plt.ylabel('Frequency ({step:.3f} kHz)'.format(step=freqStep),fontdict={'fontsize':16})
+   plt.colorbar().set_label('SNR',size=16)
    plt.savefig(cmdlnOpts.outFilepath)
    plt.clf()
 # end main()

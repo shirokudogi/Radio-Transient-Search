@@ -96,6 +96,7 @@ LABEL=               # User label attached to output files from data reduction.
 ENABLE_HANN=         # Commandline option string to enable Hann windowing in the data reduction.
 DECIMATION=          # Decimation for producing coarse spectrogram.
 RFI_STD=             # RFI standard deviation cutoff.
+DATA_UTILIZE=        # Fraction of the spectrogram lines to output from the raw data.
                      
 NUM_PROCS=           # Number of concurrent processes to use under MPI
 SUPERCLUSTER=        # Flag denoting whether we should initialize for being on a supercluster.
@@ -210,6 +211,14 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         -u | --data-utilization) # Specify RFI standard deviation cutoff.
+            if [ -z "${DATA_UTILIZE}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  DATA_UTILIZE=${2}
+               fi
+            fi
+            shift; shift
+            ;;
          --rfi-std-cutoff) # Specify RFI standard deviation cutoff.
             if [ -z "${RFI_STD}" ]; then
                if [[ "${2}" =~ ${REAL_NUM} ]]; then
@@ -225,6 +234,36 @@ if [[ ${#} -gt 0 ]]; then
                fi
             fi
             shift; shift
+            ;;
+         -sg0 | --savitzky-golay0) # Specify Savitzky-Golay smoothing parameters for tuning 0.
+            if [ -z "${SG_PARAMS0}" ]; then
+               ARGS=(${2} ${3} ${4} ${5})
+               for param in ${AGRS[*]}
+               do
+                  if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
+                     SG_PARAMS0=("${SG_PARAMS0[*]}" "${param}")
+                  else
+                     echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
+                     exit -1
+                  fi
+               done
+            fi
+            shift; shift; shift; shift; shift
+            ;;
+         -sg1 | --savitzky-golay1) # Specify Savitzky-Golay smoothing parameters for tuning 0.
+            if [ -z "${SG_PARAMS1}" ]; then
+               ARGS=(${2} ${3} ${4} ${5})
+               for param in ${AGRS[*]}
+               do
+                  if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
+                     SG_PARAMS1=("${SG_PARAMS1[*]}" "${param}")
+                  else
+                     echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
+                     exit -1
+                  fi
+               done
+            fi
+            shift; shift; shift; shift; shift
             ;;
          -*) # Unknown option
             echo "WARNING: radioreduce.sh -> Unknown option"
@@ -319,6 +358,11 @@ if [ -z "${DECIMATION}" ]; then
    DECIMATION=10000
 fi
 
+# Check that the data utilization fraction is specified.
+if [ -z "${DATA_UTILIZE}" ]; then
+   DATA_UTILIZE=1.0
+fi
+
 # Check that the RFI standard deviation cut-off is specified.
 if [ -z "${RFI_STD}" ]; then
    RFI_STD=5.0
@@ -327,6 +371,14 @@ fi
 # Check that the SNR ceiling cutoff is specified.
 if [ -z "${SNR_CUTOFF}" ]; then
    SNR_CUTOFF=3.0
+fi
+
+# Check Savitzky-Golay smoothing parameters are specified.
+if [ -z "${SG_PARAMS0}" ]; then
+   SG_PARAMS0=(151 2 151 2)
+fi
+if [ -z "${SG_PARAMS1}" ]; then
+   SG_PARAMS1=(111 2 151 2)
 fi
 
 # If a label was specified, create the label option.
@@ -338,8 +390,8 @@ fi
 source ${INSTALL_DIR}/utils.sh
 
 # Source the resume functionality.
-RESUME_CMD_FILEPATH="${WORK_DIR}/radiotrans_cmd.resume"
-RESUME_VAR_FILEPATH="${WORK_DIR}/radiotrans_var.resume"
+RESUME_CMD_FILEPATH="${RESULTS_DIR}/radiotrans_cmd.resume"
+RESUME_VAR_FILEPATH="${RESULTS_DIR}/radiotrans_var.resume"
 source ${INSTALL_DIR}/resume.sh
 
 # If this is on a supercluster, then load the necessary modules for the supercluster to be able to 
@@ -353,7 +405,58 @@ fi
 
 # = RADIO TRANSIENT SEARCH DATA REDUCTION PHASE WORKFLOW =
 #
+#  User feedback to confirm run parameters.
 echo "radioreduce.sh: Starting radio data reduction workflow:"
+echo
+echo "   Radiotrans install dir = ${INSTALL_DIR}"
+echo "   Working dir = ${WORK_DIR}"
+echo "   Results dir = ${RESULTS_DIR}"
+echo "   Num running processes = ${NUM_PROCS}"
+echo "   Memory limit (MB) = ${MEM_LIMIT}"
+echo "   Common parameters file = ${COMMCONFIG_FILE}"
+echo
+echo "   Run label = ${LABEL}"
+echo "   Integration time = ${INTEGTIME}"
+echo "   Raw data utilization = ${DATA_UTILIZE}"
+if [ -z "${ENABLE_HANN}" ]; then
+   echo "   Enable Hann windowing = false"
+else
+   echo "   Enable Hann windowing = true"
+fi
+echo "   Coarse spectrogram decimation = ${DECIMATION}"
+echo "   RFI standard deviation cutoff = ${RFI_STD}"
+echo "   SNR cutoff = ${SNR_CUTOFF}" 
+echo "   Savitzky-Golay parameters, tuning 0 = ${SG_PARAMS0[*]}"
+echo "   Savitzky-Golay parameters, tuning 1 = ${SG_PARAMS1[*]}"
+if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
+   echo "   Transfer to results dir = false"
+else
+   echo "   Transfer to results dir = true"
+fi
+if [ ${FLAG_DELWATERFALLS} -eq 0 ]; then
+   echo "   Delete reduced waterfall files = false"
+else
+   echo "   Delete reduced waterfall files = true"
+fi
+echo
+
+# Confirm that the user wishes to proceed with the current configuration.
+MENU_CHOICES=("yes" "no")
+echo "radioreduce.sh: Proceed with the above parameters?"
+PS3="Enter option number (1 or 2): "
+select USER_ANS in ${MENU_CHOICES[*]}
+do
+   if [[ "${USER_ANS}" == "yes" ]]; then
+      echo "radioreduce.sh: Proceding with reduction workflow..."
+      break
+   elif [[ "${USER_ANS}" == "no" ]]; then
+      echo "radioreduce.sh: Reduction workflow cancelled."
+      exit 0
+   else
+      continue
+   fi
+done
+
 # Workflow resume labels.  These are to label each executable stage of the workflow for use with
 # resumecmd.
 #
@@ -365,6 +468,15 @@ LBL_COARSEIMG1="WaterfallCoarseImg_Tune1"
 LBL_RESULTS="Results_Transfer"
 LBL_CLEAN="Cleanup_Reduce"
 LBL_DELWATERFALL="Delete_Waterfalls"
+LBL_BANDPASSIMG0="WaterfallBandpassImg_Tune0"
+LBL_BANDPASSIMG1="WaterfallBandpassImg_Tune1"
+LBL_BASELINEIMG0="WaterfallBaselineImg_Tune0"
+LBL_BASELINEIMG1="WaterfallBaselineImg_Tune1"
+LBL_SGBANDPASSIMG0="WaterfallSGBandpassImg_Tune0"
+LBL_SGBANDPASSIMG1="WaterfallSGBandpassImg_Tune1"
+LBL_SGBASELINEIMG0="WaterfallSGBaselineImg_Tune0"
+LBL_SGBASELINEIMG1="WaterfallSGBaselineImg_Tune1"
+LBL_DELWORK="DeleteWorkingDir"
 
 
 # Generate the waterfall tiles for the reduced-data spectrogram
@@ -372,7 +484,7 @@ echo "radioreduce.sh: Generating waterfall tiles for spectrogram from ${DATA_PAT
 resumecmd -l ${LBL_WATERFALL} \
    mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
    --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" \
-   ${ENABLE_HANN} ${LABEL_OPT} \
+   ${ENABLE_HANN} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
 report_resumecmd
 
@@ -398,21 +510,84 @@ resumecmd -l ${LBL_COMBINE1} -k ${RESUME_LASTCMD_SUCCESS} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T1.npy"
 report_resumecmd
 
+
+# Create bandpass and baseline images of the coarse combined waterfalls for tunings 0 and 1.
+echo "radioreduce.sh: Generating bandpass images of coarse combined waterfall for tuning 0..."
+resumecmd -l ${LBL_BANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/bandpass-${CMBPREFIX}-T0.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+report_resumecmd
+resumecmd -l ${LBL_SGBANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --savitzky-golay "${SG_PARAMS0[0]},${SG_PARAMS0[1]}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbandpass-${CMBPREFIX}-T0.png" \
+   --label "SG-${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+report_resumecmd
+echo "radioreduce.sh: Generating baseline images of coarse combined waterfall for tuning 0..."
+resumecmd -l ${LBL_BASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/baseline-${CMBPREFIX}-T0.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+report_resumecmd
+resumecmd -l ${LBL_SGBASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --savitzky-golay "${SG_PARAMS0[2]},${SG_PARAMS0[3]}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbaseline-${CMBPREFIX}-T0.png" \
+   --label "SG-${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+report_resumecmd
+
+echo "radioreduce.sh: Generating bandpass images of coarse combined waterfall for tuning 1..."
+resumecmd -l ${LBL_BANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/bandpass-${CMBPREFIX}-T1.png" \
+   --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+report_resumecmd
+resumecmd -l ${LBL_SGBANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --savitzky-golay "${SG_PARAMS1[0]},${SG_PARAMS1[1]}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbandpass-${CMBPREFIX}-T1.png" \
+   --label "SG-${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+report_resumecmd
+echo "radioreduce.sh: Generating baseline images of coarse combined waterfall for tuning 1..."
+resumecmd -l ${LBL_BASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/baseline-${CMBPREFIX}-T1.png" \
+   --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+report_resumecmd
+resumecmd -l ${LBL_SGBASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --savitzky-golay "${SG_PARAMS1[2]},${SG_PARAMS1[3]}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbaseline-${CMBPREFIX}-T1.png" \
+   --label "SG-${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+report_resumecmd
+
+
 # Create images of the coarse combined waterfalls for tuning 0 and tuning 1.
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 0..."
 resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
-   --lower-FFT-index 0 --upper-FFT-index 4095 --label "Lower_Tuning" \
+   --lower-FFT-index 0 --upper-FFT-index 4095 --label "${LABEL}_Low" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff ${RFI_STD} \
-   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T0.png" \
+   --savitzky-golay "${SG_PARAMS0[0]},${SG_PARAMS0[1]},${SG_PARAMS0[2]},${SG_PARAMS0[3]}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/coarse-${CMBPREFIX}-T0.png" \
    --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
 echo "radioreduce.sh: Generating coarse spectrogram image for tuning 1..."
 resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
-   --lower-FFT-index 0 --upper-FFT-index 4095 --label "Higher_Tuning" --high-tuning \
+   --lower-FFT-index 0 --upper-FFT-index 4095 --label "${LABEL}_High" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff ${RFI_STD} \
-   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T1.png" \
+   --savitzky-golay "${SG_PARAMS1[0]},${SG_PARAMS1[1]},${SG_PARAMS1[2]},${SG_PARAMS1[3]}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/coarse-${CMBPREFIX}-T1.png" \
    --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 
@@ -423,7 +598,6 @@ echo "radioreduce.sh: Cleaning up temporary and intermediate files (this may tak
 resumecmd -l ${LBL_CLEAN} -k ${RESUME_LASTCMD_SUCCESS} \
    delete_files "${WORK_DIR}/*.dtmp"
 report_resumecmd
-
 if [ ${FLAG_DELWATERFALLS} -ne 0 ]; then
    echo "radioreduce.sh: Deleting waterfall files from working directory..."
    resumecmd -l ${LBL_DELWATERFALL} -k ${RESUME_LASTCMD_SUCCESS} \
@@ -437,10 +611,21 @@ if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
    # Move results files if the working directory and results directory are different.
    if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
       echo "radioreduce.sh: Transferring key results files to directory ${RESULTS_DIR}..."
-      resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
-         transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-         "${CMBPREFIX}*.npy" "coarse-${CMBPREFIX}*.npy" "waterfall*.npy" "*.png" \
-         "${COMMCONFIG_FILE}"
+      if [ ${FLAG_DELWATERFALLS} -eq 0 ]; then
+         resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
+            transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
+            "${CMBPREFIX}*.npy" "coarse-${CMBPREFIX}*.npy" "waterfall*.npy" "*.png" \
+            "${COMMCONFIG_FILE}"
+      else
+         resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
+            transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
+            "${CMBPREFIX}*.npy" "coarse-${CMBPREFIX}*.npy" "*.png" \
+            "${COMMCONFIG_FILE}"
+      fi
+      report_resumecmd
+      # Delete the working directory, since we don't need it now.
+      echo "Removing working directory."
+      resumecmd -l ${LBL_DELWORK} -k ${RESUME_LASTCMD_SUCCESS} rm -rf "${WORK_DIR}"
       report_resumecmd
    else
       echo "radioreduce.sh: Skipping results transfer => working and results directories are the same."

@@ -14,6 +14,7 @@ MEM_LIMIT=32768            # Memory limit, in MBs, for creating waterfall tiles 
 INSTALL_DIR="${HOME}/local/radiotrans"
 DEFAULT_DEBUG=0
 SKIPMOVE_OPT=
+DATA_UTILIZE=
 
 DELWATERFALLS_OPT=
 
@@ -29,16 +30,16 @@ if [[ ${#} -gt 0 ]]; then
             DATA_DIR="/data/network/recent_data/jtsai"
             DATA_FILENAME="057974_001488582"
             DATA_PATH="${DATA_DIR}/${DATA_FILENAME}"
-            LABEL="GWR20170809"
+            LABEL="GWRDEBUG"
             INSTALL_DIR="${HOME}/dev/radiotrans"
             WORK_DIR="/mnt/toaster/cyancey/${LABEL}"
             RESULTS_DIR="${HOME}/analysis/${LABEL}"
-            INTEGTIME="6.89633"
-            #INTEGTIME="2089.80"
-            DECIMATION=10000
-            #DECIMATION=4000
-            RFI_STD=7.0
-            SNR_CUTOFF=5.0
+            INTEGTIME=24.03265
+            DECIMATION=4000
+            RFI_STD=5.0
+            SNR_CUTOFF=3.0
+            SG_PARAMS0=(151 2 151 2)
+            SG_PARAMS1=(111 2 151 2)
 
             DEFAULT_DEBUG=1
             shift
@@ -138,6 +139,14 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         -U | --data-utilization) # Specify RFI standard deviation cutoff.
+            if [ -z "${DATA_UTILIZE}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  DATA_UTILIZE="${2}"
+               fi
+            fi
+            shift; shift
+            ;;
          --rfi-std-cutoff) # Specify the RFI standard deviation cut-off.
             if [ ${DEFAULT_DEBUG} -eq 0 ]; then
                if [ -z "${RFI_STD}" ]; then
@@ -157,6 +166,40 @@ if [[ ${#} -gt 0 ]]; then
                fi
             fi
             shift; shift
+            ;;
+         -SG0 | --savitzky-golay0) # Specify Savitzky-Golay smoothing parameters for tuning 0.
+            if [ ${DEFAULT_DEBUG} -eq 0 ]; then
+               if [ -z "${SG_PARAMS0}" ]; then
+                  ARGS=(${2} ${3} ${4} ${5})
+                  for param in ${ARGS[*]}
+                  do
+                     if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
+                        SG_PARAMS0=("${SG_PARAMS0[*]}" "${param}")
+                     else
+                        echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
+                        exit -1
+                     fi
+                  done
+               fi
+            fi
+            shift; shift; shift; shift; shift
+            ;;
+         -SG1 | --savitzky-golay1) # Specify Savitzky-Golay smoothing parameters for tuning 0.
+            if [ ${DEFAULT_DEBUG} -eq 0 ]; then
+               if [ -z "${SG_PARAMS1}" ]; then
+                  ARGS=(${2} ${3} ${4} ${5})
+                  for param in ${AGRS[*]}
+                  do
+                     if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
+                        SG_PARAMS1=("${SG_PARAMS1[*]}" "${param}")
+                     else
+                        echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
+                        exit -1
+                     fi
+                  done
+               fi
+            fi
+            shift; shift; shift; shift; shift
             ;;
          --skip-transfer) # Skip transfer of results files to the results directory.
             SKIPMOVE_OPT="--skip-transfer"
@@ -226,6 +269,11 @@ if [ -z "${DECIMATION}" ]; then
    DECIMATION=10000
 fi
 
+# Check that the data utilization fraction is specified.
+if [ -z "${DATA_UTILIZE}" ]; then
+   DATA_UTILIZE=1.0
+fi
+
 # Check that the RFI standard deviation cut-off is specified.
 if [ -z "${RFI_STD}" ]; then
    RFI_STD=5.0
@@ -236,12 +284,23 @@ if [ -z "${SNR_CUTOFF}" ]; then
    SNR_CUTOFF=3.0
 fi
 
+# Check Savitzky-Golay smoothing parameters are specified.
+if [ -z "${SG_PARAMS0}" ]; then
+   SG_PARAMS0=(151 2 151 2)
+fi
+if [ -z "${SG_PARAMS1}" ]; then
+   SG_PARAMS1=(111 2 151 2)
+fi
+
+
 # Build the command-line to run radiotrans.sh
 CMD="${INSTALL_DIR}/radioreduce.sh"
 CMD_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
       --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
       --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
       --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
+      --data-utilization ${DATA_UTILIZE} \
+      --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
       --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SKIPMOVE_OPT} ${DELWATERFALLS_OPT})
 
 # Run the radiotrans.sh script.
