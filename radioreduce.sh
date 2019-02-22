@@ -623,10 +623,13 @@ if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
             "${COMMCONFIG_FILE}"
       fi
       report_resumecmd
-      # Delete the working directory, since we don't need it now.
-      echo "Removing working directory."
-      resumecmd -l ${LBL_DELWORK} -k ${RESUME_LASTCMD_SUCCESS} rm -rf "${WORK_DIR}"
-      report_resumecmd
+      # Delete the working directory, since we don't need it now, as long as it is not the current
+      # directory.  As a safety, we want to avoid deleting the current directory.
+      if [[ "${WORK_DIR}" != "." ]]; then
+         echo "Removing working directory."
+         resumecmd -l ${LBL_DELWORK} -k ${RESUME_LASTCMD_SUCCESS} rm -rf "${WORK_DIR}"
+         report_resumecmd
+      fi
    else
       echo "radioreduce.sh: Skipping results transfer => working and results directories are the same."
    fi
