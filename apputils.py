@@ -227,13 +227,18 @@ def savitzky_golay(y, window_size, order, deriv=0):
 # end savitzky_golay()
 
 def RFI(sp,std):
-   bandpassMean = sp.mean(0)
-   baselineMean = sp.mean(1)
-   spMedian = np.median(sp)
-   bandpassMask = np.where( np.abs(bandpassMean - np.median(bandpassMean)) > std/np.sqrt(sp.shape[0]) )
-   baselineMask = np.where( np.abs(baselineMean - np.median(baselineMean)) > std/np.sqrt(sp.shape[1]) )
-   sp[:, bandpassMask] = spMedian
-   sp[baselineMask, :] = spMedian
+   # Correct bandpass RFI.
+   bandpass = sp.mean(0)
+   noiseFloor = np.median(sp)
+   bandpassMask = np.where( np.abs(bandpass - np.median(bandpass)) > std/np.sqrt(sp.shape[0]) )
+   sp[:, bandpassMask] = noiseFloor
+
+   # Correct baseline RFI.
+   baseline = sp.mean(1)
+   noiseFloor = np.median(sp)
+   baselineMask = np.where( np.abs(baseline - np.median(baseline)) > std/np.sqrt(sp.shape[1]) )
+   sp[baselineMask, :] = noiseFloor
+
    return sp
 # end RFI()
 
@@ -241,5 +246,5 @@ def snr(a):
    # Numpy std function computes the standard deviation from the theoretical variance, not the proper
    # sample variance since the mean is being derived from the data. However, for an extremely large
    # number of data points, the two are not substantially different.
-   return (a-a.mean() )/a.std()
+   return (a - a.mean() )/a.std()
 # end snr()

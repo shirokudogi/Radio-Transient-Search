@@ -1,6 +1,7 @@
 import os
 import sys
 import glob
+import tempfile
 import numpy as np
 from optparse import OptionParser
 from ConfigParser import ConfigParser
@@ -23,7 +24,7 @@ def main_radiotrans(args):
    # Setup commandline options
    cmdlnParser = OptionParser()
    cmdlnParser.add_option("-o","--outfile", dest="outFilepath", type="string",
-                           default="./coarsespectrogram.npy", action="store",
+                           default="./spectrogram.npy", action="store",
                            help="Path of the output coarse spectrogram file",
                            metavar="PATH")
    cmdlnParser.add_option("-i","--image-file", dest="imageFilepath", type="string",
@@ -38,6 +39,10 @@ def main_radiotrans(args):
                            default="./radiotrans.ini", action="store",
                            help="Path to the common parameters file.",
                            metavar="PATH")
+   cmdlnParser.add_option("-d", "--decimation", dest="decimation", type="int",
+                           default=10000,
+                           help="Decimation of the combined spectrogram to form a coarse version",
+                           metavar="NUM")
    # Parse command line
    (cmdlnOpts, tileFilepaths) = cmdlnParser.parse_args(args)
    if len(tileFilepaths) == 0:
@@ -46,26 +51,34 @@ def main_radiotrans(args):
    # endif
    tileFilepaths = sortWaterfallFilepaths(tileFilepaths)
 
-   # Read common parameters file
+   # Read common parameters file for need common parameters and update with the decimation factor.
    try:
-      configFile = open(cmdlnOpts.configFilepath,"r")
       commConfigObj = ConfigParser()
+
+      # Read current common parameters.
+      configFile = open(cmdlnOpts.configFilepath,"r")
       commConfigObj.readfp(configFile, cmdlnOpts.configFilepath)
       numSpectLines = commConfigObj.getint('Reduced DFT Data', 'numspectrogramlines')
-      DFTLength = commConfigObj.getint('Reduced DFT Data', 'DFTlength')
+      DFTLength = commConfigObj.getint('Reduced DFT Data', 'dftlength')
+      configFile.close()
+
+      # Update common parameters with decimation factor.
+      configFile = open(cmdlnOpts.configFilepath,"w")
+      commConfigObj.set('Reduced DFT Data', 'decimation', cmdlnOpts.decimation)
+      commConfigObj.write(configFile)
       configFile.close()
    except Exception as anError:
-      print 'Could not read common parameters configuration file: ', cmdlnOpts.configFilepath
+      print 'Could not read or update common parameters configuration file: ', cmdlnOpts.configFilepath
       print anError
       configFile.close()
       sys.exit(1)
    # endtry
 
+
    # Create memory mapped array for combined waterfall.
    try:
       mmapSize = DFTLength*numSpectLines*np.dtype(np.float32).itemsize
-      tempFilepath = '{dir}/tempcombwaterfall.dtmp'.format(dir=cmdlnOpts.workDir)
-      #tempSpectFile = open(tempFilepath, "w+b") 
+      (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
       print 'waterfallcombine.py: Creating memmap array of size {size} bytes...'.format(size=mmapSize)
       combWaterfall = np.memmap(filename=tempFilepath, shape=(numSpectLines, DFTLength), 
                                  dtype=np.float32, mode='w+')
@@ -93,9 +106,19 @@ def main_radiotrans(args):
    # endfor
    combWaterfall.flush()
 
-   # Save the final combined coarse waterfall.
-   print 'waterfallcombine.py: Decimating memmap to final combined coarse spectrogram...'
-   np.save(cmdlnOpts.outFilepath, DecimateNPY(combWaterfall, int(combWaterfall.shape[0]/30000) ) )
+   # Save the final combined waterfall file.
+   print 'waterfallcombine.py: Writing combined waterfall spectrogram...'
+   np.save(cmdlnOpts.outFilepath, combWaterfall)
+   # Save the coarse version of the combined waterfall file.
+   print 'waterfallcombine.py: Writing coarse version of combined waterfall spectrogram...'
+   (outDir, outFilename) = os.path.split(cmdlnOpts.outFilepath)
+   if len(outDir) == 0:
+      outDir = "."
+   # endif
+   np.save('{dir}/coarse-{name}'.format(dir=outDir, name=outFilename), 
+            DecimateNPY(combWaterfall, int(combWaterfall.shape[0]/cmdlnOpts.decimation) ) )
+
+   os.close(tempFD)
 # end main_radiotrans()
 
 if __name__ == "__main__":

@@ -31,6 +31,7 @@ function transfer_files()
    local DEST_DIR="."
    local FILES=
 
+   # Parse commandline.
    if [ ${#} -gt 0 ]; then
       while [ -n "${1}" ]
       do
@@ -51,8 +52,18 @@ function transfer_files()
       done
    fi
 
+   # Check if we have a list of files to transfer.
    if [ -z "${FILES}" ]; then
       FILES=$(basename "${SRC_DIR}/*")
+   else
+      # If we are not in the source directory, then we will need to make sure we have an explicit list
+      # of all the files to be moved.
+      if [[ $(pwd) != "${SRC_DIR}" ]]; then
+         CURR_DIR=$(pwd)
+         cd "${SRC_DIR}"
+         FILES=$(ls ${FILES[*]})
+         cd "${CURR_DIR}"
+      fi
    fi
 
    if [[ "${SRC_DIR}" != "${DEST_DIR}" ]]; then
