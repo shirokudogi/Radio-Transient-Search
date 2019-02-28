@@ -7,7 +7,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from optparse import OptionParser
-from apputils import forceIntValue, savitzky_golay, RFI, snr
+import apputils
 
 
 
@@ -69,11 +69,11 @@ def main(args):
 
       # Update common parameters with RFI std cut-off and SNR ceiling cutoff.
       configFile = open(cmdlnOpts.configFilepath,"w")
-      if not commConfigObj.has_section('RFI Bandpass'):
-         commConfigObj.add_section('RFI Bandpass')
+      if not commConfigObj.has_section('Spectrogram Plot'):
+         commConfigObj.add_section('Spectrogram Plot')
       # endif
-      commConfigObj.set('RFI Bandpass', 'rfistdcutoff', cmdlnOpts.RFIStd)
-      commConfigObj.set('RFI Bandpass', 'snrcutoff', cmdlnOpts.SNRCutoff)
+      commConfigObj.set('Spectrogram Plot', 'rfistdcutoff', cmdlnOpts.RFIStd)
+      commConfigObj.set('Spectrogram Plot', 'snrcutoff', cmdlnOpts.SNRCutoff)
       commConfigObj.write(configFile)
       configFile.close()
    except Exception as anError:
@@ -84,8 +84,8 @@ def main(args):
    # endtry
 
    waterfall = np.load(cmdlnArgs[0])
-   lowerIndex = forceIntValue(cmdlnOpts.lowerIndex, 0, DFTLength - 1)
-   upperIndex = forceIntValue(cmdlnOpts.upperIndex, 0, DFTLength - 1)
+   lowerIndex = apputils.forceIntValue(cmdlnOpts.lowerIndex, 0, DFTLength - 1)
+   upperIndex = apputils.forceIntValue(cmdlnOpts.upperIndex, 0, DFTLength - 1)
    if not upperIndex > lowerIndex:
       print 'Error (watchwaterfall.py): Upper FFT index must be greater than lower FFT index'
       sys.exit(1)
@@ -105,17 +105,17 @@ def main(args):
    # sativzky_golay.  I'm merely transcribing those parameters over.
    # Correct bandpass.
    bandpass = np.median(waterfall, 0).reshape((waterfall.shape[1],))
-   bandpass = savitzky_golay(bandpass, SGParams[0], SGParams[1]).reshape((1,waterfall.shape[1]))
+   bandpass = apputils.savitzky_golay(bandpass, SGParams[0], SGParams[1]).reshape((1,waterfall.shape[1]))
    waterfall = waterfall - bandpass
 
    # Correct baseline.
    baseline = np.median(waterfall, 1).reshape((waterfall.shape[0],))
-   baseline = savitzky_golay(baseline, SGParams[2], SGParams[3]).reshape((waterfall.shape[0],1))
+   baseline = apputils.savitzky_golay(baseline, SGParams[2], SGParams[3]).reshape((waterfall.shape[0],1))
    waterfall = waterfall - baseline
 
    # Correct RFI.
-   waterfall = RFI(waterfall, cmdlnOpts.RFIStd*waterfall.std())
-   waterfall = snr(waterfall)
+   waterfall = apputils.RFI(waterfall, cmdlnOpts.RFIStd*waterfall.std())
+   waterfall = apputils.snr(waterfall)
    mask = np.where( abs(waterfall) > cmdlnOpts.SNRCutoff*(waterfall[:,:].std()) )
    waterfall[:,:][mask] = waterfall[:,:].mean()
 
@@ -133,4 +133,5 @@ def main(args):
 
 if __name__ == "__main__":
    main(sys.argv[1:])
+   sys.exit(0)
 # endif

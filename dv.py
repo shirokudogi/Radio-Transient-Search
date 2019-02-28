@@ -10,7 +10,7 @@ import apputils
 
 
 class PulseSignal():
-   formatter = "{0.pulse:07d}    {0.SNR:10.6f}     {0.DM:10.4f}     {0.time:10.6f} " + \
+   formatter = "{0.pulse:08d}    {0.SNR:10.6f}     {0.DM:10.4f}     {0.time:10.6f} " + \
                "     {0.dtau:10.6f}     {0.dnu:.4f}     {0.nu:.4f}    {0.mean:.5f}" + \
                "    {0.rms:0.5f}     {0.nu1:.4f}    {0.nu2:.4f}\n " 
 
@@ -71,7 +71,7 @@ def Threshold(ts, thresh, clip=3, niter=1):
 # end Threshold()
 
 
-main_radiotrans(args):
+main(args):
    # Get the MPI environment.
    MPIComm  = MPI.COMM_WORLD
    numProcs = MPIComm.Get_size()
@@ -113,10 +113,6 @@ main_radiotrans(args):
    cmdlnParser.add_option("-e", "--dm-end", dest="DMEnd", type="float", default=1000.0, action="store",
                            help="Ending dispersion measure value.",
                            metavar="DM")
-   cmdlnParser.add_option("-l", "--lower-fft-index", dest="lowerFFTIndex", default=0, action="store",
-                           help="Lower FFT index of the bandpass to de-disperse.", metavar="INDEX")
-   cmdlnParser.add_option("-u", "--upper-fft-index", dest="upperFFTIndex", default=4095, action="store",
-                           help="Upper FFT index of the bandpass to de-disperse.", metavar="INDEX")
    # Parse the commandline.                           
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
 
@@ -140,8 +136,12 @@ main_radiotrans(args):
       bandWidth = commConfigObj.getfloat("Raw Data","samplerate")/10^6
       if not cmdlnOpts.enableTuning1:
          centerFreq = commConfigObj.getfloat("Raw Data", "tuningfreq0")/10^6
+         lowerFFTIndex = commConfigObj.getint("RFI Bandpass", "lowerfftindex0")
+         upperFFTIndex = commConfigObj.getint("RFI Bandpass", "upperfftindex0")
       else:
          centerFreq = commConfigObj.getfloat("Raw Data", "tuningfreq1")/10^6
+         lowerFFTIndex = commConfigObj.getint("RFI Bandpass", "lowerfftindex1")
+         upperFFTIndex = commConfigObj.getint("RFI Bandpass", "upperfftindex1")
       # endif
       # Parse DFT length and integration time, in seconds.
       DFTLength = commConfigObj.getint("Reduced DFT Data", "dftlength")
@@ -159,6 +159,7 @@ main_radiotrans(args):
    # Load the combined spectrogram file.
    try:
       spectrogram = np.load(spectFilepath, mmap_mode='r')
+      spectLength = len(spectrogram)
    except:
       procMessage("dv.py: Could not open or load spectrogram file {file}".format(file=spectFilepath),
                   msg_type="ERROR")
@@ -179,8 +180,8 @@ main_radiotrans(args):
 
    # Compute the set of frequencies in the bandpass to de-disperse.  These are the frequencies at the
    # top of the frequency bins.
-   freqs = apputils.computeFreqs(centerFreq, bandwidth, cmdlnOpts.lowerFFTIndex,
-                                 cmdlnOpts.upperFFTIndex, DFTLength + 1) + channelWidth
+   freqs = apputils.computeFreqs(centerFreq, bandwidth, lowerFFTIndex,
+                                 upperFFTIndex, DFTLength + 1) + channelWidth
    freqIndices = np.arange(len(freqs), dtype=np.int32)
    bottomFreqBP = freqs[0] - channelWidth # Bottom frequency in the bandpass.
    # Assign every rank-th frequency to current process to de-disperse.
@@ -192,10 +193,9 @@ main_radiotrans(args):
       np.append(procFreqIndices, freqIndices[lastIndex:])
    # endif
 
-   # CCY - figure this shit out.  What the hell is it doing, and why do we need it?
+   # Setup pulse search parameters and add the maximum pulse-width to the common parameters file..
    maxPulseWidth = np.round( np.log2(cmdlnOpts.maxPulseWidth/tInt) ).astype(np.int32) + 1 
-   txtsize=np.zeros((npws,2),dtype=np.int32) #fileno = txtsize[ranki,0], pulse number = txtsize[ranki,1],ranki is the decimated order of 2
-   txtsize[:,0]=1 #fileno star from 1
+   pulseID = 0
 
    # Determine dispersion measure trials and scaled dispersion delays.
    DMtrials = []
@@ -219,6 +219,21 @@ main_radiotrans(args):
    ts = np.zeros(tbMax + spectrogram.shape[0], dtype=np.float32)
    tstotal = np.zeros(ts.shape[0], dtype=np.float32)
 
+
+   # Write additional parameter information into the common parameters file.
+   if rank == 0:
+      try:
+         commConfigFile = open(cmdlnOpts.configFilepath, 'w')
+         commConfigObj.add_section("De-disperse Search")
+         commConfigObj.set("De-disperse Search", "dmstart", cmdlnOpts.DMStart)
+         commConfigObj.set("De-disperse Search", "dmend", cmdlnOpts.DMEnd)
+         commConfigObj.set("De-disperse Search", "maxpulsewidth", maxPulseWidth)
+         commConfigObj.write(commConfigFile)
+         commConfigFile.close()
+      except:
+      # endtry
+   # endif
+
    # Perform de-dispersion search for pulses with temporal widths less than or equal to the specified 
    # pulse-width.
    for DM in DMtrials:
@@ -227,22 +242,21 @@ main_radiotrans(args):
       fShifts = tb[0] - tb
       # De-disperse the frequencies assigned to this process.
       for fIndex in procFreqIndices: 
-         ts[fshifts[fIndex] : fshift[fIndex] + tsLength] += spectrogram[ : , fIndex]
+         ts[fshifts[fIndex] : fshift[fIndex] + spectLength] += spectrogram[ : , fIndex]
       # endfor
 
       # Merge the de-dispersed time-series from all processes.
       MPIComm.Allreduce(ts, tstotal, op=MPI.SUM)
       # Cut the dispersed time lag.
-      dedispTS = tstotal[tb[0] : ts.shape[0] - tb[0]]
+      dedispTS = tstotal[tb[0] : spectLength]
 
       # Search for signal with decimated timeseries
       if rank < npws: # timeseries is ready for signal search
          ndown = 2**rank #decimate the time series
-         (snr, mean, rms) = Threshold(apputils.DecimateNPY(tstotal,ndown), thresh, niter=0)
+         (snr, mean, rms) = Threshold(apputils.DecimateNPY(dedispTS, ndown), thresh, niter=0)
          pulseIndices = np.where(sn!=-1)[0]
          for index in pulseIndices:# Now record all pulses above threshold
-            txtsize[ranki,1] += 1
-            pulse.pulse = txtsize[ranki,1]
+            pulse.pulse = rank*spectLength + pulseID
             pulse.SNR = snr[index]
             pulse.DM = DM
             pulse.time = index*tInt*ndown
@@ -255,23 +269,20 @@ main_radiotrans(args):
             pulse.nu2 = freqs[-1]
             outFile.Write_shared(pulse.__str__()[:]) 
 
-            if txtsize[ranki,1] >200000*txtsize[ranki,0]:
-               outfile.close()
-               txtsize[ranki,0]+=1
-               filename = "ppc_SNR_pol_%.1i_td_%.2i_no_%.05d.txt" % (pol,ranki,txtsize[ranki,0])
-               outfile = open(filename,'a')
-            # endif
+            pulseID += 1
          # endfor
       # endif
 
-      # Clear the summated time-series.
+      # Clear the time-series.
       tstotal.fill(0)
+      ts.fill(0)
    # endfor
 
    outFile.Close()
-# end main_radiotrans()
+# end main()
 
 
 if __name__ == "__main__":
-   main_radiotrans(sys.argv[1:])
+   main(sys.argv[1:])
+   sys.exit(0)
 # endif

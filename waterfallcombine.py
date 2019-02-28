@@ -6,21 +6,11 @@ import numpy as np
 from optparse import OptionParser
 from ConfigParser import ConfigParser
 import mmap
-from apputils import DecimateNPY, sortWaterfallFilepaths
+import apputils
 
 
 
-def main_orig(args):
-   fn = sorted(glob.glob('waterfall05*.npy'))
-   sp = np.zeros((len(fn),np.load(fn[0]).shape[0],np.load(fn[0]).shape[1]))
-   for i in range(len(fn)):
-       sp[i,:,:]=np.load(fn[i])
-
-   np.save('waterfall',Decimate(sp, sp.shape[0]/4000))
-# end main_orig()
-
-
-def main_radiotrans(args):
+def main(args):
    # Setup commandline options
    cmdlnParser = OptionParser()
    cmdlnParser.add_option("-o","--outfile", dest="outFilepath", type="string",
@@ -49,7 +39,7 @@ def main_radiotrans(args):
       print "Must provide paths to waterfall files to be combined."
       sys.exit(1)
    # endif
-   tileFilepaths = sortWaterfallFilepaths(tileFilepaths)
+   tileFilepaths = apputils.sortWaterfallFilepaths(tileFilepaths)
 
    # Read common parameters file for need common parameters and update with the decimation factor.
    try:
@@ -116,12 +106,12 @@ def main_radiotrans(args):
       outDir = "."
    # endif
    np.save('{dir}/coarse-{name}'.format(dir=outDir, name=outFilename), 
-            DecimateNPY(combWaterfall, int(combWaterfall.shape[0]/cmdlnOpts.decimation) ) )
+            apputils.DecimateNPY(combWaterfall, int(combWaterfall.shape[0]/cmdlnOpts.decimation) ) )
 
    os.close(tempFD)
 # end main_radiotrans()
 
 if __name__ == "__main__":
-   # main_orig(sys.argv[1:])
-   main_radiotrans(sys.argv[1:])
+   main(sys.argv[1:])
+   sys.exit(0)
 # endif
