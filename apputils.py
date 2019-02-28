@@ -10,9 +10,14 @@ from mpi4py import MPI
 
 
 
-def procMessage(msg, root=-1):
+def procMessage(msg, root=-1, msg_type=None):
+   if msg_type is not None:
+      msg_type = "({type})".format(type=msg_type)
+   # endif
+      
    if root == -1 or root == MPI.COMM_WORLD.Get_rank():
-      print 'From process {rank}=> {msg}'.format(rank=MPI.COMM_WORLD.Get_rank(), msg=msg)
+      print 'From process {rank}{type} => {msg}'.format(rank=MPI.COMM_WORLD.Get_rank(), msg=msg, 
+                                                         type=msg_type)
    # endif
 # end procMessage()
 
@@ -248,3 +253,42 @@ def snr(a):
    # number of data points, the two are not substantially different.
    return (a - a.mean() )/a.std()
 # end snr()
+#
+
+def scaleDelays(freqs):
+   """
+   Calculate the scaled relative delays of the given collection of frequencies from the maximum
+   frequency in the collection.  The frequencies are assumed to be in units of MHz.
+   """
+   # Dispersion constant in MHz^2 s / pc cm^-3
+   dispConst = 4.148808e3
+   # Compute inverse square of each of the frequencies and the inverse square of the maximum frequency
+   # among them.
+   sqrInvFreqs = 1.0/(freqs**2)
+   sqrInvFreqN = 1.0/(freqs.max()**2)
+
+   # Compute the relative delays from the maximum frequency.
+   return dispConst*(sqrInvFreqs - sqrInvFreqN)
+# end scaleDelays()
+
+def computeFreqs(centerFreq, bandwidth, botIndex, topIndex, numBins = None):
+   """
+   Compute the collection of frequencies for the bandpass region defined by a center frequency, total
+   bandwidth, a bottom frequency index, a top frequency index, and total number of bins that the total
+   bandwidth is divided amongst (if total bins is not given, it is assumed that topIndex + 1 is the
+   total number of bins.
+   """
+   if numBins is None:
+      numBins = topIndex + 1
+   # endif
+
+   numFreqs = topIndex - botIndex + 1
+   indices = np.arange(numFreqs)
+   freqs = np.zeros(numFreqs, dtype=np.float32)
+
+   BWFactor = bandwidth/(2.0*numBins)
+   for index in indices:
+      freqIndex = botIndex + index
+      freqs[index] = centerFreq + BWFactor*(2*freqIndex - numBins)
+   # endfor
+# end computeFreqs()
