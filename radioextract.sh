@@ -28,21 +28,16 @@ REAL_NUM='^[+-]?[0-9]+([.][0-9]+)?$'
 USAGE='
 radioextract
 
-   radioextract.sh [-t | --integrate-time <time>] [-n | --nprocs <num>] [-i | --install-dir <path>]
+   radioextract.sh [-n | --nprocs <num>] [-i | --install-dir <path>]
    [-w | --work-dir <path>] [-r | --results-dir <path>] [-s | --super-cluster] [-h | --help] 
-   [-m | --memory-limit <MB>] <data-file-path>
+   [-m | --memory-limit <MB>]
 
-   Implements the phase of the radio transient search workflow that performs the de-dispersion to
-   extract coherent signal power above threshold that may correspond to real astrophysical events.
+   Implements the phase of the radio transient search workflow that performs the de-dispersion 
+   search to extract coherent signal power above threshold that may correspond to real astrophysical 
+   events.
 
-
-   ARGUMENTS:
-      <data-file-path>: path to the radio data file.
 
    OPTIONS:
-      -t | --integrate-time <time>: Specify <time> as the integration time, in milliseconds, for each
-                                    time-slice in power spectrogram.
-
       -n | --nprocs <num>:          Number of MPI processes to use.  This defaults to the number of
                                     processor cores on the machine.
 
@@ -72,37 +67,23 @@ radioextract
 
 
 
-# ==== MAIN WORKFLOW FOR RADIOREDUCE.SH ===
+# ==== MAIN WORKFLOW FOR RADIOEXTRACT.SH ===
 #
 #
-# Set the install path for the radio transient search workflow scripts.  
-# NOTE: the string 'OPT-INSTALL_DIR' is replaced by the git-export.sh script with the path to directory 
-# in which the radio transient scripts have been installed.  However, the user is free to manually change
-# this.
-INSTALL_DIR=
-
-DATA_PATH=           # Path to the radio time-series data file.
-INTEGTIME=           # Spectral integration time in milliseconds.
+INSTALL_DIR=         # Install directory for radiotrans.
 WORK_DIR=            # Working directory.
 RESULTS_DIR=         # Results directory.
 MEM_LIMIT=           # Total memory usage limit, in MB, for spectrogram tiles among all processes.
 LABEL=               # User label attached to output files from data reduction.
-ENABLE_HANN=         # Commandline option string to enable Hann windowing in the data reduction.
-DECIMATION=          # Decimation for producing coarse spectrogram.
-RFI_STD=             # RFI standard deviation cutoff.
-DATA_UTILIZE=        # Fraction of the spectrogram lines to output from the raw data.
-                     
 NUM_PROCS=           # Number of concurrent processes to use under MPI
 SUPERCLUSTER=        # Flag denoting whether we should initialize for being on a supercluster.
 
 COMMCONFIG_FILE=     # Name of the common configuration file.
 
-FLAG_SKIPMOVE=0      # Flag denoting whether to skip the final stage to transfer of results files to the
-                     # results directory.
-
-FLAG_DELWATERFALLS=0   # Flag denoting whether to delete waterfall files at the end of the run to
-                           # help save space.
-
+MAX_PULSE=           # Maximum pulse width in seconds.
+DM_START=            # Starting dispersion measure for search.
+DM_END=              # Ending dispersion measure for search.
+SNR_THRESHOLD=       # SNR detection threshold.
 
 
 # Parse command-line arguments, but be sure to only accept the first value of an option or argument.
@@ -117,14 +98,6 @@ if [[ ${#} -gt 0 ]]; then
          -i | --install-dir) # Specify the install directory path to the radio transient scripts.
             if [ -z "${INSTALL_DIR}" ]; then
                INSTALL_DIR="${2}"
-            fi
-            shift; shift
-            ;;
-         -t | --integrate-time) # Specify the spectrogram integration time.
-            if [ -z "${INTEGTIME}" ]; then
-               if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                  INTEGTIME=${2}
-               fi
             fi
             shift; shift
             ;;
@@ -183,84 +156,40 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
-         --enable-hann) # Enable Hann windowing on the raw DFTs during reduction.
-            ENABLE_HANN="--enable-hann"
-            shift
-            ;;
-         --skip-transfer) # Skip transferring results files to the results directory.
-            FLAG_SKIPMOVE=1
-            shift
-            ;;
-         --delete-waterfalls) # Specify deletion of waterfall files at the end of the run.
-            FLAG_DELWATERFALLS=1
-            shift
-            ;;
-         -d | --decimation) # Specify decimation for the coarse spectrogram.
-            if [ -z "${DECIMATION}" ]; then
-               if [[ "${2}" =~ ${INTEGER_NUM} ]]; then
-                  if [ ${2} -gt 0 ]; then
-                     DECIMATION=${2}
-                  fi
-               fi
-            fi
-            shift; shift
-            ;;
-         -u | --data-utilization) # Specify RFI standard deviation cutoff.
-            if [ -z "${DATA_UTILIZE}" ]; then
-               if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                  DATA_UTILIZE=${2}
-               fi
-            fi
-            shift; shift
-            ;;
-         --rfi-std-cutoff) # Specify RFI standard deviation cutoff.
-            if [ -z "${RFI_STD}" ]; then
-               if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                  RFI_STD=${2}
-               fi
-            fi
-            shift; shift
-            ;;
-         --snr-cutoff) # Specify SNR ceiling cutoff.
+         --snr-threshold) # Specify SNR detection threshold.
             if [ -z "${SNR_CUTOFF}" ]; then
                if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                  SNR_CUTOFF=${2}
+                  SNR_THRESHOLD=${2}
                fi
             fi
             shift; shift
             ;;
-         -sg0 | --savitzky-golay0) # Specify Savitzky-Golay smoothing parameters for tuning 0.
-            if [ -z "${SG_PARAMS0}" ]; then
-               ARGS=(${2} ${3} ${4} ${5})
-               for param in ${AGRS[*]}
-               do
-                  if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
-                     SG_PARAMS0=("${SG_PARAMS0[*]}" "${param}")
-                  else
-                     echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
-                     exit -1
-                  fi
-               done
+         -s | --dm-start) # Specify the starting dispersion measure for search.
+            if [ -z "${DM_START}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  DM_START=${2}
+               fi
             fi
-            shift; shift; shift; shift; shift
+            shift; shift
             ;;
-         -sg1 | --savitzky-golay1) # Specify Savitzky-Golay smoothing parameters for tuning 0.
-            if [ -z "${SG_PARAMS1}" ]; then
-               ARGS=(${2} ${3} ${4} ${5})
-               for param in ${AGRS[*]}
-               do
-                  if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
-                     SG_PARAMS1=("${SG_PARAMS1[*]}" "${param}")
-                  else
-                     echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
-                     exit -1
-                  fi
-               done
+         -e | --dm-end) # Specify the ending dispersion measure for search.
+            if [ -z "${DM_END}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  DM_END=${2}
+               fi
             fi
-            shift; shift; shift; shift; shift
+            shift; shift
+            ;;
+         -p | --max-pulse-width) # Specify the maximum pulse width for search.
+            if [ -z "${MAX_PULSE}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  MAX_PULSE=${2}
+               fi
+            fi
+            shift; shift
             ;;
          -*) # Unknown option
-            echo "WARNING: radioreduce.sh -> Unknown option"
+            echo "WARNING: radioextract.sh -> Unknown option"
             echo "     ${1}"
             echo "Ignored: may cause option and argument misalignment."
             shift 
@@ -274,27 +203,11 @@ if [[ ${#} -gt 0 ]]; then
       esac
    done
 else
-   echo "ERROR: radioreduce.sh -> Nothing specified to do"
+   echo "ERROR: radioextract.sh -> Nothing specified to do"
    echo "${USAGE}"
    exit 1
 fi
 
-# Check that the spectral integration time was specified.
-if [ -z "${INTEGTIME}" ]; then
-   INTEGTIME=1000
-fi
-
-# Check that a valid data file path has been specified and that the file exists.
-if [ -n "${DATA_PATH}" ]; then
-   if [ ! -f "${DATA_PATH}" ]; then
-      echo "ERROR: radioreduce.sh -> Data file path not found"
-      echo "     ${DATA_PATH}"
-      exit 1
-   fi
-else
-   echo "ERROR: radioreduce.sh -> Must provide a path to the data file."
-   exit 1
-fi
 
 # Check that specified install path exists and that all necessary components are contained.
 if [ -z "${INSTALL_DIR}" ]; then
@@ -306,33 +219,33 @@ if [ -d "${INSTALL_DIR}" ]; then
    for module in ${package_modules[*]}; do
       MODULE_PATH="${INSTALL_DIR}/${module}"
       if [ ! -f "${MODULE_PATH}" ]; then
-         echo "ERROR: radioreduce.sh -> Missing package module"
+         echo "ERROR: radioextract.sh -> Missing package module"
          echo "     ${MODULE_PATH}"
          exit 1
       fi
    done
 else
-   echo "ERROR: radioreduce.sh -> Install path does not exist"
+   echo "ERROR: radioextract.sh -> Install path does not exist"
    echo "     ${INSTALL_DIR}"
    exit 1
 fi
 
-# Check that the working directory exists.
+# Ensure that the working directory exists.
 if [ -z "${WORK_DIR}" ]; then
    WORK_DIR="."
 fi
 if [ ! -d "${WORK_DIR}" ]; then
-   echo "ERROR: radioreduce.sh -> working directory does not exist.  User may need to create it."
+   echo "ERROR: radioextract.sh -> working directory does not exist.  User may need to create it."
    echo "     ${WORK_DIR}"
    exit 1
 fi
 
-# Check that the results directory exists.
+# Ensure that the results directory exists.
 if [ -z "${RESULTS_DIR}" ]; then
    RESULTS_DIR="."
 fi
 if [ ! -d "${RESULTS_DIR}" ]; then
-   echo "ERROR: radioreduce.sh -> results directory does not exist.  User may need to create it."
+   echo "ERROR: radioextract.sh -> results directory does not exist.  User may need to create it."
    echo "     ${RESULTS_DIR}"
    exit 1
 fi
@@ -342,43 +255,31 @@ if [ -z "${COMMCONFIG_FILE}" ]; then
    COMMCONFIG_FILE="radiotrans.ini"
 fi
 
-# Check that the memory limits are specified.
+# Ensure that the memory limit is specified.
 if [ -z "${MEM_LIMIT}" ]; then
    MEM_LIMIT=16384
 fi
 
-# Check that the coarse spectrogram decimation is specified.
-if [ -z "${DECIMATION}" ]; then
-   DECIMATION=10000
+# Ensure that the SNR detection threshold is specified.
+if [ -z "${SNR_THRESHOLD}" ]; then
+   SNR_THRESHOLD=5.0
 fi
 
-# Check that the data utilization fraction is specified.
-if [ -z "${DATA_UTILIZE}" ]; then
-   DATA_UTILIZE=1.0
+# Ensure that the maximum pulse width is specified.
+if [ -z "${MAX_PULSE}" ]; then
+   MAX_PULSE=5.0
 fi
 
-# Check that the RFI standard deviation cut-off is specified.
-if [ -z "${RFI_STD}" ]; then
-   RFI_STD=5.0
+# Ensure that the starting dispersion measure is specified.
+if [ -z "${DM_START}" ]; then
+   DM_START=30.0
 fi
 
-# Check that the SNR ceiling cutoff is specified.
-if [ -z "${SNR_CUTOFF}" ]; then
-   SNR_CUTOFF=3.0
+# Ensure that the ending dispersion measure is specified.
+if [ -z "${DM_END}" ]; then
+   DM_END=5.0
 fi
 
-# Check Savitzky-Golay smoothing parameters are specified.
-if [ -z "${SG_PARAMS0}" ]; then
-   SG_PARAMS0=(151 2 151 2)
-fi
-if [ -z "${SG_PARAMS1}" ]; then
-   SG_PARAMS1=(111 2 151 2)
-fi
-
-# If a label was specified, create the label option.
-if [ -n "${LABEL}" ]; then
-   LABEL_OPT="--label ${LABEL}"
-fi
 
 # Source the utility functions.
 source ${INSTALL_DIR}/utils.sh
@@ -401,7 +302,7 @@ fi
 # = RADIO TRANSIENT SEARCH DE-DISPERSION AND TRANSIENT EXTRACTION PHASE WORKFLOW =
 #
 #  User feedback to confirm run parameters.
-echo "radioreduce.sh: Starting radio data reduction workflow:"
+echo "radioextract.sh: Starting radio de-dispersed search workflow:"
 echo
 echo "   Radiotrans install dir = ${INSTALL_DIR}"
 echo "   Working dir = ${WORK_DIR}"
@@ -411,41 +312,23 @@ echo "   Memory limit (MB) = ${MEM_LIMIT}"
 echo "   Common parameters file = ${COMMCONFIG_FILE}"
 echo
 echo "   Run label = ${LABEL}"
-echo "   Integration time = ${INTEGTIME}"
-echo "   Raw data utilization = ${DATA_UTILIZE}"
-if [ -z "${ENABLE_HANN}" ]; then
-   echo "   Enable Hann windowing = false"
-else
-   echo "   Enable Hann windowing = true"
-fi
-echo "   Coarse spectrogram decimation = ${DECIMATION}"
-echo "   RFI standard deviation cutoff = ${RFI_STD}"
-echo "   SNR cutoff = ${SNR_CUTOFF}" 
-echo "   Savitzky-Golay parameters, tuning 0 = ${SG_PARAMS0[*]}"
-echo "   Savitzky-Golay parameters, tuning 1 = ${SG_PARAMS1[*]}"
-if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
-   echo "   Transfer to results dir = false"
-else
-   echo "   Transfer to results dir = true"
-fi
-if [ ${FLAG_DELWATERFALLS} -eq 0 ]; then
-   echo "   Delete reduced waterfall files = false"
-else
-   echo "   Delete reduced waterfall files = true"
-fi
+echo "   SNR threshold = ${SNR_THRESHOLD}" 
+echo "   Max. pulse width = ${MAX_PULSE}"
+echo "   DM start = ${DM_START}"
+echo "   DM end = ${DM_END}"
 echo
 
 # Confirm that the user wishes to proceed with the current configuration.
 MENU_CHOICES=("yes" "no")
-echo "radioreduce.sh: Proceed with the above parameters?"
+echo "radioextract.sh: Proceed with the above parameters?"
 PS3="Enter option number (1 or 2): "
 select USER_ANS in ${MENU_CHOICES[*]}
 do
    if [[ "${USER_ANS}" == "yes" ]]; then
-      echo "radioreduce.sh: Proceding with reduction workflow..."
+      echo "radioextract.sh: Proceding with de-dispersed search workflow..."
       break
    elif [[ "${USER_ANS}" == "no" ]]; then
-      echo "radioreduce.sh: Reduction workflow cancelled."
+      echo "radioextract.sh: De-dispersed search workflow cancelled."
       exit 0
    else
       continue
@@ -455,79 +338,31 @@ done
 # Workflow resume labels.  These are to label each executable stage of the workflow for use with
 # resumecmd.
 #
-LBL_WATERFALL="Waterfall"
-LBL_COMBINE0="WaterfallCombine_Tune0"
-LBL_COMBINE1="WaterfallCombine_Tune1"
-LBL_COARSEIMG0="WaterfallCoarseImg_Tune0"
-LBL_COARSEIMG1="WaterfallCoarseImg_Tune1"
+LBL_SEARCH0="De-disperse_Tune0"
+LBL_SEARCH1="De-disperse_Tune1"
 LBL_RESULTS="Results_Transfer"
-LBL_CLEAN="Cleanup_Reduce"
-LBL_DELWATERFALL="Delete_Waterfalls"
-LBL_BANDPASSIMG0="WaterfallBandpassImg_Tune0"
-LBL_BANDPASSIMG1="WaterfallBandpassImg_Tune1"
-LBL_BASELINEIMG0="WaterfallBaselineImg_Tune0"
-LBL_BASELINEIMG1="WaterfallBaselineImg_Tune1"
-LBL_SGBANDPASSIMG0="WaterfallSGBandpassImg_Tune0"
-LBL_SGBANDPASSIMG1="WaterfallSGBandpassImg_Tune1"
-LBL_SGBASELINEIMG0="WaterfallSGBaselineImg_Tune0"
-LBL_SGBASELINEIMG1="WaterfallSGBaselineImg_Tune1"
+LBL_CLEAN="Cleanup_Extract"
 LBL_DELWORK="DeleteWorkingDir"
 
-# Extract information about the time-series for use in doing the de-dispersion and transient extraction
-# with dv.py
-echo "     Generating time-series information for de-dispersion..."
-resumecmd -l ${LBL_FREQTINT} ${RESUME_FORCE_OPT} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np 1 python ${INSTALL_PATH}/freqtint.py "${DATA_PATH}" \
-   --low-tuning-lower ${LOW_FCL} --low-tuning-upper ${LOW_FCH} \
-   --high-tuning-lower ${HIGH_FCL} --high-tuning-upper ${HIGH_FCH} --work-dir ${WORK_DIR}
+CMBPREFIX="spectrogram"
+PULSEPREFIX="pulse"
+if [ -n "${LABEL}" ]; then
+   CMBPREFIX="${CMBPREFIX}_${LABEL}"
+   PULSEPREFIX="${PULSEPREFIX}_${LABEL}"
+fi
+
+echo "     Performing de-dispersed search on tuning 0 data..."
+resumecmd -l ${LBL_SEARCH0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" \
+   --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --dm-start ${DM_START} --dm-end ${DM_END} --max-pulse-width ${MAX_PULSE} \
+   --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T0.txt"
 report_resumecmd
 
-
-# Generate the detailed spectrogram.
-echo "    Generating detailed spectral samples for de-dispersion from ${DATA_PATH}..."
-resumecmd -l ${LBL_WATERFALL2} ${RESUME_FORCE_OPT} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/waterfall.py \
-   --integrate-time ${SPECTINTEGTIME} --samples ${NUM_SAMPLES} \
-   --samples-per-sec ${NUM_SAMPLESPERSEC} --detailed --work-dir ${WORK_DIR} "${DATA_PATH}"
-report_resumecmd
-
-
-# Perform data smoothing, RFI cleaning, and bandpass filtering of detailed spectrogram.
-echo "    Performing data smoothing, RFI cleaning, and bandpass filtering of detailed spectrogram..."
-resumecmd -l ${LBL_RFICUT} ${RESUME_FORCE_OPT} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/rficut.py "${DATA_PATH}" \
-   --low-tuning-lower ${LOW_FCL} --low-tuning-upper ${LOW_FCH} \
-   --high-tuning-lower ${HIGH_FCL} --high-tuning-upper ${HIGH_FCH} \
-   --bandpass-window 10 --baseline-window 50 --work-dir ${WORK_DIR}
-report_resumecmd
-
-#PROFILE="${RESULTS_DIR}/rficut_profile"
-#resumecmd -l ${LBL_RFICUT} ${RESUME_FORCE_OPT} -k ${RESUME_LASTCMD_SUCCESS} \
-#   mpirun -np 1 python -m cProfile -o "${PROFILE}" ${INSTALL_PATH}/rficut.py "${DATA_PATH}" \
-#   --low-tuning-lower ${LOW_FCL} --low-tuning-upper ${LOW_FCH} \
-#   --high-tuning-lower ${HIGH_FCL} --high-tuning-upper ${HIGH_FCH} \
-#   --bandpass-window 10 --baseline-window 50 --work-dir ${WORK_DIR}
-#report_resumecmd
-
-
-# Perform the de-dispersion for each of the tunings.
-echo "     Performing de-dispersion on low tuning data..."
-#NUM_PROCS=1
-resumecmd -l ${LBL_DEDISPERSLOW} ${RESUME_FORCE_OPT} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/dv.py "${DATA_PATH}" \
-   --lower ${LOW_FCL} --upper ${LOW_FCH} --tuning 0 --frequency-file "${WORK_DIR}/lowtunefreq.npy" \
-   --integration-time ${SPECTINTEGTIME} --memory-limit ${MEM_LIMIT} \
-   --samples-per-sec ${NUM_SAMPLESPERSEC} --dm-start ${DM_START} --dm-end ${DM_END} \
-   --work-dir ${WORK_DIR}
-report_resumecmd
-
-exit 1 # Debugging short-circuit
-
-echo "     Performing de-dispersion on high tuning data..."
-resumecmd -l ${LBL_DEDISPERSHIGH} ${RESUME_FORCE_OPT} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/dv.py "${DATA_PATH}" \
-   --lower ${HIGH_FCL} --upper ${HIGH_FCH} --tuning 1 --frequency-file "${WORK_DIR}/hightunefreq.npy" \
-   --integration-time ${SPECTINTEGTIME} --memory-limit ${MEM_LIMIT} \
-   --samples-per-sec ${NUM_SAMPLESPERSEC} --dm-start ${DM_START} --dm-end ${DM_END} \
-   --work-dir ${WORK_DIR}
+echo "     Performing de-dispersed search on tuning 0 data..."
+resumecmd -l ${LBL_SEARCH1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
+   --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --dm-start ${DM_START} --dm-end ${DM_END} --max-pulse-width ${MAX_PULSE} --tuning1 \
+   --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T1.txt"
 report_resumecmd
