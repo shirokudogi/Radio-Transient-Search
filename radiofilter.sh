@@ -317,7 +317,7 @@ source ${INSTALL_DIR}/resume.sh
 
 # If this is on a supercluster, then load the necessary modules for the supercluster to be able to 
 # execute python scripts.
-if [ ${SUPERCLUSTER} -eq 0 ]; then
+if [ ${SUPERCLUSTER} -eq 1 ]; then
    module reset
    module load mkl python openmpi
 fi

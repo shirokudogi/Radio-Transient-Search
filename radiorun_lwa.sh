@@ -150,7 +150,7 @@ if [[ ${#} -gt 0 ]]; then
 fi
 
 # Ensure the data file exists.
-if [ -f "${DATA_PATH}" ]; then
+if [ ! -f "${DATA_PATH}" ]; then
    echo "radiorun_lwa.sh: ERROR => Data file ${DATA_PATH} not found."
    exit 1 
 fi
@@ -176,14 +176,15 @@ fi
 
 
 # Build the command-line to perform data reduction.
-CMD_REDUCE="${INSTALL_DIR}/radiofilter.sh"
+CMD_REDUCE="${INSTALL_DIR}/radioreduce.sh"
 CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
       --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
       --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
       --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
       --data-utilization ${DATA_UTILIZE} \
       --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
-      --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
+      --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT} )
+
 # Perform the data reduction phase.
 ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
 
@@ -222,16 +223,16 @@ if [ ${?} -eq 0 ]; then
          select USER_ANS in ${MENU_CHOICES[*]}
          do
             case "${USER_ANS}" in
-               "${LFFT0_STR}" |
-               "${UFFT0_STR}" |
-               "${LFFT1_STR}" |
-               "${UFFT1_STR}" |
-               "${BPW_STR}" |
+               "${LFFT0_STR}" | \
+               "${UFFT0_STR}" | \
+               "${LFFT1_STR}" | \
+               "${UFFT1_STR}" | \
+               "${BPW_STR}" | \
                "${BLW_STR}" )
                   echo "Enter integer value: "
                   read USER_VAL
                   if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
-                     case
+                     case "${USER_ANS}" in
                         "${LFFT0_STR}" )
                            if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
                               LOWER_FFT0=${USER_VAL}
@@ -328,8 +329,8 @@ fi
 
 if [ ${?} -eq 0 -a ${SKIP_TRANSFER} -eq 0 ]; then
    # Build the command-line to perform the file transfer to the results directory.
-   CMD_REDUCE="${INSTALL_DIR}/radiofilter.sh"
-   CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
+   CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
+   CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
          --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
          --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
          --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \

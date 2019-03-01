@@ -286,7 +286,6 @@ def main(argv):
    apputils.procMessage("Done!")
 # end main()
 
-k
 
 if __name__ == "__main__":
    main(sys.argv[1:])
