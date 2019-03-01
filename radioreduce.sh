@@ -99,12 +99,9 @@ RFI_STD=             # RFI standard deviation cutoff.
 DATA_UTILIZE=        # Fraction of the spectrogram lines to output from the raw data.
                      
 NUM_PROCS=           # Number of concurrent processes to use under MPI
-SUPERCLUSTER=        # Flag denoting whether we should initialize for being on a supercluster.
+SUPERCLUSTER=0       # Flag denoting whether we should initialize for being on a supercluster.
 
 COMMCONFIG_FILE=     # Name of the common configuration file.
-
-FLAG_SKIPMOVE=0      # Flag denoting whether to skip the final stage to transfer of results files to the
-                     # results directory.
 
 FLAG_DELWATERFALLS=0   # Flag denoting whether to delete waterfall files at the end of the run to
                            # help save space.
@@ -147,7 +144,7 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift
             ;;
          -s | --supercluster) # Specify that we need to initialize for execution on a supercluster.
-            SUPERCLUSTER="True"
+            SUPERCLUSTER=1
             shift
             ;;
          -w | --work-dir) # Specify the working directory.
@@ -191,10 +188,6 @@ if [[ ${#} -gt 0 ]]; then
             ;;
          --enable-hann) # Enable Hann windowing on the raw DFTs during reduction.
             ENABLE_HANN="--enable-hann"
-            shift
-            ;;
-         --skip-transfer) # Skip transferring results files to the results directory.
-            FLAG_SKIPMOVE=1
             shift
             ;;
          --delete-waterfalls) # Specify deletion of waterfall files at the end of the run.
@@ -396,7 +389,7 @@ source ${INSTALL_DIR}/resume.sh
 
 # If this is on a supercluster, then load the necessary modules for the supercluster to be able to 
 # execute python scripts.
-if [ -n "${SUPERCLUSTER}" ]; then
+if [ ${SUPERCLUSTER} -eq 1 ]; then
    module reset
    module load mkl python openmpi
 fi
@@ -428,11 +421,6 @@ echo "   RFI standard deviation cutoff = ${RFI_STD}"
 echo "   SNR cutoff = ${SNR_CUTOFF}" 
 echo "   Savitzky-Golay parameters, tuning 0 = ${SG_PARAMS0[*]}"
 echo "   Savitzky-Golay parameters, tuning 1 = ${SG_PARAMS1[*]}"
-if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
-   echo "   Transfer to results dir = false"
-else
-   echo "   Transfer to results dir = true"
-fi
 if [ ${FLAG_DELWATERFALLS} -eq 0 ]; then
    echo "   Delete reduced waterfall files = false"
 else
@@ -465,7 +453,6 @@ LBL_COMBINE0="WaterfallCombine_Tune0"
 LBL_COMBINE1="WaterfallCombine_Tune1"
 LBL_COARSEIMG0="WaterfallCoarseImg_Tune0"
 LBL_COARSEIMG1="WaterfallCoarseImg_Tune1"
-LBL_RESULTS="Results_Transfer"
 LBL_CLEAN="Cleanup_Reduce"
 LBL_DELWATERFALL="Delete_Waterfalls"
 LBL_BANDPASSIMG0="WaterfallBandpassImg_Tune0"
@@ -476,7 +463,6 @@ LBL_SGBANDPASSIMG0="WaterfallSGBandpassImg_Tune0"
 LBL_SGBANDPASSIMG1="WaterfallSGBandpassImg_Tune1"
 LBL_SGBASELINEIMG0="WaterfallSGBaselineImg_Tune0"
 LBL_SGBASELINEIMG1="WaterfallSGBaselineImg_Tune1"
-LBL_DELWORK="DeleteWorkingDir"
 
 
 # Generate the waterfall tiles for the reduced-data spectrogram
@@ -495,14 +481,14 @@ CMBPREFIX="spectrogram"
 if [ -n "${LABEL}" ]; then
    CMBPREFIX="${CMBPREFIX}_${LABEL}"
 fi
-echo "radioreduce.sh: Combining tuning 0 waterfall files into coarse spectrogram..."
+echo "radioreduce.sh: Combining tuning 0 waterfall files into spectrogram..."
 resumecmd -l ${LBL_COMBINE0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T0" \
    --decimation ${DECIMATION} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/waterfall*T0.npy"
 report_resumecmd
-echo "radioreduce.sh: Combining tuning 1 waterfall files into coarse spectrogram..."
+echo "radioreduce.sh: Combining tuning 1 waterfall files into spectrogram..."
 resumecmd -l ${LBL_COMBINE1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/waterfallcombine.py \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/${CMBPREFIX}-T1" \
@@ -606,37 +592,6 @@ if [ ${FLAG_DELWATERFALLS} -ne 0 ]; then
 fi
 
 
-# Transfer results files to the results directory, if allowed by the user.
-if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
-   # Move results files if the working directory and results directory are different.
-   if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
-      echo "radioreduce.sh: Transferring key results files to directory ${RESULTS_DIR}..."
-      if [ ${FLAG_DELWATERFALLS} -eq 0 ]; then
-         resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
-            transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-            "${CMBPREFIX}*.npy" "coarse-${CMBPREFIX}*.npy" "waterfall*.npy" "*.png" \
-            "${COMMCONFIG_FILE}"
-      else
-         resumecmd -l ${LBL_RESULTS} -k ${RESUME_LASTCMD_SUCCESS} \
-            transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-            "${CMBPREFIX}*.npy" "coarse-${CMBPREFIX}*.npy" "*.png" \
-            "${COMMCONFIG_FILE}"
-      fi
-      report_resumecmd
-      # Delete the working directory, since we don't need it now, as long as it is not the current
-      # directory.  As a safety, we want to avoid deleting the current directory.
-      if [[ "${WORK_DIR}" != "." ]]; then
-         echo "Removing working directory."
-         resumecmd -l ${LBL_DELWORK} -k ${RESUME_LASTCMD_SUCCESS} rm -rf "${WORK_DIR}"
-         report_resumecmd
-      fi
-   else
-      echo "radioreduce.sh: Skipping results transfer => working and results directories are the same."
-   fi
-else
-      echo "radioreduce.sh: Skipping results transfer by user request."
-fi
-
 # Determine exit status
 if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
    echo "radioreduce.sh: Radio data reduction workflow completed successfully!"
@@ -644,6 +599,6 @@ if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
    exit 0
 else
    echo "radioreduce.sh: Radio data reduction workflow ended, but not all components were executed."
-   echo "radioreduce.sh: Workflow exiting with status -1"
-   exit -1
+   echo "radioreduce.sh: Workflow exiting with status 1"
+   exit 1
 fi

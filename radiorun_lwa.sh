@@ -24,6 +24,12 @@ RFI_STD=5.0
 SNR_CUTOFF=3.0
 SG_PARAMS0=(151 2 151 2)
 SG_PARAMS1=(111 2 151 2)
+LOWER_FFT0=0
+UPPER_FFT0=4094
+LOWER_FFT1=0
+UPPER_FFT1=4094
+BP_WINDOW=10
+BL_WINDOW=50
 ENABLE_HANN=            # Set to "--enable-hann" to enable Hann window on raw data during reduction.
 DATA_UTILIZE=1.0        # Fraction of raw data to use.  Positive values align to the beginning of the 
                         # raw data, while negative values align to the end.
@@ -32,8 +38,9 @@ DATA_UTILIZE=1.0        # Fraction of raw data to use.  Positive values align to
 INSTALL_DIR="${HOME}/local/radiotrans"
 WORK_DIR="/mnt/toaster/cyancey/${LABEL}"
 RESULTS_DIR="${HOME}/analysis/${LABEL}"
-SKIPMOVE_OPT=
+SKIP_TRANSFER=0
 DELWATERFALLS_OPT=
+SKIP_TAR_OPT=
 COMMCONFIG_FILE="config_${LABEL}.ini"
 
 # Disable debug mode, by default. This has to be enabled by the user from the commandline.
@@ -62,6 +69,12 @@ if [[ ${#} -gt 0 ]]; then
             SG_PARAMS0=(151 2 151 2)
             SG_PARAMS1=(111 2 151 2)
             ENABLE_HANN=
+            LOWER_FFT0=100
+            UPPER_FFT0=3200
+            LOWER_FFT1=500
+            UPPER_FFT1=2000
+            BP_WINDOW=10
+            BL_WINDOW=50
 
             COMMCONFIG_FILE="config_${LABEL}.ini"
 
@@ -118,7 +131,11 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift
             ;;
          --skip-transfer) # Skip transfer of results files to the results directory.
-            SKIPMOVE_OPT="--skip-transfer"
+            SKIP_TRANSFER=1
+            shift
+            ;;
+         --skip-tar) # Skip building tar file of results.
+            SKIP_TAR_OPT="--skip-tar"
             shift
             ;;
          --delete-waterfalls) # Delete waterfall file from the working directory at the end of the run.
@@ -159,16 +176,168 @@ fi
 
 
 # Build the command-line to perform data reduction.
-CMD_REDUCE="${INSTALL_DIR}/radioreduce.sh"
+CMD_REDUCE="${INSTALL_DIR}/radiofilter.sh"
 CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
       --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
       --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
       --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
       --data-utilization ${DATA_UTILIZE} \
       --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
-      --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SKIPMOVE_OPT} ${DELWATERFALLS_OPT})
-
+      --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
 # Perform the data reduction phase.
 ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
 
-exit 0
+if [ ${?} -eq 0 ]; then
+   # Obtain FFT indices and smoothing window parameters from the user.
+   LFFT0_STR="Lower FFT Index Tuning 0"
+   UFFT0_STR="Upper FFT Index Tuning 0"
+   LFFT1_STR="Lower FFT Index Tuning 1"
+   UFFT1_STR="Upper FFT Index Tuning 1"
+   BPW_STR="Bandpass smoothing window"
+   BLW_STR="Baseline smoothing window"
+   MENU_CHOICES=("yes" "no")
+   echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
+   echo "to determine appropriate FFT index bound and smoothing window parameters before"
+   echo "proceeding to the next phase."
+   sleep 5
+   echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
+   echo "   ${LFFT0_STR} = ${LOWER_FFT0}"
+   echo "   ${UFFT0_STR} = ${UPPER_FFT0}"
+   echo "   ${LFFT1_STR} = ${LOWER_FFT1}"
+   echo "   ${UFFT1_STR} = ${UPPER_FFT1}"
+   echo "   ${BPW_STR} = ${BP_WINDOW}"
+   echo "   ${BLW_STR} = ${BL_WINDOW}"
+   echo "radiofilter.sh: Proceed with the above parameters?"
+   PS3="Enter option number (1 or 2): "
+   select USER_ANS in ${MENU_CHOICES[*]}
+   do
+      if [[ "${USER_ANS}" == "yes" ]]; then
+         echo "radiofilter.sh: Proceding with RFI-bandpass filtration workflow..."
+         break
+      elif [[ "${USER_ANS}" == "no" ]]; then
+         MENU_CHOICES=("${LFFT0_STR}" "${UFFT0_STR}" \
+                        "${LFFT1_STR}" "${UFFT1_STR}" \
+                        "${BPW_STR}" "${BLW_STR}" "Done")
+         PS3="Select parameter to change (1, 2, 3, 4, 5, 6, or 7): "
+         select USER_ANS in ${MENU_CHOICES[*]}
+         do
+            case "${USER_ANS}" in
+               "${LFFT0_STR}" |
+               "${UFFT0_STR}" |
+               "${LFFT1_STR}" |
+               "${UFFT1_STR}" |
+               "${BPW_STR}" |
+               "${BLW_STR}" )
+                  echo "Enter integer value: "
+                  read USER_VAL
+                  if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
+                     case
+                        "${LFFT0_STR}" )
+                           if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
+                              LOWER_FFT0=${USER_VAL}
+                              break
+                           else
+                              echo "Entered value must be an integer from 0 to 4094"
+                              continue
+                           fi
+                           ;;
+                        "${UFFT0_STR}" )
+                           if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
+                              UPPER_FFT0=${USER_VAL}
+                              break
+                           else
+                              echo "Entered value must be an integer from 0 to 4094"
+                              continue
+                           fi
+                           ;;
+                        "${LFFT1_STR}" )
+                           if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
+                              LOWER_FFT1=${USER_VAL}
+                              break
+                           else
+                              echo "Entered value must be an integer from 0 to 4094"
+                              continue
+                           fi
+                           ;;
+                        "${UFFT1_STR}" )
+                           if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
+                              UPPER_FFT1=${USER_VAL}
+                              break
+                           else
+                              echo "Entered value must be an integer from 0 to 4094"
+                              continue
+                           fi
+                           ;;
+                        "${BPW_STR}" )
+                           if [[ ${USER_VAL} > 0 ]]; then
+                              BP_WINDOW=${USER_VAL}
+                              break
+                           else
+                              echo "Entered value must be an integer greater than 0"
+                              continue
+                           fi
+                           ;;
+                        "${BLW_STR}" )
+                           if [[ ${USER_VAL} > 0 ]]; then
+                              BL_WINDOW=${USER_VAL}
+                              break
+                           else
+                              echo "Entered value must be an integer greater than 0"
+                              continue
+                           fi
+                     esac
+                  else
+                     echo "Entered value must be an integer. "
+                     continue
+                  fi
+                  ;;
+               "Done" )
+                  MENU_CHOICES=("yes" "no")
+                  echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
+                  echo "   ${LFFT0_STR} = ${LOWER_FFT0}"
+                  echo "   ${UFFT0_STR} = ${UPPER_FFT0}"
+                  echo "   ${LFFT1_STR} = ${LOWER_FFT1}"
+                  echo "   ${UFFT1_STR} = ${UPPER_FFT1}"
+                  echo "   ${BPW_STR} = ${BP_WINDOW}"
+                  echo "   ${BLW_STR} = ${BL_WINDOW}"
+                  echo "radiofilter.sh: Proceed with the above parameters?"
+                  PS3="Enter option number (1 or 2): "
+                  break
+                  ;;
+               *)
+                  continue
+                  ;;
+            esac
+         done
+      else
+         continue
+      fi
+   done
+   # Build the command-line to perform the RFI-bandpass filtration.
+   CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
+   CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
+         --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
+         --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+         --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
+         --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
+         --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
+         --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
+   # Perform the RFI-bandpass filtration.
+   ${CMD_FILTER} ${CMD_FILTER[*]}
+fi
+
+if [ ${?} -eq 0 -a ${SKIP_TRANSFER} -eq 0 ]; then
+   # Build the command-line to perform the file transfer to the results directory.
+   CMD_REDUCE="${INSTALL_DIR}/radiofilter.sh"
+   CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
+         --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
+         --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+         --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
+         --data-utilization ${DATA_UTILIZE} \
+         --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
+         --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
+   # Perform transfer of results to results directory and build tar of results.
+   ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
+fi
+
+exit ${?}

@@ -76,7 +76,7 @@ RESULTS_DIR=         # Results directory.
 MEM_LIMIT=           # Total memory usage limit, in MB, for spectrogram tiles among all processes.
 LABEL=               # User label attached to output files from data reduction.
 NUM_PROCS=           # Number of concurrent processes to use under MPI
-SUPERCLUSTER=        # Flag denoting whether we should initialize for being on a supercluster.
+SUPERCLUSTER=0       # Flag denoting whether we should initialize for being on a supercluster.
 
 COMMCONFIG_FILE=     # Name of the common configuration file.
 
@@ -114,7 +114,7 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift
             ;;
          -s | --supercluster) # Specify that we need to initialize for execution on a supercluster.
-            SUPERCLUSTER="True"
+            SUPERCLUSTER=1
             shift
             ;;
          -w | --work-dir) # Specify the working directory.
@@ -291,7 +291,7 @@ source ${INSTALL_DIR}/resume.sh
 
 # If this is on a supercluster, then load the necessary modules for the supercluster to be able to 
 # execute python scripts.
-if [ -n "${SUPERCLUSTER}" ]; then
+if [ ${SUPERCLUSTER} -eq 1 ]; then
    module reset
    module load mkl python openmpi
 fi
