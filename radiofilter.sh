@@ -481,9 +481,9 @@ LBL_RESULTS="Results_filter"
 LBL_CLEAN="Cleanup_filter"
 
 resumevar -l ${LBL_TUNE0FCL} TUNE0_FCL 0         # Lower FFT index for the low tuning frequency.
-resumevar -l ${LBL_TUNE0FCH} TUNE0_FCH 4095      # Upper FFT index for the low tuning frequency.
+resumevar -l ${LBL_TUNE0FCH} TUNE0_FCH 4094      # Upper FFT index for the low tuning frequency.
 resumevar -l ${LBL_TUNE1FCL} TUNE1_FCL 0       # Lower FFT index for the high tuning frequency.
-resumevar -l ${LBL_TUNE1FCH} TUNE1_FCH 4095    # Upper FFT index for the high tuning frequency.
+resumevar -l ${LBL_TUNE1FCH} TUNE1_FCH 4094    # Upper FFT index for the high tuning frequency.
 
 
 # Perform data smoothing, RFI cleaning, and bandpass filtering of detailed spectrogram.
