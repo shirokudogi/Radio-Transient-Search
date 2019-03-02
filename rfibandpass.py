@@ -22,7 +22,7 @@ def bpf(x, windows = 40):
 def RFImask(spr):
    sprMean0 = spr.mean(0)
    sprSort0 = np.sort(sprMean0)
-   sprMedian0 = sprSort0[sprSort.shape[0]/2]
+   sprMedian0 = sprSort0[sprSort0.shape[0]/2]
 
    sprMean1 = spr.mean(1)
    sprSort1 = np.sort(sprMean1)
@@ -76,22 +76,36 @@ def main_routine(args):
                            default='./rfibp-spectrogram.npy',
                            help='Path to the output file.',
                            metavar='PATH')
-   cmdlnParser.add_option('--bandpass-window', dest='bpWindow', type='int', default=10,
-                           help='Bandpass smoothing window size.', metavar='INT')
-   cmdlnParser.add_option('--baseline-window', dest='blWindow', type='int', default=50,
-                           help='Baseline smoothing window size.', metavar='INT')
+   cmdlnParser.add_option('--bandpass-window', dest='bpWindow', type='int', default=11,
+                           help='Bandpass smoothing window size. Must be positive odd number.', 
+                           metavar='INT')
+   cmdlnParser.add_option('--baseline-window', dest='blWindow', type='int', default=51,
+                           help='Baseline smoothing window size. Must be positive odd number', 
+                           metavar='INT')
    cmdlnParser.add_option('--tuning1', dest='enableTuning1', default=False, action='store_true',
                            help='Flag denoting tuning 1.')
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
 
    lowerFFTIndex = apputils.forceIntValue(cmdlnOpts.lowerFFTIndex, 0, 4094)
    upperFFTIndex = apputils.forceIntValue(cmdlnOpts.upperFFTIndex, 0, 4094)
-   bpWindow = apputils.forceIntValue(cmdlnOpts.bpWindow, 1, 9999)
-   blWindow = apputils.forceIntValue(cmdlnOpts.blWindow, 1, 9999)
+   bpWindow = apputils.forceIntValueOdd(cmdlnOpts.bpWindow, 1, 9999, align=1)
+   blWindow = apputils.forceIntValueOdd(cmdlnOpts.blWindow, 1, 9999, align=1)
+
+   # Notify user if smoothing window values need to be adjusted.
+   if bpWindow != cmdlnOpts.bpWindow:
+      apputils.procMessage('rfibandpass.py: Bandpass window adjusted to ' +
+                           ' {value} (odd value required)'.format(value=bpWindow), 
+                           msg_type='WARNING', root=0)
+   # endif
+   if blWindow != cmdlnOpts.blWindow:
+      apputils.procMessage('rfibandpass.py: Baseline window adjusted to ' +
+                           ' {value} (odd value required)'.format(value=blWindow),
+                           msg_type='WARNING', root=0)
+   # endif
 
    # Check that lower FFT index is less than the upper FFT index.
    if upperFFTIndex <= lowerFFTIndex:
-      apputils.rocMessage('rfibandpass.py:  Upper FFT cutoff must be greater than lower FFT cutoff',
+      apputils.procMessage('rfibandpass.py:  Upper FFT cutoff must be greater than lower FFT cutoff',
                   root=0, msg_type='ERROR')
       sys.exit(1)
    # endif
@@ -99,7 +113,7 @@ def main_routine(args):
    if len(cmdlnArgs) > 0:
       spectFilepath = cmdlnArgs[0]
    else:
-      apputils.rocMessage('rfibandpass.py:  Must specify a spectrogram file.',
+      apputils.procMessage('rfibandpass.py:  Must specify a spectrogram file.',
                   root=0, msg_type='ERROR')
       sys.exit(1)
    # endif
@@ -145,8 +159,9 @@ def main_routine(args):
       sys.exit(1)
    # endtry
 
-   # Load the spectrogram file and determine the partition to each process..
+   # Load the spectrogram file and determine partitioning to each process..
    segmentSize = None
+   segmentOffset = None
    spectrogram = None
    numSpectLines = 0
    if rank == 0:
@@ -156,47 +171,47 @@ def main_routine(args):
       numSpectLines = spectrogram.shape[0]
 
       # Determine partitioning of spectrogram to each processes.
-      linesPerProc = np.zeros(nProcs, dtype=np.int32)
-      segmentSize = np.int(numSpectLines/nProcs)
-      rank0SegmentSize = numSpectLines - (nProcs - 1)*segmentSize
+      segmentSize = np.zeros(nProcs, dtype=np.int64)
+      segmentOffset = np.zeros(nProcs, dtype=np.int64)
+      segmentSize[1:] = np.int64( numSpectLines/nProcs )
+      segmentSize[0] = np.int64( numSpectLines - (nProcs - 1)*segmentSize[1] )
+      segmentOffset[0] = 0
+      segmentOffset[1:] = segmentSize[0] + segmentSize[1]*np.arange(nProcs - 1, dtype=np.int64)
    # endif
-
-   # Distribute parts of the spectrogram for smoothing
-   if rank != 0:
-      segmentSize = MPIComm.bcast(segmentSize, root=0)
-   else:
-      segmentSize = rank0SegmentSize
-   # endif
-   (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
-   spectSegment = np.memmap(filename=tempFilepath, shape=(segmentSize, DFTLength), 
-                              dtype=np.float32, mode='w+')
-   # spectSegment = np.zeros(segmentSize*DFTLength, dtype=np.float32).reshape((segmentSize, DFTLength))
+   # Distribute spectrogram partitions to processes.
    apputils.procMessage('rfibandpass.py: Distributing spectrogram segments', root=0)
-   MPIComm.Scatterv([spectrogram, numSpectLines*DFTLength, MPI.FLOAT], 
-                    [spectSegment, segmentSize*DFTLength, MPI.FLOAT],
+   segmentSize = MPIComm.bcast(segmentSize, root=0)
+   segmentOffset = MPIComm.bcast(segmentOffset, root=0)
+   (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
+   segment = np.memmap(filename=tempFilepath, shape=(segmentSize[rank], DFTLength), 
+                              dtype=np.float32, mode='w+')
+   MPIComm.Scatterv([spectrogram, segmentSize*DFTLength, segmentOffset*DFTLength, MPI.FLOAT], 
+                    [segment, segmentSize[rank]*DFTLength, MPI.FLOAT],
                     root=0)
 
-   # Trim to bandpass and perform smoothing on the spectrogram segment.
+   # Trim spectrogram segment to bandpass and perform RFI filtering on it.
    bandpassLength = upperFFTIndex - lowerFFTIndex
    (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
-   rfibpSpectSegment = np.memmap(filename=tempFilepath, shape=(segmentSize, bandpassLength), 
+   rfibpSegment = np.memmap(filename=tempFilepath, shape=(segmentSize[rank], bandpassLength), 
                               dtype=np.float32, mode='w+')
    apputils.procMessage('rfibandpass.py: Performing RFI and bandpass filtration on segment.')
-   rfibpSpectSegment = massagesp(spectSegment[ : , lowerFFTIndex:upperFFTIndex], bpWindow, blWindow)
+   rfibpSegment[:, :] = massagesp(segment[ : , lowerFFTIndex:upperFFTIndex], bpWindow, blWindow)[:, :]
 
-   # Gather the pieces of the smoothed spectrogram
+   # Gather the pieces of the RFI-bandpass filtered spectrogram and integrate them into the final
+   # RFI-bandpass filtered spectrogram.
+   apputils.procMessage('rfibandpass.py: Re-integrating segments of filtered spectrogram', root=0)
+   rfibpSpectrogram = None
    if rank == 0:
-      apputils.procMessage('rfibandpass.py: Allocating for filtered spectrogram', root=0)
       (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
       rfibpSpectrogram = np.memmap(filename=tempFilepath, shape=(numSpectLines, bandpassLength), 
                                  dtype=np.float32, mode='w+')
    # endif
-   apputils.procMessage('rfibandpass.py: Re-integrating segments of filtered spectrogram', root=0)
-   MPIComm.Gatherv([rfibpSpectSegment, segmentSize*bandpassLength, MPI.FLOAT],
-                   [rfibpSpectrogram, numSpectLines*bandpassLength, MPI.FLOAT],
+   MPIComm.Gatherv([rfibpSegment, segmentSize[rank]*bandpassLength, MPI.FLOAT],
+                   [rfibpSpectrogram, segmentSize*bandpassLength, segmentOffset*bandpassLength, 
+                     MPI.FLOAT],
                    root=0)
 
-   # Save the spectrogram to file.
+   # Save the RFI-bandpass filtered spectrogram to file.
    if rank == 0:
       apputils.procMessage('rfibandpass.py: Writing RFI and bandpass filtered spectrogram.', root=0)
       np.save(cmdlnOpts.outFilepath, rfibpSpectrogram)

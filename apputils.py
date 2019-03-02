@@ -41,11 +41,35 @@ def clipValue(inValue, lower, upper, valueType=None):
    result = min([upper, result])
    result = valueType(result)
    return result
-# end clipVale()
+# end clipValue()
 
 def forceIntValue(inValue, lower, upper):
    return clipValue(inValue, lower, upper, valueType=int)
-# end forceIntVale()
+# end forceIntValue()
+
+def forceIntValueOdd(inValue, lower, upper, align=0):
+   # Set how to align the resulting odd number relative to the original value:
+   #  align = 0 => find greatest odd number <= inValue.
+   #  align = 1 => find least odd number >= inValue.
+   if align > 0:
+      align = 1
+   else:
+      align = 0
+   # endif
+   
+   newValue = 2*(int(0.5*clipValue(inValue, lower, upper, valueType=int))) + (2*align - 1)
+
+   # Adjust the final value to be within the clip range.  This may actually violate the specified
+   # alignment.
+   if newValue < lower:
+      newValue += 2
+   # endif
+   if newValue > upper:
+      newValue -= 2
+   # endif
+
+   return newValue
+# end forceIntValueOdd()
 
 def Decimate(arry, ndown=2):
    """

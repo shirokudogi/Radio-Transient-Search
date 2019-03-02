@@ -46,6 +46,7 @@ COMMCONFIG_FILE="config_${LABEL}.ini"
 # Disable debug mode, by default. This has to be enabled by the user from the commandline.
 DEFAULT_DEBUG=0
 RUN_STATUS=0
+SKIP_RFIBP=0
 
 
 # Select whether we are using the release install of radiotrans or still using the developer version to
@@ -139,6 +140,10 @@ if [[ ${#} -gt 0 ]]; then
             SKIP_TAR_OPT="--skip-tar"
             shift
             ;;
+         --skip-rfi-bandpass) # Skip the RFI-bandpass filtration phase.
+            SKIP_RFIBP=1
+            shift
+            ;;
          --delete-waterfalls) # Delete waterfall file from the working directory at the end of the run.
             DELWATERFALLS_OPT="--delete-waterfalls"
             shift
@@ -190,7 +195,7 @@ CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
 ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
 RUN_STATUS=${?}
 
-if [ ${RUN_STATUS} -eq 0 ]; then
+if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 0 ]; then
    echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
    echo "to determine appropriate FFT index bound and smoothing window parameters before"
    echo "proceeding to the next phase."
@@ -333,6 +338,11 @@ if [ ${RUN_STATUS} -eq 0 ]; then
          fi
       done # endselect
    done # endwhile
+else
+   if [ ${SKIP_RFIBP} -eq 1 ]; then
+      echo "radiorun_lwa.sh: Skipping RFI-bandpass filtration per user request."
+      echo
+   fi
 fi
 
 if [ ${RUN_STATUS} -eq 0 ]; then

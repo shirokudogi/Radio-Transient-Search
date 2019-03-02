@@ -159,53 +159,44 @@ main(args):
       sys.exit(1)
    # endtry
    
-   # Load the spectrogram file and determine the partition to each process..
+   # Load the spectrogram file and determine partitioning to each process..
    segmentSize = None
+   segmentOffset = None
    spectrogram = None
-   numSpectLines = None
+   numSpectLines = 0
    bandpassLength = None
-   tsOffset = None
    if rank == 0:
       # Load spectrogram.
+      apputils.procMessage('rfibandpass.py: Loading spectrogram (may take a while)', root=0)
       try:
          spectrogram = np.load(spectFilepath, mmap_mode='r')
-         numSpectLines = spectrogram.shape[0]
-         bandpassLength = spectrogram.shape[1]
       except:
          procMessage("dv.py: Could not open or load spectrogram file {file}".format(file=spectFilepath),
                      msg_type="ERROR", root=0)
+         sys.exit(1)
       # endtry
+      numSpectLines = spectrogram.shape[0]
+      bandpassLength = spectrogram.shape[1]
 
       # Determine partitioning of spectrogram to each processes.
-      spectSegmentSize = np.zeros(nProcs, dtype=np.int32)
-      segmentSize = np.int(numSpectLines/nProcs)
-      rank0SegmentSize = numSpectLines - (nProcs - 1)*segmentSize
-
-      # Determine time-series offsets for each spectrogram segment
-      tsOffset = np.zeros(nProcs, dtype=np.int32)
-      tsOffset[0] = 0
-      tsOffset[1:] = rank0SegmentSize + segmentSize*np.arange(nProcs - 1)
+      segmentSize = np.zeros(nProcs, dtype=np.int64)
+      segmentOffset = np.zeros(nProcs, dtype=np.int64)
+      segmentSize[1:] = np.int64( numSpectLines/nProcs )
+      segmentSize[0] = np.int64( numSpectLines - (nProcs - 1)*segmentSize[1] )
+      segmentOffset[0] = 0
+      segmentOffset[1:] = segmentSize[0] + segmentSize[1]*np.arange(nProcs - 1, dtype=np.int64)
    # endif
-
-   # Distribute total spectrogram size information.
+   # Distribute spectrogram partitions to processes.
+   apputils.procMessage('rfibandpass.py: Distributing spectrogram segments', root=0)
    numSpectLines = MPIComm.bcast(numSpectLines, root=0)
    bandpassLength = MPIComm.bcast(bandpassLength, root=0)
-   # Distribute spectrogram segment sizes and alignment information.
-   if rank != 0:
-      segmentSize = MPIComm.bcast(segmentSize, root=0)
-   else:
-      segmentSize = rank0SegmentSize
-   # endif
-   tsOffset = MPIComm.bcast(tsOffset, root=0)
-   # Distribute spectrogram segments.
-   # CCY - Future upgrade: have check to see if making nProcs/numNodes spectrogram segments will exceed
-   # the memory limits.  If it does, then create the spectrogram segments as memory=mapped files.
-   spectSegment = np.zeros(segmentSize*bandpassLength, 
-                           dtype=np.float32).reshape((segmentSize, bandpassLength))
-   MPIComm.Scatterv([spectrogram, numSpectLines*bandpassLength, MPI.FLOAT], 
-                    [spectSegment, segmentSize*bandpassLength, MPI.FLOAT],
+   segmentSize = MPIComm.bcast(segmentSize, root=0)
+   segmentOffset = MPIComm.bcast(segmentOffset, root=0)
+   segment = np.zeros(shape=(segmentSize[rank], bandpassLength), dtype=np.float32)
+   MPIComm.Scatterv([spectrogram, segmentSize*bandpassLength, segmentOffset*bandpassLength, MPI.FLOAT], 
+                    [segment, segmentSize[rank]*bandpassLength, MPI.FLOAT],
                     root=0)
-   
+
    # Open the shared output file.
    try:
       outFile = MPI.File.Open(MPIComm, cmdlnOpts.outFilepath, MPI.MODE_WRONLY | MPI.MODE_CREATE)
@@ -261,7 +252,7 @@ main(args):
          commConfigObj.add_section("De-disperse Search")
          commConfigObj.set("De-disperse Search", "dmstart", cmdlnOpts.DMStart)
          commConfigObj.set("De-disperse Search", "dmend", cmdlnOpts.DMEnd)
-         commConfigObj.set("De-disperse Search", "maxpulsewidth", maxPulseWidth)
+         commConfigObj.set("De-disperse Search", "maxpulsewidth", cmdlnOpts.maxPulseWidth)
          commConfigObj.write(commConfigFile)
          commConfigFile.close()
       except:
@@ -280,9 +271,9 @@ main(args):
       fShifts = tb[0] - tb
       # De-disperse the frequencies assigned to this process.
       for fIndex in freqIndices: 
-         beginIndex = tsOffset[rank] + fShifts[fIndex]
-         endIndex = beginIndex + segmentSize
-         ts[beginIndex : endIndex] += spectSegment[ : , fIndex]
+         beginIndex = segmentOffset[rank] + fShifts[fIndex]
+         endIndex = beginIndex + segmentSize[rank]
+         ts[beginIndex : endIndex] += segment[ : , fIndex]
       # endfor
 
       # Merge the de-dispersed time-series from all processes.
@@ -298,7 +289,7 @@ main(args):
          (snr, mean, rms) = Threshold(apputils.DecimateNPY(dedispTS, ndown), thresh, niter=0)
          pulseIndices = np.where(sn!=-1)[0]
          for index in pulseIndices:# Now record all pulses above threshold
-            pulse.pulse = rank*segmentSize + pulseID
+            pulse.pulse = rank*segmentSize[rank] + pulseID
             pulse.SNR = snr[index]
             pulse.DM = DM
             pulse.time = index*tInt*ndown
