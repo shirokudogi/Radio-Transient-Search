@@ -31,7 +31,7 @@ UPPER_FFT1=4094
 BP_WINDOW=10
 BL_WINDOW=50
 ENABLE_HANN=            # Set to "--enable-hann" to enable Hann window on raw data during reduction.
-DATA_UTILIZE=1.0        # Fraction of raw data to use.  Positive values align to the beginning of the 
+DATA_UTILIZE=           # Fraction of raw data to use.  Positive values align to the beginning of the 
                         # raw data, while negative values align to the end.
 
 # Configure file management parameters.
@@ -45,6 +45,7 @@ COMMCONFIG_FILE="config_${LABEL}.ini"
 
 # Disable debug mode, by default. This has to be enabled by the user from the commandline.
 DEFAULT_DEBUG=0
+RUN_STATUS=0
 
 
 # Select whether we are using the release install of radiotrans or still using the developer version to
@@ -187,8 +188,9 @@ CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
 
 # Perform the data reduction phase.
 ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
+RUN_STATUS=${?}
 
-if [ ${?} -eq 0 ]; then
+if [ ${RUN_STATUS} -eq 0 ]; then
    # Obtain FFT indices and smoothing window parameters from the user.
    LFFT0_STR="Lower FFT Index Tuning 0"
    UFFT0_STR="Upper FFT Index Tuning 0"
@@ -325,9 +327,10 @@ if [ ${?} -eq 0 ]; then
          --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
    # Perform the RFI-bandpass filtration.
    ${CMD_FILTER} ${CMD_FILTER[*]}
+   RUN_STATUS=${?}
 fi
 
-if [ ${?} -eq 0 -a ${SKIP_TRANSFER} -eq 0 ]; then
+if [ ${RUN_STATUS} -eq 0 -a ${SKIP_TRANSFER} -eq 0 ]; then
    # Build the command-line to perform the file transfer to the results directory.
    CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
    CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
@@ -339,6 +342,7 @@ if [ ${?} -eq 0 -a ${SKIP_TRANSFER} -eq 0 ]; then
          --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
    # Perform transfer of results to results directory and build tar of results.
    ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
+   RUN_STATUS=${?}
 fi
 
-exit ${?}
+exit ${RUN_STATUS}
