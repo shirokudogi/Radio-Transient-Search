@@ -596,9 +596,11 @@ fi
 if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
    echo "radioreduce.sh: Radio data reduction workflow completed successfully!"
    echo "radioreduce.sh: Workflow exiting with status 0."
+   echo
    exit 0
 else
    echo "radioreduce.sh: Radio data reduction workflow ended, but not all components were executed."
    echo "radioreduce.sh: Workflow exiting with status 1"
+   echo
    exit 1
 fi

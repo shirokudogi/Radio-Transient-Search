@@ -78,6 +78,7 @@ LABEL=               # User label attached to output files from data reduction.
 SUPERCLUSTER=0       # Flag denoting whether we should initialize for being on a supercluster.
 COMMCONFIG_FILE=     # Name of the common configuration file.
 SKIP_TAR=0           # Flag denoting whether to skip making tar file of results.
+SKIP_TRANSFER=0      # Flag denoting to skip the actual transfer.
 
 
 
@@ -100,8 +101,12 @@ if [[ ${#} -gt 0 ]]; then
             SUPERCLUSTER=1
             shift
             ;;
-         -t | --skip-tar ) # Specify to skip building tar file of results.
+         --skip-tar ) # Specify to skip building tar file of results.
             SKIP_TAR=1
+            shift
+            ;;
+         --skip-transfer ) # Specify to actual transfer of files to results directory
+            SKIP_TRANSFER=1
             shift
             ;;
          -w | --work-dir) # Specify the working directory.
@@ -119,14 +124,6 @@ if [[ ${#} -gt 0 ]]; then
          -l | --label) # Specify a user label to attach to output files from the reduction.
             if [ -z "${LABEL}" ]; then
                LABEL="${2}"
-            fi
-            shift; shift
-            ;;
-         -c | --config-file) # Specify the name of the common configuration file.
-            if [ -z "${COMMCONFIG_FILE}" ]; then
-               # Just in case the user gives a full path, strip off the directory component.  We only
-               # need a name, and the file is going to be created in ${WORK_DIR}.
-               COMMCONFIG_FILE=$(basename "${2}")
             fi
             shift; shift
             ;;
@@ -182,16 +179,6 @@ if [ ! -d "${RESULTS_DIR}" ]; then
    exit 1
 fi
 
-# Ensure that the common configuration filename is set.
-if [ -z "${COMMCONFIG_FILE}" ]; then
-   COMMCONFIG_FILE="radiotrans.ini"
-fi
-
-# If a label was specified, create the label option.
-if [ -n "${LABEL}" ]; then
-   LABEL_OPT="--label ${LABEL}"
-fi
-
 
 # Source the utility functions.
 source ${INSTALL_DIR}/utils.sh
@@ -212,12 +199,8 @@ LBL_RESULTS="Results_Transfer"
 LBL_TAR="TAR_Files"
 LBL_DELWORK="DeleteWorkingDir"
 
-CMBPREFIX="spectrogram"
-if [ -n "${LABEL}" ]; then
-   CMBPREFIX="${CMBPREFIX}_${LABEL}"
-fi
 # Transfer results files to the results directory, if allowed by the user.
-if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
+if [ ${SKIP_TRANSFER} -eq 0 ]; then
    # Move results files if the working directory and results directory are different.
    if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
       echo "radiotransfer.sh: Transferring key results files to directory ${RESULTS_DIR}..."
@@ -245,6 +228,8 @@ if [ ${FLAG_SKIPMOVE} -eq 0 ]; then
          tar -cvzf "${LABEL}.tar.gz" "./*.npy" "./*.png" "./*.ini" "./*.txt"
       report_resumecmd
       popd 1>/dev/null
+   else
+      echo "radiotransfer.sh: Skipping creation of tar file."
    fi
 else
    # Build tar-file of results for sftp transfer to other systems.
@@ -255,6 +240,8 @@ else
          tar -cvzf "${LABEL}.tar.gz" "./*.npy" "./*.png" "./*.ini" "./*.txt"
       report_resumecmd
       popd 1>/dev/null
+   else
+      echo "radiotransfer.sh: Skipping creation of tar file."
    fi
 
 fi

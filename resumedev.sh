@@ -6,5 +6,6 @@
 # PURPOSE: Short script to allow me to quickly reopen files in vim and resume any work that I was doing
 #           previously.
 
-vim -p change.log resumedev.sh radioreduce.sh radiofilter.sh radiorun_lwa.sh radioextract.sh \
+vim -p change.log resumedev.sh radioreduce.sh radiofilter.sh radiotransfer.sh radiorun_lwa.sh \
+         radioextract.sh \
          waterfall.py rfibandpass.py dv.py apputils.py utils.sh
