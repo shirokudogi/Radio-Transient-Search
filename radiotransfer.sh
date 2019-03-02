@@ -143,8 +143,7 @@ if [ -z "${INSTALL_DIR}" ]; then
    INSTALL_DIR="OPT-INSTALL_DIR"
 fi
 if [ -d "${INSTALL_DIR}" ]; then
-   package_modules=(drx.py dp.py errors.py waterfall.py waterfallcombine.py apputils.py resume.sh 
-                     utils.sh)
+   package_modules=(resume.sh utils.sh)
    for module in ${package_modules[*]}; do
       MODULE_PATH="${INSTALL_DIR}/${module}"
       if [ ! -f "${MODULE_PATH}" ]; then
@@ -221,27 +220,30 @@ if [ ${SKIP_TRANSFER} -eq 0 ]; then
    fi
 
    # Build tar-file of results for sftp transfer to other systems.
-   if [ -n "${LABEL}" -a ${SKIP_TAR} -ne 1 ]; then
+   if [ -n "${LABEL}" -a ${SKIP_TAR} -eq 0 ]; then
       echo "radiotransfer.sh: Building tar file of results."
       pushd "${RESULTS_DIR}" 1>/dev/null
+      TAR_FILES=$(ls "./*.npy" "./*.png" "./*.ini" "./*.txt" 2>/dev/null)
       resumecmd -l ${LBL_TAR} -k ${RESUME_LASTCMD_SUCCESS} \
-         tar -cvzf "${LABEL}.tar.gz" "./*.npy" "./*.png" "./*.ini" "./*.txt"
+         tar -cvzf "${LABEL}.tar.gz" "${TAR_FILES[*]}"
       report_resumecmd
       popd 1>/dev/null
    else
-      echo "radiotransfer.sh: Skipping creation of tar file."
+      echo "radiotransfer.sh: Skipping creation of tar file per user request or because no run labeL."
    fi
 else
+   echo "radiotransfer.sh: Skipping results transfer per user request"
    # Build tar-file of results for sftp transfer to other systems.
-   if [ -n "${LABEL}" -a ${SKIP_TAR} -ne 1 ]; then
+   if [ -n "${LABEL}" -a ${SKIP_TAR} -eq 0 ]; then
       echo "radiotransfer.sh: Building tar file of results."
       pushd "${WORK_DIR}" 1>/dev/null
+      TAR_FILES=$(ls "./*.npy" "./*.png" "./*.ini" "./*.txt" 2>/dev/null)
       resumecmd -l ${LBL_TAR} \
-         tar -cvzf "${LABEL}.tar.gz" "./*.npy" "./*.png" "./*.ini" "./*.txt"
+         tar -cvzf "${LABEL}.tar.gz" "${TAR_FILES[*]}"
       report_resumecmd
       popd 1>/dev/null
    else
-      echo "radiotransfer.sh: Skipping creation of tar file."
+      echo "radiotransfer.sh: Skipping creation of tar file per user request or because no run label."
    fi
 
 fi

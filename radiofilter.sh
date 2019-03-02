@@ -234,8 +234,7 @@ if [ -z "${INSTALL_DIR}" ]; then
    INSTALL_DIR="OPT-INSTALL_DIR"
 fi
 if [ -d "${INSTALL_DIR}" ]; then
-   package_modules=(drx.py dp.py errors.py waterfall.py waterfallcombine.py apputils.py resume.sh 
-                     utils.sh)
+   package_modules=(rfibandpass.py apputils.py resume.sh utils.sh)
    for module in ${package_modules[*]}; do
       MODULE_PATH="${INSTALL_DIR}/${module}"
       if [ ! -f "${MODULE_PATH}" ]; then
@@ -302,10 +301,6 @@ if [ -z "${BL_WINDOW}" ]; then
    BL_WINDOW=50
 fi
 
-# If a label was specified, create the label option.
-if [ -n "${LABEL}" ]; then
-   LABEL_OPT="--label ${LABEL}"
-fi
 
 # Source the utility functions.
 source ${INSTALL_DIR}/utils.sh
@@ -407,9 +402,11 @@ report_resumecmd
 if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
    echo "radiofilter.sh: Radio data reduction workflow completed successfully!"
    echo "radiofilter.sh: Workflow exiting with status 0."
+   echo
    exit 0
 else
    echo "radiofilter.sh: Radio data reduction workflow ended, but not all components were executed."
    echo "radiofilter.sh: Workflow exiting with status 1"
+   echo
    exit 1
 fi

@@ -214,8 +214,7 @@ if [ -z "${INSTALL_DIR}" ]; then
    INSTALL_DIR="OPT-INSTALL_DIR"
 fi
 if [ -d "${INSTALL_DIR}" ]; then
-   package_modules=(drx.py dp.py errors.py waterfall.py waterfallcombine.py apputils.py resume.sh 
-                     utils.sh)
+   package_modules=(dv.py apputils.py resume.sh utils.sh)
    for module in ${package_modules[*]}; do
       MODULE_PATH="${INSTALL_DIR}/${module}"
       if [ ! -f "${MODULE_PATH}" ]; then

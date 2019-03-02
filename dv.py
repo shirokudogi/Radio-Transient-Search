@@ -155,17 +155,55 @@ main(args):
                   file=cmdlnOpts.configFilepath), msg_type="ERROR")
       sys.exit(1)
    # endtry
-   #
-   # Load the combined spectrogram file.
-   try:
-      spectrogram = np.load(spectFilepath, mmap_mode='r')
-      spectLength = len(spectrogram)
-   except:
-      procMessage("dv.py: Could not open or load spectrogram file {file}".format(file=spectFilepath),
-                  msg_type="ERROR")
-   # endtry
-   #
-   # Open the output file in shared mode.
+   
+   # Load the spectrogram file and determine the partition to each process..
+   segmentSize = None
+   spectrogram = None
+   numSpectLines = None
+   bandpassLength = None
+   tsOffset = None
+   if rank == 0:
+      # Load spectrogram.
+      try:
+         spectrogram = np.load(spectFilepath, mmap_mode='r')
+         numSpectLines = spectrogram.shape[0]
+         bandpassLength = spectrogram.shape[1]
+      except:
+         procMessage("dv.py: Could not open or load spectrogram file {file}".format(file=spectFilepath),
+                     msg_type="ERROR", root=0)
+      # endtry
+
+      # Determine partitioning of spectrogram to each processes.
+      spectSegmentSize = np.zeros(nProcs, dtype=np.int32)
+      segmentSize = np.int(numSpectLines/nProcs)
+      rank0SegmentSize = numSpectLines - (nProcs - 1)*segmentSize
+
+      # Determine time-series offsets for each spectrogram segment
+      tsOffset = np.zeros(nProcs, dtype=np.int32)
+      tsOffset[0] = 0
+      tsOffset[1:] = rank0SegmentSize + segmentSize*np.arange(nProcs - 1)
+   # endif
+
+   # Distribute total spectrogram size information.
+   numSpectLines = MPIComm.bcast(numSpectLines, root=0)
+   bandpassLength = MPIComm.bcast(bandpassLength, root=0)
+   # Distribute spectrogram segment sizes and alignment information.
+   if rank != 0:
+      segmentSize = MPIComm.bcast(segmentSize, root=0)
+   else:
+      segmentSize = rank0SegmentSize
+   # endif
+   tsOffset = MPIComm.bcast(tsOffset, root=0)
+   # Distribute spectrogram segments.
+   # CCY - Future upgrade: have check to see if making nProcs/numNodes spectrogram segments will exceed
+   # the memory limits.  If it does, then create the spectrogram segments as memory=mapped files.
+   spectSegment = np.zeros(segmentSize*bandpassLength, 
+                           dtype=np.float32).reshape((segmentSize, bandpassLength))
+   MPIComm.Scatterv([spectrogram, numSpectLines*bandpassLength, MPI.FLOAT], 
+                    [spectSegment, segmentSize*bandpassLength, MPI.FLOAT],
+                    root=0)
+   
+   # Open the shared output file.
    try:
       outFile = MPI.File.Open(MPIComm, cmdlnOpts.outFilepath, MPI.MODE_WRONLY | MPI.MODE_CREATE)
    except:
@@ -184,22 +222,14 @@ main(args):
                                  upperFFTIndex, DFTLength + 1) + channelWidth
    freqIndices = np.arange(len(freqs), dtype=np.int32)
    bottomFreqBP = freqs[0] - channelWidth # Bottom frequency in the bandpass.
-   # Assign every rank-th frequency to current process to de-disperse.
-   mask = (freqIndices % numProcs == rank)
-   procFreqIndices = freqIndices[mask]
-   # Rank 0 process picks up the remainder of frequencies.
-   if rank == 0:
-      lastIndex = procFreqIndices[-1]
-      np.append(procFreqIndices, freqIndices[lastIndex:])
-   # endif
 
    # Setup pulse search parameters and add the maximum pulse-width to the common parameters file..
-   maxPulseWidth = np.round( np.log2(cmdlnOpts.maxPulseWidth/tInt) ).astype(np.int32) + 1 
+   log2MaxPulseWidth = np.round( np.log2(cmdlnOpts.maxPulseWidth/tInt) ).astype(np.int32) + 1 
    pulseID = 0
 
    # Determine dispersion measure trials and scaled dispersion delays.
-   DMtrials = []
-   scaledDelays = []
+   DMtrials = None
+   scaledDelays = None
    if rank == 0:
       numMidTrials = np.floor(cmdlnOpts.DMEnd) - np.ceil(cmdlnOpts.DMStart)
       DMtrials = np.zeros(numMidTrials + 2, dtype=np.float32)
@@ -209,6 +239,7 @@ main(args):
 
       scaledDelays = apputils.scaleDelays(freqs)
    # endif
+   # Distribute dispersion measure trials and scaled dispersion delays.
    DMtrials = MPIComm.bcast(DMtrials, root=0)
    scaledDelays = MPIComm.bcast(scaledDelays, root=0)
 
@@ -216,7 +247,7 @@ main(args):
    # some wasted space, but it should run much faster without having to perform an allocation for each
    # DM trial.  Also, the time series occupy far, far less space than the spectrogram.
    tbMax = np.round(cmdlnOpts.DMEnd/tInt*scaledDelays[0]).astype(np.int32)
-   ts = np.zeros(tbMax + spectrogram.shape[0], dtype=np.float32)
+   ts = np.zeros(tbMax + numSpectLines, dtype=np.float32)
    tstotal = np.zeros(ts.shape[0], dtype=np.float32)
 
 
@@ -234,29 +265,37 @@ main(args):
       # endtry
    # endif
 
+   # Synchronize processes to ensure they are all on the same dispersion measure trial.
+   MPIComm.Barrier()
+
    # Perform de-dispersion search for pulses with temporal widths less than or equal to the specified 
    # pulse-width.
    for DM in DMtrials:
+      procMessage("dv.py: De-dispersion with DM = {dm}".format(dm=DM), root=0)
       # Compute array of dispersion delays as an index in units of tInt.
       tb=np.round(DM/tInt*scaledDelays).astype(np.int32)
       fShifts = tb[0] - tb
       # De-disperse the frequencies assigned to this process.
-      for fIndex in procFreqIndices: 
-         ts[fshifts[fIndex] : fshift[fIndex] + spectLength] += spectrogram[ : , fIndex]
+      for fIndex in freqIndices: 
+         beginIndex = tsOffset[rank] + fShifts[fIndex]
+         endIndex = beginIndex + segmentSize
+         ts[beginIndex : endIndex] += spectSegment[ : , fIndex]
       # endfor
 
       # Merge the de-dispersed time-series from all processes.
       MPIComm.Allreduce(ts, tstotal, op=MPI.SUM)
-      # Cut the dispersed time lag.
-      dedispTS = tstotal[tb[0] : spectLength]
 
       # Search for signal with decimated timeseries
-      if rank < npws: # timeseries is ready for signal search
+      if rank < log2MaxPulseWidth:
+         procMessage("dv.py: Searching for pulses".format(dm=DM), root=0)
+
+         # Cut the dispersed time lag.
+         dedispTS = tstotal[tb[0] : numSpectLines]
          ndown = 2**rank #decimate the time series
          (snr, mean, rms) = Threshold(apputils.DecimateNPY(dedispTS, ndown), thresh, niter=0)
          pulseIndices = np.where(sn!=-1)[0]
          for index in pulseIndices:# Now record all pulses above threshold
-            pulse.pulse = rank*spectLength + pulseID
+            pulse.pulse = rank*segmentSize + pulseID
             pulse.SNR = snr[index]
             pulse.DM = DM
             pulse.time = index*tInt*ndown
@@ -276,6 +315,9 @@ main(args):
       # Clear the time-series.
       tstotal.fill(0)
       ts.fill(0)
+
+      # Synchronize processes to ensure they are all on the same dispersion measure trial.
+      MPIComm.Barrier()
    # endfor
 
    outFile.Close()

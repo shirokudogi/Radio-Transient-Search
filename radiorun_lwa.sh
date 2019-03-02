@@ -191,6 +191,11 @@ ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
 RUN_STATUS=${?}
 
 if [ ${RUN_STATUS} -eq 0 ]; then
+   echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
+   echo "to determine appropriate FFT index bound and smoothing window parameters before"
+   echo "proceeding to the next phase."
+   sleep 5
+
    # Obtain FFT indices and smoothing window parameters from the user.
    LFFT0_STR="Lower_FFT_Index_Tuning_0"
    UFFT0_STR="Upper_FFT_Index_Tuning_0"
@@ -198,137 +203,134 @@ if [ ${RUN_STATUS} -eq 0 ]; then
    UFFT1_STR="Upper_FFT_Index_Tuning_1"
    BPW_STR="Bandpass_smoothing_window"
    BLW_STR="Baseline_smoothing_window"
-   MENU_CHOICES=("yes" "no")
-   echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
-   echo "to determine appropriate FFT index bound and smoothing window parameters before"
-   echo "proceeding to the next phase."
-   sleep 5
+   MENU_BREAK=0
    echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
-   echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
-   echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
-   echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
-   echo "   Upper FFT Index Tuning 1 = ${UPPER_FFT1}"
-   echo "   Bandpass smoothing window = ${BP_WINDOW}"
-   echo "   Baseline smoothing window = ${BL_WINDOW}"
-   echo "radiofilter.sh: Proceed with the above parameters?"
-   PS3="Enter option number (1 or 2): "
-   select USER_ANS in ${MENU_CHOICES[*]}
+   while [ ${MENU_BREAK} -eq 0 ]
    do
-      if [[ "${USER_ANS}" == "yes" ]]; then
-         echo "radiofilter.sh: Proceding with RFI-bandpass filtration workflow..."
-         break
-      elif [[ "${USER_ANS}" == "no" ]]; then
-         MENU_CHOICES=("${LFFT0_STR}" "${UFFT0_STR}" \
-                        "${LFFT1_STR}" "${UFFT1_STR}" \
-                        "${BPW_STR}" "${BLW_STR}" "Done")
-         PS3="Select parameter to change (1, 2, 3, 4, 5, 6, or 7): "
-         select USER_ANS in ${MENU_CHOICES[*]}
-         do
-            SUBMENU_BREAK=0
-            case "${USER_ANS}" in
-               "${LFFT0_STR}" | \
-               "${UFFT0_STR}" | \
-               "${LFFT1_STR}" | \
-               "${UFFT1_STR}" | \
-               "${BPW_STR}" | \
-               "${BLW_STR}" )
-                  echo "Enter integer value: "
-                  read USER_VAL
-                  if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
-                     case "${USER_ANS}" in
-                        "${LFFT0_STR}" )
-                           if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
-                              LOWER_FFT0=${USER_VAL}
-                              SUBMENU_BREAK=1
-                           else
-                              echo "Entered value must be an integer from 0 to 4094"
-                           fi
-                           ;;
-                        "${UFFT0_STR}" )
-                           if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
-                              UPPER_FFT0=${USER_VAL}
-                              SUBMENU_BREAK=1
-                           else
-                              echo "Entered value must be an integer from 0 to 4094"
-                           fi
-                           ;;
-                        "${LFFT1_STR}" )
-                           if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
-                              LOWER_FFT1=${USER_VAL}
-                              SUBMENU_BREAK=1
-                           else
-                              echo "Entered value must be an integer from 0 to 4094"
-                           fi
-                           ;;
-                        "${UFFT1_STR}" )
-                           if [[ ${USER_VAL} > -1 ]] && [[ ${USER_VAL} < 4095 ]]; then
-                              UPPER_FFT1=${USER_VAL}
-                              SUBMENU_BREAK=1
-                           else
-                              echo "Entered value must be an integer from 0 to 4094"
-                           fi
-                           ;;
-                        "${BPW_STR}" )
-                           if [[ ${USER_VAL} > 0 ]]; then
-                              BP_WINDOW=${USER_VAL}
-                              SUBMENU_BREAK=1
-                           else
-                              echo "Entered value must be an integer greater than 0"
-                           fi
-                           ;;
-                        "${BLW_STR}" )
-                           if [[ ${USER_VAL} > 0 ]]; then
-                              BL_WINDOW=${USER_VAL}
-                              SUBMENU_BREAK=1
-                           else
-                              echo "Entered value must be an integer greater than 0"
-                           fi
-                     esac
-                     break
-                  else
-                     echo "Entered value must be an integer. "
-                  fi
-                  ;;
-               Done)
-                  SUBMENU_BREAK=1
-                  ;;
-               *)
-                  continue
-                  ;;
-            esac
+      MENU_CHOICES=("yes" "no" "quit")
+      echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
+      echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
+      echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
+      echo "   Upper FFT Index Tuning 1 = ${UPPER_FFT1}"
+      echo "   Bandpass smoothing window = ${BP_WINDOW}"
+      echo "   Baseline smoothing window = ${BL_WINDOW}"
+      echo "radiofilter.sh: Proceed with the above parameters?"
+      PS3="Select option: "
+      select USER_SELECT in ${MENU_CHOICES[*]}
+      do
+         if [[ "${USER_SELECT}" == "yes" ]]; then
+            # Run the RFI-bandpass filtration.
+            echo "radiofilter.sh: Proceding with RFI-bandpass filtration workflow..."
 
-            if [ ${SUBMENU_BREAK} -eq 1 ]; then
-               MENU_CHOICES=("yes" "no")
-               echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
-               echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
-               echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
-               echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
-               echo "   Upper FFT Index Tuning 1 = ${UPPER_FFT1}"
-               echo "   Bandpass smoothing window = ${BP_WINDOW}"
-               echo "   Baseline smoothing window = ${BL_WINDOW}"
-               echo "radiofilter.sh: Proceed with the above parameters?"
-               PS3="Enter option number (1 or 2): "
-               break
-            else
-               continue
-            fi
-         done
-      else
-         continue
-      fi
-   done
-   # Build the command-line to perform the RFI-bandpass filtration.
-   CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
-   CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
-         --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
-         --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-         --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
-         --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
-         --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
-         --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
-   # Perform the RFI-bandpass filtration.
-   ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
-   RUN_STATUS=${?}
+            # Build the command-line to perform the RFI-bandpass filtration.
+            CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
+            CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
+                  --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
+                  --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+                  --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
+                  --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
+                  --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
+                  --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
+            # Perform the RFI-bandpass filtration.
+            ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
+            RUN_STATUS=${?}
+
+            MENU_BREAK=1
+            break
+         elif [[ "${USER_SELECT}" == "quit" ]]; then
+            # Quit from RFI-bandpass filtration.
+            echo "radiorun_lwa.sh: Quitting from RFI-bandpass filtration."
+            RUN_STATUS=1
+            MENU_BREAK=1
+            break
+         elif [[ "${USER_SELECT}" == "no" ]]; then
+            # Get new parameters for RFI-bandpass filtration from user.
+            MENU_CHOICES=("${LFFT0_STR}" "${UFFT0_STR}" \
+                           "${LFFT1_STR}" "${UFFT1_STR}" \
+                           "${BPW_STR}" "${BLW_STR}" "Done")
+            PS3="Select parameter to change: "
+            select USER_SELECT in ${MENU_CHOICES[*]}
+            do
+               case "${USER_SELECT}" in
+                  "${LFFT0_STR}" | \
+                  "${UFFT0_STR}" | \
+                  "${LFFT1_STR}" | \
+                  "${UFFT1_STR}" | \
+                  "${BPW_STR}" | \
+                  "${BLW_STR}" )
+                     while [ 1 ] 
+                     do
+                        echo "Enter integer value: "
+                        read USER_VAL
+                        if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
+                           case "${USER_SELECT}" in
+                              "${LFFT0_STR}" )
+                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                    LOWER_FFT0=${USER_VAL}
+                                    break
+                                 else
+                                    echo "Entered value must be an integer from 0 to 4094"
+                                 fi
+                                 ;;
+                              "${UFFT0_STR}" )
+                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                    UPPER_FFT0=${USER_VAL}
+                                    break
+                                 else
+                                    echo "Entered value must be an integer from 0 to 4094"
+                                 fi
+                                 ;;
+                              "${LFFT1_STR}" )
+                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                    LOWER_FFT1=${USER_VAL}
+                                    break
+                                 else
+                                    echo "Entered value must be an integer from 0 to 4094"
+                                 fi
+                                 ;;
+                              "${UFFT1_STR}" )
+                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                    UPPER_FFT1=${USER_VAL}
+                                    break
+                                 else
+                                    echo "Entered value must be an integer from 0 to 4094"
+                                 fi
+                                 ;;
+                              "${BPW_STR}" )
+                                 if [ ${USER_VAL} -gt 0 ]; then
+                                    BP_WINDOW=${USER_VAL}
+                                    break
+                                 else
+                                    echo "Entered value must be an integer greater than 0"
+                                 fi
+                                 ;;
+                              "${BLW_STR}" )
+                                 if [ ${USER_VAL} -gt 0 ]; then
+                                    BL_WINDOW=${USER_VAL}
+                                    break
+                                 else
+                                    echo "Entered value must be an integer greater than 0"
+                                 fi
+                           esac
+                        else
+                           echo "Entered value must be an integer. "
+                        fi
+                     done # endwhile
+                     break
+                     ;;
+                  Done)
+                     break
+                     ;;
+                  *)
+                     continue
+                     ;;
+               esac
+            done # endselect 
+         else
+            continue
+         fi
+      done # endselect
+   done # endwhile
 fi
 
 if [ ${RUN_STATUS} -eq 0 ]; then
