@@ -118,6 +118,7 @@ def main_routine(args):
       sys.exit(1)
    # endif
 
+
    # Read common parameters file.
    try:
       commConfigFile = open(cmdlnOpts.configFilepath,'r')

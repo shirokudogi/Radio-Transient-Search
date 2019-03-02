@@ -9,6 +9,7 @@ import numpy as np
 from mpi4py import MPI
 
 
+epsilon = np.float(10.0**(-15))
 
 def procMessage(msg, root=-1, msg_type=None):
    if msg_type is not None:
@@ -317,4 +318,6 @@ def computeFreqs(centerFreq, bandwidth, botIndex, topIndex, numBins = None):
       freqIndex = botIndex + index
       freqs[index] = centerFreq + BWFactor*(2*freqIndex - numBins)
    # endfor
+   
+   return freqs
 # end computeFreqs()

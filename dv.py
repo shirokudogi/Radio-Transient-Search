@@ -1,13 +1,12 @@
-from mpi4py import MPI
-import disper
 import sys
-import numpy as np
-import glob
 import os
 import time
 import sys
 import tempfile
 import mmap
+import numpy as np
+from mpi4py import MPI
+from optparse import OptionParser
 from ConfigParser import ConfigParser
 import apputils
 
@@ -57,13 +56,13 @@ def Threshold(ts, thresh, clip=3, niter=1):
    #  out of the calculation.  This keeps the mean and rms free from sturation due to large deviations.
 
    mean = np.mean(ts) 
-   std  = np.std(ts)  
+   std  = np.max([np.std(ts), apputils.epsilon]) # Need to keep std from being exactly zero.
 
    if niter > 0:
       for i in range(niter):
          mask = ((ts-mean)/std < clip)  # only keep the values less than 3sigma
          mean = np.mean(ts[mask])
-         std  = np.std(ts[mask])
+         std  = np.max([np.std(ts[mask]), apputils.epsilon])
       # endfor
    # endif
 
@@ -74,7 +73,7 @@ def Threshold(ts, thresh, clip=3, niter=1):
 # end Threshold()
 
 
-main(args):
+def main_routine(args):
    # Get the MPI environment.
    MPIComm  = MPI.COMM_WORLD
    numProcs = MPIComm.Get_size()
@@ -108,9 +107,9 @@ main(args):
                            default=5.0, action="store",
                            help="SNR lower bound cut off threshold.",
                            metavar="SNR")
-   cmdlnParser.add_option("--tuning1", dest="enableTune1", default=False, action="store_true",
+   cmdlnParser.add_option("--tuning1", dest="enableTuning1", default=False, action="store_true",
                            help="Flag denoting whether this is tuning 0 (disabled) or tuning 1 (enabled).")
-   cmdlnParser.add_option("-s", "--dm-start", dest="DMStart", type="string", default=None, action="store",
+   cmdlnParser.add_option("-s", "--dm-start", dest="DMStart", type="float", default=None, action="store",
                            help="Starting dispersion measure value.",
                            metavar="DM")
    cmdlnParser.add_option("-e", "--dm-end", dest="DMEnd", type="float", default=1000.0, action="store",
@@ -123,7 +122,7 @@ main(args):
    if len(cmdlnArgs) > 0:
       spectFilepath = cmdlnArgs[0]
    else:
-      procMessage("dv.py: Path to spectrogram file must be specified.", msg_type="ERROR")
+      apputils.procMessage("dv.py: Path to spectrogram file must be specified.", msg_type="ERROR")
       sys.exit(1)
    # endif
 
@@ -135,26 +134,32 @@ main(args):
       commConfigObj.readfp(commConfigFile, cmdlnOpts.configFilepath)
       commConfigFile.close()
       
-      # Parse bandwidth and center frequency.
-      bandWidth = commConfigObj.getfloat("Raw Data","samplerate")/10^6
-      if not cmdlnOpts.enableTuning1:
-         centerFreq = commConfigObj.getfloat("Raw Data", "tuningfreq0")/10^6
-         lowerFFTIndex = commConfigObj.getint("RFI Bandpass", "lowerfftindex0")
-         upperFFTIndex = commConfigObj.getint("RFI Bandpass", "upperfftindex0")
-      else:
-         centerFreq = commConfigObj.getfloat("Raw Data", "tuningfreq1")/10^6
-         lowerFFTIndex = commConfigObj.getint("RFI Bandpass", "lowerfftindex1")
-         upperFFTIndex = commConfigObj.getint("RFI Bandpass", "upperfftindex1")
-      # endif
       # Parse DFT length and integration time, in seconds.
       DFTLength = commConfigObj.getint("Reduced DFT Data", "dftlength")
       tInt = commConfigObj.getfloat("Reduced DFT Data", "integrationtime")
+      # Parse bandwidth and center frequency.
+      bandwidth = commConfigObj.getfloat("Raw Data","samplerate")/10**6
+      lowerFFTIndex = 0
+      upperFFTIndex = DFTLength - 1
+      if not cmdlnOpts.enableTuning1:
+         centerFreq = commConfigObj.getfloat("Raw Data", "tuningfreq0")/10**6
+         if commConfigObj.has_section("RFI Bandpass"):
+            lowerFFTIndex = commConfigObj.getint("RFI Bandpass", "lowerfftindex0")
+            upperFFTIndex = commConfigObj.getint("RFI Bandpass", "upperfftindex0")
+         # endif
+      else:
+         centerFreq = commConfigObj.getfloat("Raw Data", "tuningfreq1")/10**6
+         if commConfigObj.has_section("RFI Bandpass"):
+            lowerFFTIndex = commConfigObj.getint("RFI Bandpass", "lowerfftindex1")
+            upperFFTIndex = commConfigObj.getint("RFI Bandpass", "upperfftindex1")
+         # endif
+      # endif
 
       # Compute channel width, with the caveat that the DC component of the DFT was removed during the
       # data reduction.
       channelWidth = bandwidth/(DFTLength + 1)
    except:
-      procMessage("dv.py: Could not open or read common parameters file {file}".format(
+      apputils.procMessage("dv.py: Could not open or read common parameters file {file}".format(
                   file=cmdlnOpts.configFilepath), msg_type="ERROR")
       sys.exit(1)
    # endtry
@@ -167,27 +172,27 @@ main(args):
    bandpassLength = None
    if rank == 0:
       # Load spectrogram.
-      apputils.procMessage('rfibandpass.py: Loading spectrogram (may take a while)', root=0)
+      apputils.procMessage('dv.py: Loading spectrogram (may take a while)', root=0)
       try:
          spectrogram = np.load(spectFilepath, mmap_mode='r')
       except:
-         procMessage("dv.py: Could not open or load spectrogram file {file}".format(file=spectFilepath),
-                     msg_type="ERROR", root=0)
+         apputils.procMessage("dv.py: Could not open or load spectrogram file {file}".format(
+                              file=spectFilepath), msg_type="ERROR", root=0)
          sys.exit(1)
       # endtry
       numSpectLines = spectrogram.shape[0]
       bandpassLength = spectrogram.shape[1]
 
       # Determine partitioning of spectrogram to each processes.
-      segmentSize = np.zeros(nProcs, dtype=np.int64)
-      segmentOffset = np.zeros(nProcs, dtype=np.int64)
-      segmentSize[1:] = np.int64( numSpectLines/nProcs )
-      segmentSize[0] = np.int64( numSpectLines - (nProcs - 1)*segmentSize[1] )
+      segmentSize = np.zeros(numProcs, dtype=np.int64)
+      segmentOffset = np.zeros(numProcs, dtype=np.int64)
+      segmentSize[1:] = np.int64( numSpectLines/numProcs )
+      segmentSize[0] = np.int64( numSpectLines - (numProcs - 1)*segmentSize[1] )
       segmentOffset[0] = 0
-      segmentOffset[1:] = segmentSize[0] + segmentSize[1]*np.arange(nProcs - 1, dtype=np.int64)
+      segmentOffset[1:] = segmentSize[0] + segmentSize[1]*np.arange(numProcs - 1, dtype=np.int64)
    # endif
    # Distribute spectrogram partitions to processes.
-   apputils.procMessage('rfibandpass.py: Distributing spectrogram segments', root=0)
+   apputils.procMessage('dv.py: Distributing spectrogram segments', root=0)
    numSpectLines = MPIComm.bcast(numSpectLines, root=0)
    bandpassLength = MPIComm.bcast(bandpassLength, root=0)
    segmentSize = MPIComm.bcast(segmentSize, root=0)
@@ -201,8 +206,8 @@ main(args):
    try:
       outFile = MPI.File.Open(MPIComm, cmdlnOpts.outFilepath, MPI.MODE_WRONLY | MPI.MODE_CREATE)
    except:
-      procMessage("dv.py: Could not open/create output file {file}".format(file=cmdlnOpts.outFilepath),
-                  msg_type="ERROR")
+      apputils.procMessage("dv.py: Could not open/create output file {file}".format(
+                           file=cmdlnOpts.outFilepath), msg_type="ERROR")
    # endtry
 
    # Extract commandline parameters.
@@ -213,7 +218,7 @@ main(args):
    # Compute the set of frequencies in the bandpass to de-disperse.  These are the frequencies at the
    # top of the frequency bins.
    freqs = apputils.computeFreqs(centerFreq, bandwidth, lowerFFTIndex,
-                                 upperFFTIndex, DFTLength + 1) + channelWidth
+                                 upperFFTIndex, DFTLength + 1)  + channelWidth
    freqIndices = np.arange(len(freqs), dtype=np.int32)
    bottomFreqBP = freqs[0] - channelWidth # Bottom frequency in the bandpass.
 
@@ -228,8 +233,8 @@ main(args):
       numMidTrials = np.floor(cmdlnOpts.DMEnd) - np.ceil(cmdlnOpts.DMStart)
       DMtrials = np.zeros(numMidTrials + 2, dtype=np.float32)
       DMtrials[0] = cmdlnOpts.DMStart
+      DMtrials[1:numMidTrials + 1] = np.arange(numMidTrials, dtype=np.float32) + np.ceil(cmdlnOpts.DMStart)
       DMtrials[numMidTrials + 1] = cmdlnOpts.DMEnd
-      DMtrials[1:numTrials + 1] = np.arange(numMidTrials, dtype=np.float32) + np.ceil(cmdlnOpts.DMStart)
 
       scaledDelays = apputils.scaleDelays(freqs)
    # endif
@@ -249,13 +254,20 @@ main(args):
    if rank == 0:
       try:
          commConfigFile = open(cmdlnOpts.configFilepath, 'w')
-         commConfigObj.add_section("De-disperse Search")
+         if not commConfigObj.has_section("De-disperse Search"):
+            commConfigObj.add_section("De-disperse Search")
+         # endif
          commConfigObj.set("De-disperse Search", "dmstart", cmdlnOpts.DMStart)
          commConfigObj.set("De-disperse Search", "dmend", cmdlnOpts.DMEnd)
          commConfigObj.set("De-disperse Search", "maxpulsewidth", cmdlnOpts.maxPulseWidth)
          commConfigObj.write(commConfigFile)
          commConfigFile.close()
-      except:
+      except Exception as anErr:
+         print anErr
+         apputils.procMessage('dv.py: Could not open or write common parameters file ' +
+                              '{file}'.format(file=cmdlnOpts.configFilepath), root=0,
+                              msg_type='ERROR')
+         sys.exit(1)
       # endtry
    # endif
 
@@ -265,7 +277,7 @@ main(args):
    # Perform de-dispersion search for pulses with temporal widths less than or equal to the specified 
    # pulse-width.
    for DM in DMtrials:
-      procMessage("dv.py: De-dispersion with DM = {dm}".format(dm=DM), root=0)
+      apputils.procMessage("dv.py: De-dispersion with DM = {dm}".format(dm=DM), root=0)
       # Compute array of dispersion delays as an index in units of tInt.
       tb=np.round(DM/tInt*scaledDelays).astype(np.int32)
       fShifts = tb[0] - tb
@@ -281,29 +293,35 @@ main(args):
 
       # Search for signal with decimated timeseries
       if rank < log2MaxPulseWidth:
-         procMessage("dv.py: Searching for pulses".format(dm=DM), root=0)
+         apputils.procMessage("dv.py: Searching for pulses".format(dm=DM))
 
          # Cut the dispersed time lag.
-         dedispTS = tstotal[tb[0] : numSpectLines]
          ndown = 2**rank #decimate the time series
-         (snr, mean, rms) = Threshold(apputils.DecimateNPY(dedispTS, ndown), thresh, niter=0)
-         pulseIndices = np.where(sn!=-1)[0]
-         for index in pulseIndices:# Now record all pulses above threshold
-            pulse.pulse = rank*segmentSize[rank] + pulseID
-            pulse.SNR = snr[index]
-            pulse.DM = DM
-            pulse.time = index*tInt*ndown
-            pulse.dtau = tInt*ndown
-            pulse.dnu = channelWidth
-            pulse.nu = centerFreq
-            pulse.mean = mean
-            pulse.rms = rms
-            pulse.nu1 = bottomFreqBP
-            pulse.nu2 = freqs[-1]
-            outFile.Write_shared(pulse.__str__()[:]) 
+         dedispTS = apputils.DecimateNPY(tstotal[tb[0] : numSpectLines], ndown)
+         if len(dedispTS) != 0:
+            (snr, mean, rms) =  Threshold(dedispTS, thresh, niter=0)
+            pulseIndices = np.where(snr != -1)[0]
+            if len(pulseIndices) > 0:
+               apputils.procMessage( "dv.py: {num} pulses found.  Writing to file.".format(
+                                    num=len(pulseIndices)) )
+               for index in pulseIndices:# Now record all pulses above threshold
+                  pulse.pulse = rank*segmentSize[rank] + pulseID
+                  pulse.SNR = snr[index]
+                  pulse.DM = DM
+                  pulse.time = index*tInt*ndown
+                  pulse.dtau = tInt*ndown
+                  pulse.dnu = channelWidth
+                  pulse.nu = centerFreq
+                  pulse.mean = mean
+                  pulse.rms = rms
+                  pulse.nu1 = bottomFreqBP
+                  pulse.nu2 = freqs[-1]
+                  outFile.Write_shared(pulse.__str__()[:]) 
 
-            pulseID += 1
-         # endfor
+                  pulseID += 1
+               # endfor
+            # endif
+         # endif
       # endif
 
       # Clear the time-series.
@@ -319,6 +337,6 @@ main(args):
 
 
 if __name__ == "__main__":
-   main(sys.argv[1:])
+   main_routine(sys.argv[1:])
    sys.exit(0)
 # endif

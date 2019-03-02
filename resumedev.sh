@@ -7,4 +7,4 @@
 #           previously.
 
 vim -p change.log resumedev.sh radioreduce.sh radiofilter.sh radiotransfer.sh radiorun_lwa.sh \
-         radioextract.sh rfibandpass.py dv.py apputils.py
+         radiosearch.sh rfibandpass.py dv.py apputils.py

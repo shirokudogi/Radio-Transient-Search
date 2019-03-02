@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# radioextract.sh
+# radiosearch.sh
 #
 # Created by:     Cregg C. Yancey
 # Creation date:  Feb 18 2019
@@ -28,7 +28,7 @@ REAL_NUM='^[+-]?[0-9]+([.][0-9]+)?$'
 USAGE='
 radioextract
 
-   radioextract.sh [-n | --nprocs <num>] [-i | --install-dir <path>]
+   radiosearch.sh [-n | --nprocs <num>] [-i | --install-dir <path>]
    [-w | --work-dir <path>] [-r | --results-dir <path>] [-s | --super-cluster] [-h | --help] 
    [-m | --memory-limit <MB>]
 
@@ -189,7 +189,7 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift
             ;;
          -*) # Unknown option
-            echo "WARNING: radioextract.sh -> Unknown option"
+            echo "WARNING: radiosearch.sh -> Unknown option"
             echo "     ${1}"
             echo "Ignored: may cause option and argument misalignment."
             shift 
@@ -203,7 +203,7 @@ if [[ ${#} -gt 0 ]]; then
       esac
    done
 else
-   echo "ERROR: radioextract.sh -> Nothing specified to do"
+   echo "ERROR: radiosearch.sh -> Nothing specified to do"
    echo "${USAGE}"
    exit 1
 fi
@@ -218,13 +218,13 @@ if [ -d "${INSTALL_DIR}" ]; then
    for module in ${package_modules[*]}; do
       MODULE_PATH="${INSTALL_DIR}/${module}"
       if [ ! -f "${MODULE_PATH}" ]; then
-         echo "ERROR: radioextract.sh -> Missing package module"
+         echo "ERROR: radiosearch.sh -> Missing package module"
          echo "     ${MODULE_PATH}"
          exit 1
       fi
    done
 else
-   echo "ERROR: radioextract.sh -> Install path does not exist"
+   echo "ERROR: radiosearch.sh -> Install path does not exist"
    echo "     ${INSTALL_DIR}"
    exit 1
 fi
@@ -234,7 +234,7 @@ if [ -z "${WORK_DIR}" ]; then
    WORK_DIR="."
 fi
 if [ ! -d "${WORK_DIR}" ]; then
-   echo "ERROR: radioextract.sh -> working directory does not exist.  User may need to create it."
+   echo "ERROR: radiosearch.sh -> working directory does not exist.  User may need to create it."
    echo "     ${WORK_DIR}"
    exit 1
 fi
@@ -244,7 +244,7 @@ if [ -z "${RESULTS_DIR}" ]; then
    RESULTS_DIR="."
 fi
 if [ ! -d "${RESULTS_DIR}" ]; then
-   echo "ERROR: radioextract.sh -> results directory does not exist.  User may need to create it."
+   echo "ERROR: radiosearch.sh -> results directory does not exist.  User may need to create it."
    echo "     ${RESULTS_DIR}"
    exit 1
 fi
@@ -301,7 +301,7 @@ fi
 # = RADIO TRANSIENT SEARCH DE-DISPERSION AND TRANSIENT EXTRACTION PHASE WORKFLOW =
 #
 #  User feedback to confirm run parameters.
-echo "radioextract.sh: Starting radio de-dispersed search workflow:"
+echo "radiosearch.sh: Starting radio de-dispersed search workflow:"
 echo
 echo "   Radiotrans install dir = ${INSTALL_DIR}"
 echo "   Working dir = ${WORK_DIR}"
@@ -319,15 +319,15 @@ echo
 
 # Confirm that the user wishes to proceed with the current configuration.
 MENU_CHOICES=("yes" "no")
-echo "radioextract.sh: Proceed with the above parameters?"
+echo "radiosearch.sh: Proceed with the above parameters?"
 PS3="Enter option number (1 or 2): "
 select USER_ANS in ${MENU_CHOICES[*]}
 do
    if [[ "${USER_ANS}" == "yes" ]]; then
-      echo "radioextract.sh: Proceding with de-dispersed search workflow..."
+      echo "radiosearch.sh: Proceding with de-dispersed search workflow..."
       break
    elif [[ "${USER_ANS}" == "no" ]]; then
-      echo "radioextract.sh: De-dispersed search workflow cancelled."
+      echo "radiosearch.sh: De-dispersed search workflow cancelled."
       exit 0
    else
       continue
@@ -351,8 +351,8 @@ if [ -n "${LABEL}" ]; then
 fi
 
 echo "     Performing de-dispersed search on tuning 0 data..."
-resumecmd -l ${LBL_SEARCH0} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" \
+resumecmd -l ${LBL_SEARCH0} \
+   mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" \
    --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --dm-start ${DM_START} --dm-end ${DM_END} --max-pulse-width ${MAX_PULSE} \
    --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T0.txt"
@@ -360,8 +360,19 @@ report_resumecmd
 
 echo "     Performing de-dispersed search on tuning 0 data..."
 resumecmd -l ${LBL_SEARCH1} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
+   mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
    --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --dm-start ${DM_START} --dm-end ${DM_END} --max-pulse-width ${MAX_PULSE} --tuning1 \
    --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T1.txt"
 report_resumecmd
+
+# Determine exit status
+if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
+   echo "radiosearch.sh: De-dispersed search workflow completed successfully!"
+   echo "radiosearch.sh: Workflow exiting with status 0."
+   exit 0
+else
+   echo "radiosearch.sh: De-dispersed search workflow ended, but not all components were executed."
+   echo "radiosearch.sh: Workflow exiting with status 1"
+   exit 1
+fi

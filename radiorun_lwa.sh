@@ -33,6 +33,10 @@ BL_WINDOW=50
 ENABLE_HANN=            # Set to "--enable-hann" to enable Hann window on raw data during reduction.
 DATA_UTILIZE=           # Fraction of raw data to use.  Positive values align to the beginning of the 
                         # raw data, while negative values align to the end.
+SNR_THRESHOLD=5.0
+DM_START=30.0
+DM_END=300.0
+MAX_PULSE_WIDTH=2.0
 
 # Configure file management parameters.
 INSTALL_DIR="${HOME}/local/radiotrans"
@@ -47,6 +51,7 @@ COMMCONFIG_FILE="config_${LABEL}.ini"
 DEFAULT_DEBUG=0
 RUN_STATUS=0
 SKIP_RFIBP=0
+DO_DDISP_SEARCH=0
 
 
 # Select whether we are using the release install of radiotrans or still using the developer version to
@@ -64,19 +69,24 @@ if [[ ${#} -gt 0 ]]; then
             INSTALL_DIR="${HOME}/dev/radiotrans"
             WORK_DIR="/mnt/toaster/cyancey/${LABEL}"
             RESULTS_DIR="${HOME}/analysis/${LABEL}"
-            INTEGTIME=24.03265
+            #INTEGTIME=24.03265
+            INTEGTIME=500.0
             DECIMATION=4000
             RFI_STD=5.0
             SNR_CUTOFF=3.0
             SG_PARAMS0=(151 2 151 2)
             SG_PARAMS1=(111 2 151 2)
             ENABLE_HANN=
-            LOWER_FFT0=100
-            UPPER_FFT0=3200
-            LOWER_FFT1=500
-            UPPER_FFT1=2000
+            LOWER_FFT0=0
+            UPPER_FFT0=4094
+            LOWER_FFT1=0
+            UPPER_FFT1=4094
             BP_WINDOW=10
             BL_WINDOW=50
+            SNR_THRESHOLD=5.0
+            DM_START=30.0
+            DM_END=1000.0
+            MAX_PULSE_WIDTH=2.0
 
             COMMCONFIG_FILE="config_${LABEL}.ini"
 
@@ -142,6 +152,10 @@ if [[ ${#} -gt 0 ]]; then
             ;;
          --skip-rfi-bandpass) # Skip the RFI-bandpass filtration phase.
             SKIP_RFIBP=1
+            shift
+            ;;
+         --do-dedispersed-search) # Run the de-dispersed search here on LWA.
+            DO_DDISP_SEARCH=1
             shift
             ;;
          --delete-waterfalls) # Delete waterfall file from the working directory at the end of the run.
@@ -345,8 +359,40 @@ else
    fi
 fi
 
+if [ ${RUN_STATUS} -eq 0 ] && [ ${DO_DDISP_SEARCH} -eq 1 ]; then
+   # We'll need to copy the tuning spectrograms as RFI-bandpass filtered versions of themselves.  This
+   # is because radiosearch.sh is looking for specific files as the filtered versions of the
+   # spectrograms.
+   if [ ${SKIP_RFIBP} -eq 1 ]; then
+      echo "radiorun_lwa.sh: Copying spectrograms as RFI-bandpass filtered versions."
+      CMBPREFIX="spectrogram"
+      if [ -n "${LABEL}" ]; then
+         CMBPREFIX="${CMBPREFIX}_${LABEL}"
+      fi
+
+      if [ ! -f "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" ]; then
+         cp "${WORK_DIR}/${CMBPREFIX}-T0.npy" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
+      fi
+
+      if [ ! -f "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" ]; then
+         cp "${WORK_DIR}/${CMBPREFIX}-T1.npy" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
+      fi
+   fi
+   # Build the command-line to perform the de-dispersed search.
+   CMD_SEARCH="${INSTALL_DIR}/radiosearch.sh"
+   CMD_SEARCH_OPTS=(--install-dir "${INSTALL_DIR}" \
+         --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
+         --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+         --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
+         --dm-start ${DM_START} --dm-end ${DM_END} \
+         --snr-threshold ${SNR_THRESHOLD} --max-pulse-width ${MAX_PULSE_WIDTH})
+   # Perform the RFI-bandpass filtration.
+   ${CMD_SEARCH} ${CMD_SEARCH_OPTS[*]}
+   RUN_STATUS=${?}
+fi
+
 if [ ${RUN_STATUS} -eq 0 ]; then
-   # Build the command-line to perform the file transfer to the results directory.
+   # Build the command-line to perform the file transfer to the results directory and build tar file.
    CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
    CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
          --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}" 
@@ -354,6 +400,12 @@ if [ ${RUN_STATUS} -eq 0 ]; then
    # Perform transfer of results to results directory and build tar of results.
    ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
    RUN_STATUS=${?}
+fi
+
+if [ ${RUN_STATUS} -eq 0 ]; then
+   echo "radiorun_lwa.sh: All workflow phases executed successfully!"
+else
+   echo "radiorun_lwa.sh: Some phases of the workflow failed.  Additional debug/investigation needed :("
 fi
 
 exit ${RUN_STATUS}
