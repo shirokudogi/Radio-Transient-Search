@@ -194,7 +194,8 @@ if [ ${RUN_STATUS} -eq 0 ]; then
    echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
    echo "to determine appropriate FFT index bound and smoothing window parameters before"
    echo "proceeding to the next phase."
-   sleep 5
+   echo
+   sleep 3
 
    # Obtain FFT indices and smoothing window parameters from the user.
    LFFT0_STR="Lower_FFT_Index_Tuning_0"
@@ -221,7 +222,7 @@ if [ ${RUN_STATUS} -eq 0 ]; then
          if [[ "${USER_SELECT}" == "yes" ]]; then
             # Run the RFI-bandpass filtration.
             echo "radiofilter.sh: Proceding with RFI-bandpass filtration workflow..."
-
+            echo
             # Build the command-line to perform the RFI-bandpass filtration.
             CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
             CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
@@ -326,6 +327,7 @@ if [ ${RUN_STATUS} -eq 0 ]; then
                      ;;
                esac
             done # endselect 
+            break
          else
             continue
          fi

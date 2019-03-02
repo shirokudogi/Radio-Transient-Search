@@ -162,7 +162,7 @@ if [[ ${#} -gt 0 ]]; then
             if [ -z "${LOWER_FFT0}" ]; then
                if [[ "${2}" =~ ${INTEGER_NUM} ]]; then
                   if [ ${2} -gt 0 ]; then
-                     DECIMATION=${2}
+                     LOWER_FFT0=${2}
                   fi
                fi
             fi
@@ -279,28 +279,6 @@ if [ -z "${MEM_LIMIT}" ]; then
    MEM_LIMIT=16384
 fi
 
-# Check that the FFT indices are specified. 
-if [ -z "${LOWER_FFT0}" ]; then
-   LOWER_FFT0=0
-fi
-if [ -z "${UPPER_FFT0}" ]; then
-   UPPER_FFT0=4094
-fi
-if [ -z "${LOWER_FFT1}" ]; then
-   LOWER_FFT1=0
-fi
-if [ -z "${UPPER_FFT1}" ]; then
-   UPPER_FFT1=4094
-fi
-
-# Check that the smoothing windows are specified.
-if [ -z "${BP_WINDOW}" ]; then
-   BP_WINDOW=10
-fi
-if [ -z "${BL_WINDOW}" ]; then
-   BL_WINDOW=50
-fi
-
 
 # Source the utility functions.
 source ${INSTALL_DIR}/utils.sh
@@ -321,6 +299,19 @@ fi
 
 # = RADIO TRANSIENT SEARCH RFI AND BANDPASS FILTRATION PHASE WORKFLOW =
 #
+LBL_TUNE0FCL="TUNE0FCL"
+LBL_TUNE0FCH="TUNE0FCH"
+LBL_TUNE1FCL="TUNE1FCL"
+LBL_TUNE1FCH="TUNE1FCH"
+LBL_BPWINDOW="BPWINDOW"
+LBL_BLWINDOW="BLWINDOW"
+resumevar -l ${LBL_TUNE0FCL} LOWER_FFT0 0       # Lower FFT index for tuning 0.
+resumevar -l ${LBL_TUNE0FCH} UPPER_FFT0 4094    # Upper FFT index for tuning 0.
+resumevar -l ${LBL_TUNE1FCL} LOWER_FFT1 0       # Lower FFT index for tuning 1.
+resumevar -l ${LBL_TUNE1FCH} UPPER_FFT1 4094    # Upper FFT index for tuning 1.
+resumevar -l ${LBL_BPWINDOW} BP_WINDOW 10       # Bandpass smoothing window.
+resumevar -l ${LBL_BLWINDOW} BL_WINDOW 50       # Baseline smoothing window.
+
 #  User feedback to confirm run parameters.
 echo "radiofilter.sh: Starting radio data reduction workflow:"
 echo
@@ -351,7 +342,7 @@ do
       break
    elif [[ "${USER_ANS}" == "no" ]]; then
       echo "radiofilter.sh: Reduction workflow cancelled."
-      exit 0
+      exit 1
    else
       continue
    fi
@@ -360,19 +351,10 @@ done
 # Workflow resume labels.  These are to label each executable stage of the workflow for use with
 # resumecmd.
 #
-LBL_TUNE0FCL="TUNE0FCL"
-LBL_TUNE0FCH="TUNE0FCH"
-LBL_TUNE1FCL="TUNE1FCL"
-LBL_TUNE1FCH="TUNE1FCH"
 
 LBL_RFIBANDPASS0="RFIBandpass_Tune0"
 LBL_RFIBANDPASS1="RFIBandpass_Tune1"
 LBL_CLEAN="Cleanup_filter"
-
-resumevar -l ${LBL_TUNE0FCL} LOWER_FFT0 0       # Lower FFT index for tuning 0.
-resumevar -l ${LBL_TUNE0FCH} UPPER_FFT0 4094    # Upper FFT index for tuning 0.
-resumevar -l ${LBL_TUNE1FCL} LOWER_FFT1 0       # Lower FFT index for tuning 1.
-resumevar -l ${LBL_TUNE1FCH} UPPER_FFT1 4094    # Upper FFT index for tuning 1.
 
 
 CMBPREFIX="spectrogram"
@@ -382,7 +364,7 @@ fi
 # Perform data smoothing, RFI cleaning, and bandpass filtering of detailed spectrogram.
 echo "    Performing RFI-bandpass filtering of tuning 0 spectrogram..."
 resumecmd -l ${LBL_RFIBANDPASS0} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/rfibandpass.py "${WORK_DIR}/${CMBPREFIX}-T0.npy" \
+   mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/rfibandpass.py "${WORK_DIR}/${CMBPREFIX}-T0.npy" \
    --lower-fft-index ${LOWER_FFT0} --upper-fft-index ${UPPER_FFT0} \
    --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW} \
    --output-file "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" \
@@ -390,13 +372,17 @@ resumecmd -l ${LBL_RFIBANDPASS0} \
 report_resumecmd
 echo "    Performing RFI-bandpass filtering of tuning 1 spectrogram..."
 resumecmd -l ${LBL_RFIBANDPASS1} -k ${RESUME_LASTCMD_SUCCESS} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_PATH}/rfibandpass.py "${WORK_DIR}/${CMBPREFIX}-T1.npy" \
+   mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/rfibandpass.py "${WORK_DIR}/${CMBPREFIX}-T1.npy" \
    --lower-fft-index ${LOWER_FFT1} --upper-fft-index ${UPPER_FFT1} --tuning1 \
    --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW} \
    --output-file "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --work-dir ${WORK_DIR} 
 report_resumecmd
 
+# Clean up temporary files.
+resumecmd -l ${LBL_CLEAN} -k ${RESUME_LASTCMD_SUCCESS} \
+   delete_files "${WORK_DIR}/*.dtmp"
+report_resumecmd
 
 # Determine exit status
 if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then

@@ -2,9 +2,9 @@ import os
 import sys
 import numpy as np
 from  mpi4py import MPI
-import ConfigParser
 import mmap
 from optparse import OptionParser
+from ConfigParser import ConfigParser
 import apputils 
 
 def bpf(x, windows = 40):
@@ -75,22 +75,22 @@ def main_routine(args):
                            default='./rfibp-spectrogram.npy',
                            help='Path to the output file.',
                            metavar='PATH')
-   cmdlnParser.add_option('-bp', '--bandpass-window', dest='bpWindow', type='int', default=10,
+   cmdlnParser.add_option('--bandpass-window', dest='bpWindow', type='int', default=10,
                            help='Bandpass smoothing window size.', metavar='INT')
-   cmdlnParser.add_option('-bl', '--baseline-window', dest='blWindow', type='int', default=50,
+   cmdlnParser.add_option('--baseline-window', dest='blWindow', type='int', default=50,
                            help='Baseline smoothing window size.', metavar='INT')
    cmdlnParser.add_option('--tuning1', dest='enableTuning1', default=False, action='store_true',
                            help='Flag denoting tuning 1.')
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
 
-   lowerFFTIndex = forceIntValue(cmdlnOpts.lowerFFTIndex, 0, 4094)
-   upperFFTIndex = forceIntValue(cmdlnOpts.upperFFTIndex, 0, 4094)
-   bpWindow = forceIntValue(cmdlnOpts.bpWindow, 1, 9999)
-   blWindow = forceIntValue(cmdlnOpts.blWindow, 1, 9999)
+   lowerFFTIndex = apputils.forceIntValue(cmdlnOpts.lowerFFTIndex, 0, 4094)
+   upperFFTIndex = apputils.forceIntValue(cmdlnOpts.upperFFTIndex, 0, 4094)
+   bpWindow = apputils.forceIntValue(cmdlnOpts.bpWindow, 1, 9999)
+   blWindow = apputils.forceIntValue(cmdlnOpts.blWindow, 1, 9999)
 
    # Check that lower FFT index is less than the upper FFT index.
    if upperFFTIndex <= lowerFFTIndex:
-      procMessage('rfibandpass.py:  Upper FFT cutoff must be greater than lower FFT cutoff',
+      apputils.rocMessage('rfibandpass.py:  Upper FFT cutoff must be greater than lower FFT cutoff',
                   root=0, msg_type='ERROR')
       sys.exit(1)
    # endif
@@ -98,7 +98,7 @@ def main_routine(args):
    if len(cmdlnArgs) > 0:
       spectFilepath = cmdlnArgs[0]
    else:
-      procMessage('rfibandpass.py:  Must specify a spectrogram file.',
+      apputils.rocMessage('rfibandpass.py:  Must specify a spectrogram file.',
                   root=0, msg_type='ERROR')
       sys.exit(1)
    # endif
@@ -110,32 +110,42 @@ def main_routine(args):
       commConfigObj.readfp(commConfigFile, cmdlnOpts.configFilepath)
 
       DFTLength = commConfigObj.getint("Reduced DFT Data", "dftlength")
-      commFile.close()
+      commConfigFile.close()
       # If this is the rank 0 process, update the common parameters file with the RFI and bandpass
       if rank == 0:
-         commConfigFile = open(cmdlnOpts.configFilepath,'w')
-         if not commConfigObj.has_section("RFI Bandpass"):
-            commConfigObj.add_section("RFI Bandpass")
-         # endif
-         if cmdlnOpts.enableTuning1:
-            commConfigObj.set("RFI Bandpass", "lowerfftindex1", lowerFFTIndex)
-            commConfigObj.set("RFI Bandpass", "upperfftindex1", upperFFTIndex)
-         else:
-            commConfigObj.set("RFI Bandpass", "lowerfftindex0", lowerFFTIndex)
-            commConfigObj.set("RFI Bandpass", "upperfftindex0", upperFFTIndex)
-         # endif
-         commConfigObj.set("RFI Bandpass", "bandpasswindow", bpWindow)
-         commConfigObj.set("RFI Bandpass", "baselinewindow", blWindow)
-         commConfigObj.write(commConfigFile)
-         commConfigFile.flush()
-         commConfigFile.close()
+         try:
+            commConfigFile = open(cmdlnOpts.configFilepath,'w')
+            if not commConfigObj.has_section("RFI Bandpass"):
+               commConfigObj.add_section("RFI Bandpass")
+            # endif
+            if cmdlnOpts.enableTuning1:
+               commConfigObj.set("RFI Bandpass", "lowerfftindex1", lowerFFTIndex)
+               commConfigObj.set("RFI Bandpass", "upperfftindex1", upperFFTIndex)
+            else:
+               commConfigObj.set("RFI Bandpass", "lowerfftindex0", lowerFFTIndex)
+               commConfigObj.set("RFI Bandpass", "upperfftindex0", upperFFTIndex)
+            # endif
+            commConfigObj.set("RFI Bandpass", "bandpasswindow", bpWindow)
+            commConfigObj.set("RFI Bandpass", "baselinewindow", blWindow)
+            commConfigObj.write(commConfigFile)
+            commConfigFile.flush()
+            commConfigFile.close()
+         except:
+            apputils.procMessage('rfibandpass.py: Could not update common ' + 
+                        'parameters file {file}'.format(file=cmdlnOpts.configFilepath), 
+                        msg_type='ERROR')
+            sys.exit(1)
+         # endtry
       # endif
-      # filtration parameters.
    except:
+      apputils.procMessage('rfibandpass.py: Could not find or open common ' + 
+                           'parameters file {file}'.format(file=cmdlnOpts.configFilepath), 
+                           msg_type='ERROR')
+      sys.exit(1)
    # endtry
 
    # Load the spectrogram file and determine the partition to each process..
-   linesPerProc = None
+   segmentSize = None
    spectrogram = None
    numSpectLines = 0
    if rank == 0:
@@ -146,42 +156,46 @@ def main_routine(args):
       # Determine partitioning of spectrogram to each processes.
       linesPerProc = np.zeros(nProcs, dtype=np.int32)
       segmentSize = np.int(numSpectLines/nProcs)
-      linesPerProc[0] = numSpectLines - (nProcs - 1)*segmentSize
-      linesPerProc[1:] = segmentSize
+      rank0SegmentSize = numSpectLines - (nProcs - 1)*segmentSize
    # endif
 
    # Distribute parts of the spectrogram for smoothing
-   linesPerProc = MPIComm.bcast(linesPerProc, root=0)
-   spectSegment = np.zeros(linesPerProc[rank]*DFTLength, 
-                           dtype=np.float32).reshape((linesPerProc[rank], DFTLength))
+   if rank != 0:
+      segmentSize = MPIComm.bcast(segmentSize, root=0)
+   else:
+      segmentSize = rank0SegmentSize
+   # endif
+   spectSegment = np.zeros(segmentSize*DFTLength, 
+                           dtype=np.float32).reshape((segmentSize, DFTLength))
    MPIComm.Scatterv([spectrogram, numSpectLines*DFTLength, MPI.FLOAT], 
-                    [spectSegment, linesPerProc[rank]*DFTLength, MPI.FLOAT],
+                    [spectSegment, segmentSize*DFTLength, MPI.FLOAT],
                     root=0)
 
    # Trim to bandpass and perform smoothing on the spectrogram segment.
-   procMessage('rfibandpass.py: Performing RFI and bandpass filtration.', root=0)
+   apputils.procMessage('rfibandpass.py: Performing RFI and bandpass filtration.', root=0)
    spectSegment = massagesp(spectSegment[ : , lowerFFTIndex:upperFFTIndex], bpWindow, blWindow)
 
    # Gather the pieces of the smoothed spectrogram
    bandpassLength = upperFFTIndex - lowerFFTIndex
    if rank == 0:
-      spectrogram = np.zeros(numSpectLines*bandpassLength, 
-                             dtype=np.float32).reshape((numSpectLines, bandpassLength))
+      (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
+      rfibpSpectrogram = np.memmap(filename=tempFilepath, shape=(numSpectLines, bandpassLength), 
+                                 dtype=np.float32, mode='w+')
    # endif
-   MPIComm.Gatherv([spectSegment, linesPerProc[rank]*bandpassLength, MPI.FLOAT],
-                   [spectrogram, numSpectLines*bandpassLength, MPI.FLOAT],
+   MPIComm.Gatherv([spectSegment, segmentSize*bandpassLength, MPI.FLOAT],
+                   [rfibpSpectrogram, numSpectLines*bandpassLength, MPI.FLOAT],
                    root=0)
 
    # Save the spectrogram to file.
    if rank == 0:
-      procMessage('rfibandpass.py: Writing RFI and bandpass filtered spectrogram.', root=0)
-      np.save(cmdlnOpts.outFilepath, spectrogram)
+      apputils.procMessage('rfibandpass.py: Writing RFI and bandpass filtered spectrogram.', root=0)
+      np.save(cmdlnOpts.outFilepath, rfibpSpectrogram)
    # endif
 
 # end main_routine()
 
 
-if __name__ = '__main__'
+if __name__ == '__main__':
    main_routine(sys.argv[1:])
    sys.exit(0)
 # endif

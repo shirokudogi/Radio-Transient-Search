@@ -453,11 +453,14 @@ function resumevar ()
       RESUME_VALUE=$(__getResumeValue "${VARLABEL}" "${RESUME_VAR_FILEPATH}")
       VAR_NOTFOUND=${?}
 
-      # If the variable's value is not found or is being forced, then assign the value that has been
-      # specified and save it to the resume-variable file.  Otherwise, use the value loaded from the
-      # resume-variable file.
+      # If the variable's value is not found, is being forced, or has not been assigned, then assign 
+      # the value that has been specified and save it to the resume-variable file.  Otherwise, use the 
+      # value loaded from the resume-variable file.
       if [[ ${VAR_NOTFOUND} -ne 0 ]] || [[ ${FORCE_VALUE} -eq 1 ]]; then
-         export ${VARNAME}="${VARVALUE[*]}"
+         # If the variable doesn't already have a value or is being forced, then use the specified value.
+         if [ -z "${!VARNAME}" ] || [[ ${FORCE_VALUE} -eq 1 ]]; then
+            export ${VARNAME}="${VARVALUE[*]}"
+         fi
 
          # Record the variable's value: add it if it doesn't exist; otherwise, update it.
          if [[ ${VAR_NOTFOUND} -ne 0 ]]; then
@@ -466,7 +469,13 @@ function resumevar ()
             sed -i -e s@"${VARLABEL}.*"@"${VARLABEL} ${VARVALUE[*]}"@ "${RESUME_VAR_FILEPATH}"
          fi
       else
-         export ${VARNAME}="${RESUME_VALUE}"
+         # If the variable doesn't have a value, then load the value from the resume file.  Otherwise,
+         # use the current value and update the value in the resume file.
+         if [ -z "${!VARNAME}" ]; then
+            export ${VARNAME}="${RESUME_VALUE}"
+         else
+            sed -i -e s@"${VARLABEL}.*"@"${VARLABEL} ${VARVALUE[*]}"@ "${RESUME_VAR_FILEPATH}"
+         fi
       fi
 
    fi
