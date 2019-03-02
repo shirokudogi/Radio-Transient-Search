@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 from  mpi4py import MPI
+import tempfile
 import mmap
 from optparse import OptionParser
 from ConfigParser import ConfigParser
@@ -150,6 +151,7 @@ def main_routine(args):
    numSpectLines = 0
    if rank == 0:
       # Load spectrogram.
+      apputils.procMessage('rfibandpass.py: Loading spectrogram (may take a while)', root=0)
       spectrogram = np.load(spectFilepath, mmap_mode='r')
       numSpectLines = spectrogram.shape[0]
 
@@ -165,24 +167,32 @@ def main_routine(args):
    else:
       segmentSize = rank0SegmentSize
    # endif
-   spectSegment = np.zeros(segmentSize*DFTLength, 
-                           dtype=np.float32).reshape((segmentSize, DFTLength))
+   (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
+   spectSegment = np.memmap(filename=tempFilepath, shape=(segmentSize, DFTLength), 
+                              dtype=np.float32, mode='w+')
+   # spectSegment = np.zeros(segmentSize*DFTLength, dtype=np.float32).reshape((segmentSize, DFTLength))
+   apputils.procMessage('rfibandpass.py: Distributing spectrogram segments', root=0)
    MPIComm.Scatterv([spectrogram, numSpectLines*DFTLength, MPI.FLOAT], 
                     [spectSegment, segmentSize*DFTLength, MPI.FLOAT],
                     root=0)
 
    # Trim to bandpass and perform smoothing on the spectrogram segment.
-   apputils.procMessage('rfibandpass.py: Performing RFI and bandpass filtration.', root=0)
-   spectSegment = massagesp(spectSegment[ : , lowerFFTIndex:upperFFTIndex], bpWindow, blWindow)
+   bandpassLength = upperFFTIndex - lowerFFTIndex
+   (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
+   rfibpSpectSegment = np.memmap(filename=tempFilepath, shape=(segmentSize, bandpassLength), 
+                              dtype=np.float32, mode='w+')
+   apputils.procMessage('rfibandpass.py: Performing RFI and bandpass filtration on segment.')
+   rfibpSpectSegment = massagesp(spectSegment[ : , lowerFFTIndex:upperFFTIndex], bpWindow, blWindow)
 
    # Gather the pieces of the smoothed spectrogram
-   bandpassLength = upperFFTIndex - lowerFFTIndex
    if rank == 0:
+      apputils.procMessage('rfibandpass.py: Allocating for filtered spectrogram', root=0)
       (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
       rfibpSpectrogram = np.memmap(filename=tempFilepath, shape=(numSpectLines, bandpassLength), 
                                  dtype=np.float32, mode='w+')
    # endif
-   MPIComm.Gatherv([spectSegment, segmentSize*bandpassLength, MPI.FLOAT],
+   apputils.procMessage('rfibandpass.py: Re-integrating segments of filtered spectrogram', root=0)
+   MPIComm.Gatherv([rfibpSpectSegment, segmentSize*bandpassLength, MPI.FLOAT],
                    [rfibpSpectrogram, numSpectLines*bandpassLength, MPI.FLOAT],
                    root=0)
 

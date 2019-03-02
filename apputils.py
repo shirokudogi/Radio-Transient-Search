@@ -12,7 +12,9 @@ from mpi4py import MPI
 
 def procMessage(msg, root=-1, msg_type=None):
    if msg_type is not None:
-      msg_type = "({type})".format(type=msg_type)
+      msg_type = " ({type})".format(type=msg_type)
+   else:
+      msg_type =""
    # endif
       
    if root == -1 or root == MPI.COMM_WORLD.Get_rank():
