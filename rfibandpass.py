@@ -153,10 +153,11 @@ def main_routine(args):
             sys.exit(1)
          # endtry
       # endif
-   except:
+   except Exception as anErr:
       apputils.procMessage('rfibandpass.py: Could not find or open common ' + 
                            'parameters file {file}'.format(file=cmdlnOpts.configFilepath), 
                            msg_type='ERROR')
+      apputils.procMessage('{err}'.format(err=anErr), msg_type='ERROR')
       sys.exit(1)
    # endtry
 

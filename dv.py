@@ -285,7 +285,7 @@ def main_routine(args):
       for fIndex in freqIndices: 
          beginIndex = segmentOffset[rank] + fShifts[fIndex]
          endIndex = beginIndex + segmentSize[rank]
-         ts[beginIndex : endIndex + 1] += segment[ : , fIndex]
+         ts[beginIndex : endIndex] += segment[ : , fIndex]
       # endfor
 
       # Merge the de-dispersed time-series from all processes.
