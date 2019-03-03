@@ -191,12 +191,13 @@ def main_routine(args):
                     root=0)
 
    # Trim spectrogram segment to bandpass and perform RFI filtering on it.
-   bandpassLength = upperFFTIndex - lowerFFTIndex
+   bandpassLength = upperFFTIndex - lowerFFTIndex + 1
    (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=cmdlnOpts.workDir)
    rfibpSegment = np.memmap(filename=tempFilepath, shape=(segmentSize[rank], bandpassLength), 
                               dtype=np.float32, mode='w+')
    apputils.procMessage('rfibandpass.py: Performing RFI and bandpass filtration on segment.')
-   rfibpSegment[:, :] = massagesp(segment[ : , lowerFFTIndex:upperFFTIndex], bpWindow, blWindow)[:, :]
+   rfibpSegment[:, :] = massagesp(segment[ : , lowerFFTIndex:upperFFTIndex + 1], 
+                                    bpWindow, blWindow)[:, :]
 
    # Gather the pieces of the RFI-bandpass filtered spectrogram and integrate them into the final
    # RFI-bandpass filtered spectrogram.

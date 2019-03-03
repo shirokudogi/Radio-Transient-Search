@@ -140,7 +140,7 @@ def main_routine(args):
       # Parse bandwidth and center frequency.
       bandwidth = commConfigObj.getfloat("Raw Data","samplerate")/10**6
       lowerFFTIndex = 0
-      upperFFTIndex = DFTLength - 1
+      upperFFTIndex = DFTLength - 2
       if not cmdlnOpts.enableTuning1:
          centerFreq = commConfigObj.getfloat("Raw Data", "tuningfreq0")/10**6
          if commConfigObj.has_section("RFI Bandpass"):
@@ -285,7 +285,7 @@ def main_routine(args):
       for fIndex in freqIndices: 
          beginIndex = segmentOffset[rank] + fShifts[fIndex]
          endIndex = beginIndex + segmentSize[rank]
-         ts[beginIndex : endIndex] += segment[ : , fIndex]
+         ts[beginIndex : endIndex + 1] += segment[ : , fIndex]
       # endfor
 
       # Merge the de-dispersed time-series from all processes.
