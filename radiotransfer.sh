@@ -79,6 +79,7 @@ SUPERCLUSTER=0       # Flag denoting whether we should initialize for being on a
 COMMCONFIG_FILE=     # Name of the common configuration file.
 SKIP_TAR=0           # Flag denoting whether to skip making tar file of results.
 SKIP_TRANSFER=0      # Flag denoting to skip the actual transfer.
+RELOAD_WORK=0        # Flag denoting to reload results back into the work directory.
 
 
 
@@ -107,6 +108,10 @@ if [[ ${#} -gt 0 ]]; then
             ;;
          --skip-transfer ) # Specify to actual transfer of files to results directory
             SKIP_TRANSFER=1
+            shift
+            ;;
+         --reload-work ) # Transfer key results file from the results directory to the work directory.
+            RELOAD_WORK=1
             shift
             ;;
          -w | --work-dir) # Specify the working directory.
@@ -198,52 +203,68 @@ LBL_RESULTS="Results_Transfer"
 LBL_TAR="TAR_Files"
 LBL_DELWORK="DeleteWorkingDir"
 
-# Transfer results files to the results directory, if allowed by the user.
-if [ ${SKIP_TRANSFER} -eq 0 ]; then
-   # Move results files if the working directory and results directory are different.
-   if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
-      echo "radiotransfer.sh: Transferring key results files to directory ${RESULTS_DIR}..."
-      resumecmd -l ${LBL_RESULTS} \
-         transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-         "*.npy" "*.png" "*.ini" "*.txt"
-      report_resumecmd
-
-      # Delete the working directory, since we don't need it now, as long as it is not the current
-      # directory.  As a safety, we want to avoid deleting the current directory.
-      if [[ "${WORK_DIR}" != "." ]]; then
-         echo "Removing working directory."
-         resumecmd -l ${LBL_DELWORK} -k ${RESUME_LASTCMD_SUCCESS} rm -rf "${WORK_DIR}"
+if [ ${RELOAD_WORK} -eq 0 ]; then
+   # Transfer results files to the results directory, if allowed by the user.
+   if [ ${SKIP_TRANSFER} -eq 0 ]; then
+      # Move results files if the working directory and results directory are different.
+      if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
+         echo "radiotransfer.sh: Transferring key results files to directory ${RESULTS_DIR}..."
+         echo "   ${WORK_DIR} ---> ${RESULTS_DIR}"
+         echo
+         resumecmd -l ${LBL_RESULTS} \
+            transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
+            "*.npy" "*.png" "*.ini" "*.txt"
          report_resumecmd
+
+         # Delete the working directory, since we don't need it now, as long as it is not the current
+         # directory.  As a safety, we want to avoid deleting the current directory.
+         if [[ "${WORK_DIR}" != "." ]] && [[ ${KEEP_WORK_DIR} -eq 0 ]]; then
+            echo "Removing working directory."
+            resumecmd -l ${LBL_DELWORK} -k ${RESUME_LASTCMD_SUCCESS} rm -rf "${WORK_DIR}"
+            report_resumecmd
+         fi
+      else
+         echo "radiotransfer.sh: Skipping results transfer => working and results directories are the same."
+      fi
+
+      # Build tar-file of results for sftp transfer to other systems.
+      if [ -n "${LABEL}" -a ${SKIP_TAR} -eq 0 ]; then
+         echo "radiotransfer.sh: Building tar file of results."
+         pushd "${RESULTS_DIR}" 1>/dev/null
+         TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
+         resumecmd -l ${LBL_TAR} tar -cvzf "${RESULTS_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
+         report_resumecmd
+         popd 1>/dev/null
+      else
+         echo "radiotransfer.sh: Skipping creation of tar file per user request or because no run labeL."
       fi
    else
-      echo "radiotransfer.sh: Skipping results transfer => working and results directories are the same."
-   fi
+      echo "radiotransfer.sh: Skipping results transfer per user request"
+      # Build tar-file of results for sftp transfer to other systems.
+      if [ -n "${LABEL}" -a ${SKIP_TAR} -eq 0 ]; then
+         echo "radiotransfer.sh: Building tar file of results."
+         pushd "${WORK_DIR}" 1>/dev/null
+         TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
+         resumecmd -l ${LBL_TAR} tar -cvzf "${WORK_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
+         report_resumecmd
+         popd 1>/dev/null
+      else
+         echo "radiotransfer.sh: Skipping creation of tar file per user request or because no run label."
+      fi
 
-   # Build tar-file of results for sftp transfer to other systems.
-   if [ -n "${LABEL}" -a ${SKIP_TAR} -eq 0 ]; then
-      echo "radiotransfer.sh: Building tar file of results."
-      pushd "${RESULTS_DIR}" 1>/dev/null
-      TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
-      resumecmd -l ${LBL_TAR} tar -cvzf "${RESULTS_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
-      report_resumecmd
-      popd 1>/dev/null
-   else
-      echo "radiotransfer.sh: Skipping creation of tar file per user request or because no run labeL."
    fi
 else
-   echo "radiotransfer.sh: Skipping results transfer per user request"
-   # Build tar-file of results for sftp transfer to other systems.
-   if [ -n "${LABEL}" -a ${SKIP_TAR} -eq 0 ]; then
-      echo "radiotransfer.sh: Building tar file of results."
-      pushd "${WORK_DIR}" 1>/dev/null
-      TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
-      resumecmd -l ${LBL_TAR} tar -cvzf "${WORK_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
+   if [[ "${WORK_DIR}" != "${RESULTS_DIR}" ]]; then
+      echo "radiotransfer.sh: Reloading from key files from results directory to working directory..."
+      echo "   ${RESULTS_DIR} ---> ${WORK_DIR}"
+      echo
+      resumecmd -l ${LBL_RELOAD} \
+         transfer_files --src-dir "${RESULTS_DIR}" --dest-dir "${WORK_DIR}" \
+         "*.npy" "*.png" "*.ini" "*.txt"
       report_resumecmd
-      popd 1>/dev/null
    else
-      echo "radiotransfer.sh: Skipping creation of tar file per user request or because no run label."
+      echo "radiotransfer.sh: Skipping reload => results and working directories are the same."
    fi
-
 fi
 
 # Determine exit status

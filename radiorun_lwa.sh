@@ -11,15 +11,29 @@ REAL_NUM='^[+-]?[0-9]+([.][0-9]+)?$'
 # Configure process parameters.
 NUM_PROCS=$(nproc --all)   # Number of processes to use in the MPI environment.
 MEM_LIMIT=32768            # Memory limit, in MBs, for creating waterfall tiles in memory.
+DO_PREMADE=0
+RUN_STATUS=0
+SKIP_RFIBP=0
+SKIP_REDUCE=0
+DO_DDISP_SEARCH=0
 
-# Configure radio run parameters.
+
+# Configure main directories.
+INSTALL_DIR="${HOME}/local/radiotrans" # Install directory of executables.
+WORK_ROOT="/mnt/toaster/cyancey"
+RESULTS_ROOT="${HOME}/analysis"
 DATA_DIR="/data/network/recent_data/jtsai"
-DATA_FILENAME="057974_001488582"
-DATA_PATH="${DATA_DIR}/${DATA_FILENAME}"
-LABEL="GWRREDUCE"
-INTEGTIME=24.03265   # Do not set this below 24.03265 to avoid corruption during RFI filtering and
-                     # smoothing.
-DECIMATION=4000
+
+# Build list of data files and associated run labels
+RUN_INDICES=(0 1 2 3)    # Indices to DATA_FILENAMES and LABELS.
+DATA_FILENAMES=("057974_001488582" "057974_001488582" "057974_001488582" "057974_001488582")
+LABELS=("GWR170817B1" "GWR170817B2" "GWR170817B3" "GWR170817B4")
+
+# Configure common radio run parameters to apply to all runs.
+COMMCONFIG_FILE="config_${LABEL}.ini"
+INTEGTIME=125        # In milliseconds.  Do not set this below 24.03265 ms to avoid corruption during 
+                     # RFI filtering and data smoothing.
+DECIMATION=10000
 RFI_STD=5.0
 SNR_CUTOFF=3.0
 SG_PARAMS0=(151 2 151 2)
@@ -30,28 +44,21 @@ LOWER_FFT1=0
 UPPER_FFT1=4094
 BP_WINDOW=10
 BL_WINDOW=50
-ENABLE_HANN=            # Set to "--enable-hann" to enable Hann window on raw data during reduction.
+ENABLE_HANN_OPT=            # Set to "--enable-hann" to enable Hann window on raw data during reduction.
 DATA_UTILIZE=           # Fraction of raw data to use.  Positive values align to the beginning of the 
                         # raw data, while negative values align to the end.
 SNR_THRESHOLD=5.0
 DM_START=30.0
-DM_END=300.0
+DM_END=1800.0
 MAX_PULSE_WIDTH=2.0
 
 # Configure file management parameters.
-INSTALL_DIR="${HOME}/local/radiotrans"
-WORK_DIR="/mnt/toaster/cyancey/${LABEL}"
-RESULTS_DIR="${HOME}/analysis/${LABEL}"
 SKIP_TRANSFER_OPT=
 DELWATERFALLS_OPT=
 SKIP_TAR_OPT=
-COMMCONFIG_FILE="config_${LABEL}.ini"
+RELOAD_WORK=0
 
 # Disable debug mode, by default. This has to be enabled by the user from the commandline.
-DEFAULT_DEBUG=0
-RUN_STATUS=0
-SKIP_RFIBP=0
-DO_DDISP_SEARCH=0
 
 
 # Select whether we are using the release install of radiotrans or still using the developer version to
@@ -60,23 +67,44 @@ if [[ ${#} -gt 0 ]]; then
    while [ -n "${1}" ]
    do
       case "${1}" in
-         -D | --DEBUG) # Force enable default debugging configuration.
+         --GW170809 ) # Perform pre-made run for GW170809.
+            RUN_INDICES=0
+            DATA_FILENAMES=("057974_001488582")
+            LABELS=("GWR170809")
+
+            # Configure common radio run parameters.
+            INTEGTIME=125
+            DECIMATION=10000
+            RFI_STD=5.0
+            SNR_CUTOFF=3.0
+            SG_PARAMS0=(151 2 151 2)
+            SG_PARAMS1=(111 2 151 2)
+            LOWER_FFT0=0
+            UPPER_FFT0=4094
+            LOWER_FFT1=0
+            UPPER_FFT1=4094
+            BP_WINDOW=10
+            BL_WINDOW=50
+            SNR_THRESHOLD=5.0
+            DM_START=30.0
+            DM_END=1800.0
+            MAX_PULSE_WIDTH=2.0
+
+            shift
+            ;;
+         --DEBUG) # Force enable default debugging configuration.
             echo "radiorun_lwa.sh: Force enabling default debugging configuration."
-            DATA_DIR="/data/network/recent_data/jtsai"
-            DATA_FILENAME="057974_001488582"
-            DATA_PATH="${DATA_DIR}/${DATA_FILENAME}"
-            LABEL="GWRDEBUG"
+            RUN_INDICES=0
+            DATA_FILENAMES="057974_001488582"
+            LABELS="GWRDEBUG"
             INSTALL_DIR="${HOME}/dev/radiotrans"
-            WORK_DIR="/mnt/toaster/cyancey/${LABEL}"
-            RESULTS_DIR="${HOME}/analysis/${LABEL}"
-            #INTEGTIME=24.03265
             INTEGTIME=500.0
             DECIMATION=4000
             RFI_STD=5.0
             SNR_CUTOFF=3.0
             SG_PARAMS0=(151 2 151 2)
             SG_PARAMS1=(111 2 151 2)
-            ENABLE_HANN=
+            ENABLE_HANN_OPT=
             LOWER_FFT0=0
             UPPER_FFT0=4094
             LOWER_FFT1=0
@@ -90,11 +118,11 @@ if [[ ${#} -gt 0 ]]; then
 
             COMMCONFIG_FILE="config_${LABEL}.ini"
 
-            DEFAULT_DEBUG=1
+            DO_PREMADE=1
             shift
             ;;
          -I | --install-dir) # Set the install directory to the specified location.
-            if [ ${DEFAULT_DEBUG} -eq 0]; then
+            if [ ${DO_PREMADE} -eq 0]; then
                if [ -z "${INSTALL_DIR}" -a -d "${2}" ]; then
                   INSTALL_DIR="${2}"
                else
@@ -106,26 +134,33 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
-         -R | --results-dir) # Set the results directory to the specified location.
-            if [ ${DEFAULT_DEBUG} -eq 0]; then
-               if [ -z "${RESULTS_DIR}" -a -d "${2}" ]; then
-                  RESULTS_DIR="${2}"
-               else
-                  echo "Cannot find results directory ${2}"
-               fi
+         -W | --work-root) # Specify the root for working directories.
+            if [ -d "${2}" ]; then
+               WORK_ROOT="${2}"
             else
-               echo "Results directory ignored.  Forced to default debug configuration."
-               echo "RESULTS_DIR = ${RESULTS_DIR}"
+               echo "radiorun_lwa.sh (ERROR): Working root directory ${2} does not exist."
+               echo "User needs to create the root directory."
+               exit 1
             fi
             shift; shift
             ;;
-         -W | --work-dir) # Set the working directory to the specified location.
-            if [ ${DEFAULT_DEBUG} -eq 0 ]; then
-               if [ -z "${WORK_DIR}" -a -d "${2}" ]; then
-                  WORK_DIR="${2}"
-               else
-                  echo "radiorun_lwa.sh: Cannot find install directory ${2}"
-               fi
+         -R | --results-root) # Specify the root for results directories.
+            if [ -d "${2}" ]; then
+               RESULTS_ROOT="${2}"
+            else
+               echo "radiorun_lwa.sh (ERROR): Results root directory ${2} does not exist."
+               echo "User needs to create the root directory."
+               exit 1
+            fi
+            shift; shift
+            ;;
+         -D | --data-dir) # Specify the data directory.
+            if [ -d "${2}" ]; then
+               DATA_DIR="${2}"
+            else
+               echo "radiorun_lwa.sh (ERROR): Data directory ${2} does not exist."
+               echo "User needs to create the data directory."
+               exit 1
             fi
             shift; shift
             ;;
@@ -154,12 +189,25 @@ if [[ ${#} -gt 0 ]]; then
             SKIP_RFIBP=1
             shift
             ;;
+         --skip-reduction) # Skip the data reduction stage.
+            SKIP_REDUCE=1
+            shift
+            ;;
          --do-dedispersed-search) # Run the de-dispersed search here on LWA.
             DO_DDISP_SEARCH=1
             shift
             ;;
          --delete-waterfalls) # Delete waterfall file from the working directory at the end of the run.
             DELWATERFALLS_OPT="--delete-waterfalls"
+            shift
+            ;;
+         --enable-hann) # Enable Hann windowing on waterfalls.
+            ENABLE_HANN_OPT="--enable-hann"
+            shift
+            ;;
+         --reload-work) # Reload key results from the results directory to the work directory and then
+                        # rerun the workflow.
+            RELOAD_WORK=1
             shift
             ;;
          *) # Ignore anything else.
@@ -169,243 +217,289 @@ if [[ ${#} -gt 0 ]]; then
    done
 fi
 
-# Ensure the data file exists.
-if [ ! -f "${DATA_PATH}" ]; then
-   echo "radiorun_lwa.sh: ERROR => Data file ${DATA_PATH} not found."
-   exit 1 
-fi
+ALL_STATUS=0
+for INDEX in ${RUN_INDICES[*]}
+do
+   RUN_STATUS=0
 
-# Create the working directory, if it doesn't exist.
-if [ ! -d "${WORK_DIR}" ]; then
-   mkdir -p "${WORK_DIR}"
+   # Create the run label, path to data, working directory path, and results directory path for current
+   # run iteration.
+   LABEL="${LABELS[${INDEX}]}"
+   DATA_PATH="${DATA_DIR}/${DATA_FILENAMES[${INDEX}]}"
+   WORK_DIR="${WORK_ROOT}/${LABEL}}"
+   RESULTS_DIR="${RESULTS_ROOT}/${LABEL}"
+
+   # Ensure the data file exists.
+   if [ ! -f "${DATA_PATH}" ] && [ ${SKIP_REDUCE} -eq 0 ]; then
+      echo "radiorun_lwa.sh: ERROR => Data file ${DATA_PATH} not found."
+      RUN_STATUS=1
+   fi
+
+   # Create the working directory, if it doesn't exist.
    if [ ! -d "${WORK_DIR}" ]; then
-      echo "Could not create working directory ${WORK_DIR}"
-      exit 1
+      mkdir -p "${WORK_DIR}"
+      if [ ! -d "${WORK_DIR}" ]; then
+         echo "Could not create working directory ${WORK_DIR}"
+         RUN_STATUS=1
+      fi
    fi
-fi
 
-# Create the results directory, if it doesn't exist.
-if [ ! -d "${RESULTS_DIR}" ]; then
-   mkdir -p "${RESULTS_DIR}"
+   # Create the results directory, if it doesn't exist.
    if [ ! -d "${RESULTS_DIR}" ]; then
-      echo "Could not create results directory ${RESULTS_DIR}"
-      exit 1
+      mkdir -p "${RESULTS_DIR}"
+      if [ ! -d "${RESULTS_DIR}" ]; then
+         echo "Could not create results directory ${RESULTS_DIR}"
+         RUN_STATUS=1
+      fi
    fi
-fi
 
 
+   # Stage to reload work into the working directory.
+   if [ ${RUN_STATUS} -eq 0 ] && [ ${RELOAD_WORK} -eq 1 ]; then
+      # Build the command-line to perform the file transfer to the working directory from results
+      # directory.
+      CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
+      CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
+            --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}"  \
+            --reload-work)
+      # Perform transfer of file to working directory from results directory.
+      ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
+      RUN_STATUS=${?}
+   fi
 
-# Build the command-line to perform data reduction.
-CMD_REDUCE="${INSTALL_DIR}/radioreduce.sh"
-CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
-      --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN} \
-      --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-      --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
-      --data-utilization ${DATA_UTILIZE} \
-      --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
-      --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT} )
+   # Stage to reduce radio data.
+   if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_REDUCE} -eq 0 ]; then
+      # Build the command-line to perform data reduction.
+      CMD_REDUCE="${INSTALL_DIR}/radioreduce.sh"
+      CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
+            --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN_OPT} \
+            --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+            --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
+            --data-utilization ${DATA_UTILIZE} \
+            --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
+            --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT} )
 
-# Perform the data reduction phase.
-${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
-RUN_STATUS=${?}
+      # Perform the data reduction phase.
+      ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
+      RUN_STATUS=${?}
+   fi
 
-if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 0 ]; then
-   echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
-   echo "to determine appropriate FFT index bound and smoothing window parameters before"
-   echo "proceeding to the next phase."
-   echo
-   sleep 3
-
-   # Obtain FFT indices and smoothing window parameters from the user.
-   LFFT0_STR="Lower_FFT_Index_Tuning_0"
-   UFFT0_STR="Upper_FFT_Index_Tuning_0"
-   LFFT1_STR="Lower_FFT_Index_Tuning_1"
-   UFFT1_STR="Upper_FFT_Index_Tuning_1"
-   BPW_STR="Bandpass_smoothing_window"
-   BLW_STR="Baseline_smoothing_window"
-   MENU_BREAK=0
-   echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
-   while [ ${MENU_BREAK} -eq 0 ]
-   do
-      MENU_CHOICES=("yes" "no" "quit")
-      echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
-      echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
-      echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
-      echo "   Upper FFT Index Tuning 1 = ${UPPER_FFT1}"
-      echo "   Bandpass smoothing window = ${BP_WINDOW}"
-      echo "   Baseline smoothing window = ${BL_WINDOW}"
-      echo "radiofilter.sh: Proceed with the above parameters?"
-      PS3="Select option: "
-      select USER_SELECT in ${MENU_CHOICES[*]}
-      do
-         if [[ "${USER_SELECT}" == "yes" ]]; then
-            # Run the RFI-bandpass filtration.
-            echo "radiofilter.sh: Proceding with RFI-bandpass filtration workflow..."
-            echo
-            # Build the command-line to perform the RFI-bandpass filtration.
-            CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
-            CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
-                  --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
-                  --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-                  --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
-                  --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
-                  --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
-                  --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
-            # Perform the RFI-bandpass filtration.
-            ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
-            RUN_STATUS=${?}
-
-            MENU_BREAK=1
-            break
-         elif [[ "${USER_SELECT}" == "quit" ]]; then
-            # Quit from RFI-bandpass filtration.
-            echo "radiorun_lwa.sh: Quitting from RFI-bandpass filtration."
-            RUN_STATUS=1
-            MENU_BREAK=1
-            break
-         elif [[ "${USER_SELECT}" == "no" ]]; then
-            # Get new parameters for RFI-bandpass filtration from user.
-            MENU_CHOICES=("${LFFT0_STR}" "${UFFT0_STR}" \
-                           "${LFFT1_STR}" "${UFFT1_STR}" \
-                           "${BPW_STR}" "${BLW_STR}" "Done")
-            PS3="Select parameter to change: "
-            select USER_SELECT in ${MENU_CHOICES[*]}
-            do
-               case "${USER_SELECT}" in
-                  "${LFFT0_STR}" | \
-                  "${UFFT0_STR}" | \
-                  "${LFFT1_STR}" | \
-                  "${UFFT1_STR}" | \
-                  "${BPW_STR}" | \
-                  "${BLW_STR}" )
-                     while [ 1 ] 
-                     do
-                        echo "Enter integer value: "
-                        read USER_VAL
-                        if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
-                           case "${USER_SELECT}" in
-                              "${LFFT0_STR}" )
-                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                    LOWER_FFT0=${USER_VAL}
-                                    break
-                                 else
-                                    echo "Entered value must be an integer from 0 to 4094"
-                                 fi
-                                 ;;
-                              "${UFFT0_STR}" )
-                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                    UPPER_FFT0=${USER_VAL}
-                                    break
-                                 else
-                                    echo "Entered value must be an integer from 0 to 4094"
-                                 fi
-                                 ;;
-                              "${LFFT1_STR}" )
-                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                    LOWER_FFT1=${USER_VAL}
-                                    break
-                                 else
-                                    echo "Entered value must be an integer from 0 to 4094"
-                                 fi
-                                 ;;
-                              "${UFFT1_STR}" )
-                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                    UPPER_FFT1=${USER_VAL}
-                                    break
-                                 else
-                                    echo "Entered value must be an integer from 0 to 4094"
-                                 fi
-                                 ;;
-                              "${BPW_STR}" )
-                                 if [ ${USER_VAL} -gt 0 ]; then
-                                    BP_WINDOW=${USER_VAL}
-                                    break
-                                 else
-                                    echo "Entered value must be an integer greater than 0"
-                                 fi
-                                 ;;
-                              "${BLW_STR}" )
-                                 if [ ${USER_VAL} -gt 0 ]; then
-                                    BL_WINDOW=${USER_VAL}
-                                    break
-                                 else
-                                    echo "Entered value must be an integer greater than 0"
-                                 fi
-                           esac
-                        else
-                           echo "Entered value must be an integer. "
-                        fi
-                     done # endwhile
-                     break
-                     ;;
-                  Done)
-                     break
-                     ;;
-                  *)
-                     continue
-                     ;;
-               esac
-            done # endselect 
-            break
-         else
-            continue
-         fi
-      done # endselect
-   done # endwhile
-else
-   if [ ${SKIP_RFIBP} -eq 1 ]; then
-      echo "radiorun_lwa.sh: Skipping RFI-bandpass filtration per user request."
+   # Stage to perform RFI-bandpass filtration.
+   if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 0 ]; then
+      echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
+      echo "to determine appropriate FFT index bound and smoothing window parameters before"
+      echo "proceeding to the next phase."
       echo
-   fi
-fi
+      sleep 3
 
-if [ ${RUN_STATUS} -eq 0 ] && [ ${DO_DDISP_SEARCH} -eq 1 ]; then
-   # We'll need to copy the tuning spectrograms as RFI-bandpass filtered versions of themselves.  This
-   # is because radiosearch.sh is looking for specific files as the filtered versions of the
-   # spectrograms.
-   if [ ${SKIP_RFIBP} -eq 1 ]; then
-      echo "radiorun_lwa.sh: Copying spectrograms as RFI-bandpass filtered versions."
+      # Obtain FFT indices and smoothing window parameters from the user.
+      LFFT0_STR="Lower_FFT_Index_Tuning_0"
+      UFFT0_STR="Upper_FFT_Index_Tuning_0"
+      LFFT1_STR="Lower_FFT_Index_Tuning_1"
+      UFFT1_STR="Upper_FFT_Index_Tuning_1"
+      BPW_STR="Bandpass_smoothing_window"
+      BLW_STR="Baseline_smoothing_window"
+      MENU_BREAK=0
+      echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
+      while [ ${MENU_BREAK} -eq 0 ]
+      do
+         MENU_CHOICES=("yes" "no" "quit")
+         echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
+         echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
+         echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
+         echo "   Upper FFT Index Tuning 1 = ${UPPER_FFT1}"
+         echo "   Bandpass smoothing window = ${BP_WINDOW}"
+         echo "   Baseline smoothing window = ${BL_WINDOW}"
+         echo "radiofilter.sh: Proceed with the above parameters?"
+         PS3="Select option: "
+         select USER_SELECT in ${MENU_CHOICES[*]}
+         do
+            if [[ "${USER_SELECT}" == "yes" ]]; then
+               # Run the RFI-bandpass filtration.
+               echo "radiofilter.sh: Proceding with RFI-bandpass filtration workflow..."
+               echo
+               # Build the command-line to perform the RFI-bandpass filtration.
+               CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
+               CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
+                     --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
+                     --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+                     --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
+                     --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
+                     --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
+                     --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
+               # Perform the RFI-bandpass filtration.
+               ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
+               RUN_STATUS=${?}
+
+               MENU_BREAK=1
+               break
+            elif [[ "${USER_SELECT}" == "quit" ]]; then
+               # Quit from RFI-bandpass filtration.
+               echo "radiorun_lwa.sh: Quitting from RFI-bandpass filtration."
+               RUN_STATUS=1
+               MENU_BREAK=1
+               break
+            elif [[ "${USER_SELECT}" == "no" ]]; then
+               # Get new parameters for RFI-bandpass filtration from user.
+               MENU_CHOICES=("${LFFT0_STR}" "${UFFT0_STR}" \
+                              "${LFFT1_STR}" "${UFFT1_STR}" \
+                              "${BPW_STR}" "${BLW_STR}" "Done")
+               PS3="Select parameter to change: "
+               select USER_SELECT in ${MENU_CHOICES[*]}
+               do
+                  case "${USER_SELECT}" in
+                     "${LFFT0_STR}" | \
+                     "${UFFT0_STR}" | \
+                     "${LFFT1_STR}" | \
+                     "${UFFT1_STR}" | \
+                     "${BPW_STR}" | \
+                     "${BLW_STR}" )
+                        while [ 1 ] 
+                        do
+                           echo "Enter integer value: "
+                           read USER_VAL
+                           if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
+                              case "${USER_SELECT}" in
+                                 "${LFFT0_STR}" )
+                                    if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                       LOWER_FFT0=${USER_VAL}
+                                       break
+                                    else
+                                       echo "Entered value must be an integer from 0 to 4094"
+                                    fi
+                                    ;;
+                                 "${UFFT0_STR}" )
+                                    if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                       UPPER_FFT0=${USER_VAL}
+                                       break
+                                    else
+                                       echo "Entered value must be an integer from 0 to 4094"
+                                    fi
+                                    ;;
+                                 "${LFFT1_STR}" )
+                                    if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                       LOWER_FFT1=${USER_VAL}
+                                       break
+                                    else
+                                       echo "Entered value must be an integer from 0 to 4094"
+                                    fi
+                                    ;;
+                                 "${UFFT1_STR}" )
+                                    if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                       UPPER_FFT1=${USER_VAL}
+                                       break
+                                    else
+                                       echo "Entered value must be an integer from 0 to 4094"
+                                    fi
+                                    ;;
+                                 "${BPW_STR}" )
+                                    if [ ${USER_VAL} -gt 0 ]; then
+                                       BP_WINDOW=${USER_VAL}
+                                       break
+                                    else
+                                       echo "Entered value must be an integer greater than 0"
+                                    fi
+                                    ;;
+                                 "${BLW_STR}" )
+                                    if [ ${USER_VAL} -gt 0 ]; then
+                                       BL_WINDOW=${USER_VAL}
+                                       break
+                                    else
+                                       echo "Entered value must be an integer greater than 0"
+                                    fi
+                              esac
+                           else
+                              echo "Entered value must be an integer. "
+                           fi
+                        done # endwhile
+                        break
+                        ;;
+                     Done)
+                        break
+                        ;;
+                     *)
+                        continue
+                        ;;
+                  esac
+               done # endselect 
+               break
+            else
+               continue
+            fi
+         done # endselect
+      done # endwhile
+   else
+      if [ ${SKIP_RFIBP} -eq 1 ]; then
+         echo "radiorun_lwa.sh: Skipping RFI-bandpass filtration per user request."
+         echo
+      fi
+   fi
+
+   # Stage to perform de-dispered search.
+   if [ ${RUN_STATUS} -eq 0 ] && [ ${DO_DDISP_SEARCH} -eq 1 ]; then
       CMBPREFIX="spectrogram"
       if [ -n "${LABEL}" ]; then
          CMBPREFIX="${CMBPREFIX}_${LABEL}"
       fi
-
       if [ ! -f "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" ]; then
+         echo "radiorun_lwa.sh: Missing T0 RFI-bandpass filtered spectrogram."
+         echo "                 Copying T0 unfiltered spectrogram as RFI-bandpass filtered."
+         echo
          cp "${WORK_DIR}/${CMBPREFIX}-T0.npy" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
       fi
 
       if [ ! -f "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" ]; then
+         echo "radiorun_lwa.sh: Missing T1 RFI-bandpass filtered spectrogram."
+         echo "                 Copying T1 unfiltered spectrogram as RFI-bandpass filtered."
+         echo
          cp "${WORK_DIR}/${CMBPREFIX}-T1.npy" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
       fi
+      # Build the command-line to perform the de-dispersed search.
+      CMD_SEARCH="${INSTALL_DIR}/radiosearch.sh"
+      CMD_SEARCH_OPTS=(--install-dir "${INSTALL_DIR}" \
+            --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
+            --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+            --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
+            --dm-start ${DM_START} --dm-end ${DM_END} \
+            --snr-threshold ${SNR_THRESHOLD} --max-pulse-width ${MAX_PULSE_WIDTH})
+      # Perform the RFI-bandpass filtration.
+      ${CMD_SEARCH} ${CMD_SEARCH_OPTS[*]}
+      RUN_STATUS=${?}
    fi
-   # Build the command-line to perform the de-dispersed search.
-   CMD_SEARCH="${INSTALL_DIR}/radiosearch.sh"
-   CMD_SEARCH_OPTS=(--install-dir "${INSTALL_DIR}" \
-         --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
-         --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-         --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
-         --dm-start ${DM_START} --dm-end ${DM_END} \
-         --snr-threshold ${SNR_THRESHOLD} --max-pulse-width ${MAX_PULSE_WIDTH})
-   # Perform the RFI-bandpass filtration.
-   ${CMD_SEARCH} ${CMD_SEARCH_OPTS[*]}
-   RUN_STATUS=${?}
-fi
 
-if [ ${RUN_STATUS} -eq 0 ]; then
-   # Build the command-line to perform the file transfer to the results directory and build tar file.
-   CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
-   CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
-         --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}" 
-         ${SKIP_TRANSFER_OPT} ${SKIP_TAR_OPT})
-   # Perform transfer of results to results directory and build tar of results.
-   ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
-   RUN_STATUS=${?}
-fi
+   # Stage to transfer results to results directory and tar up results.
+   if [ ${RUN_STATUS} -eq 0 ]; then
+      # Build the command-line to perform the file transfer to the results directory and build tar file.
+      CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
+      CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
+            --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}" 
+            ${SKIP_TRANSFER_OPT} ${SKIP_TAR_OPT})
+      # Perform transfer of results to results directory and build tar of results.
+      ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
+      RUN_STATUS=${?}
+   fi
 
-if [ ${RUN_STATUS} -eq 0 ]; then
-   echo "radiorun_lwa.sh: All workflow phases executed successfully!"
+   # Report workflow execution status to user.
+   if [ ${RUN_STATUS} -eq 0 ]; then
+      echo "radiorun_lwa.sh: All workflow phases executed successfully!"
+      echo
+   else
+      echo "radiorun_lwa.sh: Some phases of the workflow failed or could not be executed due to"
+      echo "                 prior failures.  Additional debug/investigation may be needed :("
+      echo "   LABEL = ${LABEL}"
+      echo "   DATA_FILE = ${DATA_PATH}"
+      echo "   WORK_DIR = ${WORK_DIR}"
+      echo "   RESULTS_DIR = ${RESULTS_DIR}"
+      echo
+      ALL_STATUS=1
+   fi
+done
+
+if [ ${ALL_STATUS} -eq 0 ]; then
+   echo "radiorun_lwa.sh: All iterations of the workflow executed successfully!"
+   echo
 else
-   echo "radiorun_lwa.sh: Some phases of the workflow failed.  Additional debug/investigation needed :("
+   echo "radiorun_lwa.sh: Some iterations of the workflow failed"
+   echo
 fi
-
-exit ${RUN_STATUS}
+exit ${ALL_STATUS}
