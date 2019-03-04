@@ -237,6 +237,26 @@ if [ -z "${RUN_INDICES[*]}" ]; then
    exit 1
 fi
 
+# Check for the install directory and module dependencies.
+if [ -z "${INSTALL_DIR}" ]; then
+   INSTALL_DIR="OPT-INSTALL_DIR"
+fi
+if [ -d "${INSTALL_DIR}" ]; then
+   package_modules=(radioreduce.sh radiofilter.sh radiotransfer.sh radiosearch.sh)
+   for module in ${package_modules[*]}; do
+      MODULE_PATH="${INSTALL_DIR}/${module}"
+      if [ ! -f "${MODULE_PATH}" ]; then
+         echo "ERROR: radiotrans_run.sh -> Missing package module"
+         echo "     ${MODULE_PATH}"
+         exit 1
+      fi
+   done
+else
+   echo "ERROR: radiotrans_run.sh -> Install path does not exist"
+   echo "     ${INSTALL_DIR}"
+   exit 1
+fi
+
 ALL_STATUS=0
 for INDEX in ${RUN_INDICES[*]}
 do
