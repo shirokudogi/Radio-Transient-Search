@@ -11,11 +11,12 @@ REAL_NUM='^[+-]?[0-9]+([.][0-9]+)?$'
 # Configure process parameters.
 NUM_PROCS=$(nproc --all)   # Number of processes to use in the MPI environment.
 MEM_LIMIT=32768            # Memory limit, in MBs, for creating waterfall tiles in memory.
-DO_PREMADE=0
 RUN_STATUS=0
 SKIP_RFIBP=0
 SKIP_REDUCE=0
 DO_DDISP_SEARCH=0
+INDEX=0
+SUPERCLUSTER_OPT=
 
 
 # Configure main directories.
@@ -25,12 +26,12 @@ RESULTS_ROOT="${HOME}/analysis"
 DATA_DIR="/data/network/recent_data/jtsai"
 
 # Build list of data files and associated run labels
-RUN_INDICES=(0 1 2 3)    # Indices to DATA_FILENAMES and LABELS.
-DATA_FILENAMES=("057974_001488582" "057974_001488582" "057974_001488582" "057974_001488582")
-LABELS=("GWR170817B1" "GWR170817B2" "GWR170817B3" "GWR170817B4")
+RUN_INDICES=
+DATA_FILENAMES=
+LABELS=
 
 # Configure common radio run parameters to apply to all runs.
-COMMCONFIG_FILE="config_${LABEL}.ini"
+COMMCONFIG_FILE=
 INTEGTIME=125        # In milliseconds.  Do not set this below 24.03265 ms to avoid corruption during 
                      # RFI filtering and data smoothing.
 DECIMATION=10000
@@ -58,7 +59,6 @@ DELWATERFALLS_OPT=
 SKIP_TAR_OPT=
 RELOAD_WORK=0
 
-# Disable debug mode, by default. This has to be enabled by the user from the commandline.
 
 
 # Select whether we are using the release install of radiotrans or still using the developer version to
@@ -68,12 +68,13 @@ if [[ ${#} -gt 0 ]]; then
    do
       case "${1}" in
          --GW170809 ) # Perform pre-made run for GW170809.
-            RUN_INDICES=0
-            DATA_FILENAMES=("057974_001488582")
-            LABELS=("GWR170809")
+            echo "radiotrans_run.sh: Using GW170809 search parameter set."
+            #RUN_INDICES=0
+            #DATA_FILENAMES=("057974_001488582")
+            #LABELS=("GWR170809")
 
             # Configure common radio run parameters.
-            INTEGTIME=125
+            INTEGTIME=100
             DECIMATION=10000
             RFI_STD=5.0
             SNR_CUTOFF=3.0
@@ -92,12 +93,12 @@ if [[ ${#} -gt 0 ]]; then
 
             shift
             ;;
-         --DEBUG) # Force enable default debugging configuration.
-            echo "radiorun_lwa.sh: Force enabling default debugging configuration."
-            RUN_INDICES=0
-            DATA_FILENAMES="057974_001488582"
-            LABELS="GWRDEBUG"
-            INSTALL_DIR="${HOME}/dev/radiotrans"
+         --DEBUG) # Run with debug search parameters.
+            echo "radiotrans_run.sh: Using DEBUG search parameter set."
+            #RUN_INDICES=0
+            #DATA_FILENAMES="057974_001488582"
+            #LABELS="GWRDEBUG"
+            #INSTALL_DIR="${HOME}/dev/radiotrans"
             INTEGTIME=500.0
             DECIMATION=4000
             RFI_STD=5.0
@@ -116,9 +117,6 @@ if [[ ${#} -gt 0 ]]; then
             DM_END=1000.0
             MAX_PULSE_WIDTH=2.0
 
-            COMMCONFIG_FILE="config_${LABEL}.ini"
-
-            DO_PREMADE=1
             shift
             ;;
          -I | --install-dir) # Set the install directory to the specified location.
@@ -163,6 +161,19 @@ if [[ ${#} -gt 0 ]]; then
                exit 1
             fi
             shift; shift
+            ;;
+         -A | --add-run) # Adds a run to the current set using the parameters that have been setup.
+            if [ -n "${2}" ] && [ -n "${3}" ]; then
+               LABELS=("${LABELS[*]}" "${2}")
+               DATA_FILENAMES=("${DATA_FILENAMES[*]}" "${3}")
+               RUN_INDICES=(${RUN_INDICES[*]} ${INDEX})
+               INDEX=`expr ${INDEX} + 1`
+               shift; shift; shift
+            else
+               echo "radiotrans_run.sh: Runs need to be specified with a label and associated data file"
+               echo "                   within the data directory."
+               exit 1
+            fi
             ;;
          -S | --small-node) # Lower the memory limit for the smaller nodes (ones having 32 GB total RAM)
                             # LWA.
@@ -210,11 +221,20 @@ if [[ ${#} -gt 0 ]]; then
             RELOAD_WORK=1
             shift
             ;;
+         --supercluster) # Specify workflow is running on the V-Tech supercluster.
+            SUPERCLUSTER_OPT="--supercluster"
+            shift
+            ;;
          *) # Ignore anything else.
             shift
             ;;
       esac
    done
+fi
+
+if [ -z "${RUN_INDICES[*]}" ]; then
+   echo "radiotrans_run.sh: No runs specified to do."
+   exit 1
 fi
 
 ALL_STATUS=0
@@ -228,6 +248,7 @@ do
    DATA_PATH="${DATA_DIR}/${DATA_FILENAMES[${INDEX}]}"
    WORK_DIR="${WORK_ROOT}/${LABEL}}"
    RESULTS_DIR="${RESULTS_ROOT}/${LABEL}"
+   COMMCONFIG_FILE="config_${LABEL}.ini"
 
    # Ensure the data file exists.
    if [ ! -f "${DATA_PATH}" ] && [ ${SKIP_REDUCE} -eq 0 ]; then
@@ -261,7 +282,7 @@ do
       CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
       CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
             --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}"  \
-            --reload-work)
+            --reload-work ${SUPERCLUSTER_OPT})
       # Perform transfer of file to working directory from results directory.
       ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
       RUN_STATUS=${?}
@@ -275,7 +296,7 @@ do
             --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN_OPT} \
             --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
             --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
-            --data-utilization ${DATA_UTILIZE} \
+            --data-utilization ${DATA_UTILIZE} ${SUPERCLUSTER_OPT} \
             --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
             --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT} )
 
@@ -323,7 +344,7 @@ do
                CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
                      --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
                      --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-                     --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
+                     --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SUPERCLUSTER_OPT} \
                      --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
                      --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
                      --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
@@ -456,7 +477,7 @@ do
       fi
       # Build the command-line to perform the de-dispersed search.
       CMD_SEARCH="${INSTALL_DIR}/radiosearch.sh"
-      CMD_SEARCH_OPTS=(--install-dir "${INSTALL_DIR}" \
+      CMD_SEARCH_OPTS=(--install-dir "${INSTALL_DIR}" ${SUPERCLUSTER_OPT} \
             --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
             --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
             --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
@@ -471,7 +492,7 @@ do
    if [ ${RUN_STATUS} -eq 0 ]; then
       # Build the command-line to perform the file transfer to the results directory and build tar file.
       CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
-      CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
+      CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" ${SUPERCLUSTER_OPT} \
             --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}" 
             ${SKIP_TRANSFER_OPT} ${SKIP_TAR_OPT})
       # Perform transfer of results to results directory and build tar of results.
