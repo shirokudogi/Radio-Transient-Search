@@ -20,10 +20,10 @@ SUPERCLUSTER_OPT=
 
 
 # Configure main directories.
-INSTALL_DIR="${HOME}/local/radiotrans" # Install directory of executables.
-WORK_ROOT="/mnt/toaster/cyancey"
-RESULTS_ROOT="${HOME}/analysis"
-DATA_DIR="/data/network/recent_data/jtsai"
+INSTALL_DIR=
+WORK_ROOT=
+RESULTS_ROOT=
+DATA_DIR=
 
 # Build list of data files and associated run labels
 RUN_INDICES=
@@ -254,6 +254,42 @@ if [ -d "${INSTALL_DIR}" ]; then
 else
    echo "ERROR: radiotrans_run.sh -> Install path does not exist"
    echo "     ${INSTALL_DIR}"
+   exit 1
+fi
+
+# Check that the working root directories is specified.
+if [ -z "${WORK_ROOT}" ]; then
+   echo "radiotrans_run.sh: Working root directory needs to be specified by user."
+   exit 1
+else
+   if [ ! -d "${WORK_ROOT}" ]; then
+      mkdir -p "${WORK_ROOT}"
+      if [ ! -d "${WORK_ROOT}" ]; then
+         echo "radiotrans_run.sh: Could not create working root directory ${WORK_ROOT}"
+         exit 1
+      fi
+   fi
+fi
+
+# Check that the working root directories is specified.
+if [ -z "${RESULTS_ROOT}" ]; then
+   echo "radiotrans_run.sh: Results root directory not specified by user."
+   echo "                   Using working root directory as results root directory."
+   RESULTS_ROOT="${WORK_ROOT}"
+else
+   if [ ! -d "${RESULTS_ROOT}" ]; then
+      mkdir -p "${RESULTS_ROOT}"
+      if [ ! -d "${RESULTS_ROOT}" ]; then
+         echo "radiotrans_run.sh: Could not create results root directory ${RESULTS_ROOT}"
+         echo "                   Using working root directory as results root directory."
+         RESULTS_ROOT="${WORK_ROOT}"
+      fi
+   fi
+fi
+
+# Check that the data directory is specified if we are doing a data reduction.
+if [ -z "${DATA_DIR}" ] && [ ${SKIP_REDUCE} -eq 0 ]; then
+   echo "radiotrans_run.sh: Data directory needs to be specified by user when doing data reduction."
    exit 1
 fi
 
