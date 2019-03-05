@@ -257,6 +257,7 @@ if [[ ${#} -gt 0 ]]; then
             NO_SEARCH_INTERACT_OPT="--no-interact"
             NO_RFIBP_INTERACT_OPT="--no-interact"
             NO_REDUCE_INTERACT_OPT="--no-interact"
+            shift
             ;;
          *) # Ignore anything else.
             shift
