@@ -245,9 +245,15 @@ if [[ ${#} -gt 0 ]]; then
    done
 fi
 
+# Check that we have something to do.
 if [ -z "${RUN_INDICES[*]}" ]; then
    echo "radiotrans_run.sh: No runs specified to do."
    exit 1
+fi
+
+# Ensure the data utilization value is set.
+if [ -z "${DATA_UTILIZE}" ]; then
+   DATA_UTILIZE=1.0
 fi
 
 # Check for the install directory and module dependencies.
@@ -367,7 +373,7 @@ do
             --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
             --data-utilization ${DATA_UTILIZE} ${SUPERCLUSTER_OPT} \
             --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
-            --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT} )
+            --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
 
       # Perform the data reduction phase.
       ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
@@ -519,7 +525,7 @@ do
          done # endselect
       done # endwhile
    else
-      if [ ${SKIP_RFIBP} -eq 1 ]; then
+      if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 1 ]; then
          echo "radiotrans_run.sh: Skipping RFI-bandpass filtration per user request."
          echo
       fi
