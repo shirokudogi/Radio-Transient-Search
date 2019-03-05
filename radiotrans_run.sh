@@ -67,11 +67,8 @@ if [[ ${#} -gt 0 ]]; then
    while [ -n "${1}" ]
    do
       case "${1}" in
-         --GW170809 ) # Perform pre-made run for GW170809.
+         --GW170817) # Perform pre-made run for GW170809.
             echo "radiotrans_run.sh: Using GW170809 search parameter set."
-            #RUN_INDICES=0
-            #DATA_FILENAMES=("057974_001488582")
-            #LABELS=("GWR170809")
 
             # Configure common radio run parameters.
             INTEGTIME=100
@@ -93,12 +90,33 @@ if [[ ${#} -gt 0 ]]; then
 
             shift
             ;;
+         --CLeague ) # Perform pre-made run for Cleague.
+            echo "radiotrans_run.sh: Using GW170817 search parameter set."
+
+            # Configure common radio run parameters.
+            INTEGTIME=2089.80
+            DECIMATION=4000
+            RFI_STD=5.0
+            SNR_CUTOFF=3.0
+            SG_PARAMS0=(151 2 151 2)
+            SG_PARAMS1=(111 2 151 2)
+            LOWER_FFT0=0
+            UPPER_FFT0=4094
+            LOWER_FFT1=0
+            UPPER_FFT1=4094
+            BP_WINDOW=11
+            BL_WINDOW=51
+            SNR_THRESHOLD=5.0
+            DM_START=30.0
+            DM_END=1000.0
+            MAX_PULSE_WIDTH=2.0
+
+            shift
+            ;;
          --DEBUG) # Run with debug search parameters.
             echo "radiotrans_run.sh: Using DEBUG search parameter set."
-            #RUN_INDICES=0
-            #DATA_FILENAMES="057974_001488582"
-            #LABELS="GWRDEBUG"
-            #INSTALL_DIR="${HOME}/dev/radiotrans"
+
+            # Configure common radio run parameters.
             INTEGTIME=500.0
             DECIMATION=4000
             RFI_STD=5.0
