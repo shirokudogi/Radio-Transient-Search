@@ -106,6 +106,7 @@ COMMCONFIG_FILE=     # Name of the common configuration file.
 FLAG_DELWATERFALLS=0   # Flag denoting whether to delete waterfall files at the end of the run to
                            # help save space.
 
+NO_INTERACT=0
 
 
 # Parse command-line arguments, but be sure to only accept the first value of an option or argument.
@@ -257,6 +258,10 @@ if [[ ${#} -gt 0 ]]; then
                done
             fi
             shift; shift; shift; shift; shift
+            ;;
+         --no-interact) # Turn off user interaction.
+            NO_INTERACT=1
+            shift
             ;;
          -*) # Unknown option
             echo "WARNING: radioreduce.sh -> Unknown option"
@@ -428,22 +433,24 @@ else
 fi
 echo
 
+if [ ${NO_INTERACT} -eq 0 ]; then
 # Confirm that the user wishes to proceed with the current configuration.
-MENU_CHOICES=("yes" "no")
-echo "radioreduce.sh: Proceed with the above parameters?"
-PS3="Enter option number (1 or 2): "
-select USER_ANS in ${MENU_CHOICES[*]}
-do
-   if [[ "${USER_ANS}" == "yes" ]]; then
-      echo "radioreduce.sh: Proceding with reduction workflow..."
-      break
-   elif [[ "${USER_ANS}" == "no" ]]; then
-      echo "radioreduce.sh: Reduction workflow cancelled."
-      exit 0
-   else
-      continue
-   fi
-done
+   MENU_CHOICES=("yes" "no")
+   echo "radioreduce.sh: Proceed with the above parameters?"
+   PS3="Enter option number (1 or 2): "
+   select USER_ANS in ${MENU_CHOICES[*]}
+   do
+      if [[ "${USER_ANS}" == "yes" ]]; then
+         echo "radioreduce.sh: Proceding with reduction workflow..."
+         break
+      elif [[ "${USER_ANS}" == "no" ]]; then
+         echo "radioreduce.sh: Reduction workflow cancelled."
+         exit 1
+      else
+         continue
+      fi
+   done
+fi
 
 # Workflow resume labels.  These are to label each executable stage of the workflow for use with
 # resumecmd.

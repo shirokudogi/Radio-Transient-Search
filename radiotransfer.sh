@@ -245,8 +245,10 @@ if [ ${RELOAD_WORK} -eq 0 ]; then
          echo "radiotransfer.sh: Building tar file of results."
          pushd "${WORK_DIR}" 1>/dev/null
          TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
-         resumecmd -l ${LBL_TAR} tar -cvzf "${WORK_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
-         report_resumecmd
+         if [ -n "${TAR_FILES[*]}" ]; then
+            resumecmd -l ${LBL_TAR} tar -cvzf "${WORK_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
+            report_resumecmd
+         fi
          popd 1>/dev/null
       else
          echo "radiotransfer.sh: Skipping creation of tar file per user request or because no run label."

@@ -17,6 +17,9 @@ SKIP_REDUCE=0
 DO_DDISP_SEARCH=0
 INDEX=0
 SUPERCLUSTER_OPT=
+NO_SEARCH_INTERACT_OPT=
+NO_RFIBP_INTERACT_OPT=
+NO_REDUCE_INTERACT_OPT=
 
 
 # Configure main directories.
@@ -238,6 +241,23 @@ if [[ ${#} -gt 0 ]]; then
             SUPERCLUSTER_OPT="--supercluster"
             shift
             ;;
+         --no-reduce-interact)
+            NO_REDUCE_INTERACT_OPT="--no-interact"
+            shift
+            ;;
+         --no-rfibp-interact)
+            NO_RFIBP_INTERACT_OPT="--no-interact"
+            shift
+            ;;
+         --no-search-interact)
+            NO_SEARCH_INTERACT_OPT="--no-interact"
+            shift
+            ;;
+         --no-interact)
+            NO_SEARCH_INTERACT_OPT="--no-interact"
+            NO_RFIBP_INTERACT_OPT="--no-interact"
+            NO_REDUCE_INTERACT_OPT="--no-interact"
+            ;;
          *) # Ignore anything else.
             shift
             ;;
@@ -371,7 +391,7 @@ do
             --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN_OPT} \
             --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
             --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
-            --data-utilization ${DATA_UTILIZE} ${SUPERCLUSTER_OPT} \
+            --data-utilization ${DATA_UTILIZE} ${SUPERCLUSTER_OPT} ${NO_REDUCE_INTERACT_OPT} \
             --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
             --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
 
@@ -406,6 +426,27 @@ do
          echo "   Upper FFT Index Tuning 1 = ${UPPER_FFT1}"
          echo "   Bandpass smoothing window = ${BP_WINDOW}"
          echo "   Baseline smoothing window = ${BL_WINDOW}"
+
+         # Skip interaction if requested by user...
+         if [ -n "${NO_RFIBP_INTERACT_OPT}" ]; then
+            # Build the command-line to perform the RFI-bandpass filtration.
+            CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
+            CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
+                  --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} --no-interact \
+                  --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+                  --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SUPERCLUSTER_OPT} \
+                  --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
+                  --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
+                  --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
+            # Perform the RFI-bandpass filtration.
+            ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
+            RUN_STATUS=${?}
+            
+            MENU_BREAK=1
+            break
+         fi
+
+         # ...otherwise, proceed with interaction.
          echo "radiofilter.sh: Proceed with the above parameters?"
          PS3="Select option: "
          select USER_SELECT in ${MENU_CHOICES[*]}
@@ -417,7 +458,7 @@ do
                # Build the command-line to perform the RFI-bandpass filtration.
                CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
                CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
-                     --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
+                     --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} --no-interact \
                      --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
                      --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SUPERCLUSTER_OPT} \
                      --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
@@ -553,7 +594,7 @@ do
       # Build the command-line to perform the de-dispersed search.
       CMD_SEARCH="${INSTALL_DIR}/radiosearch.sh"
       CMD_SEARCH_OPTS=(--install-dir "${INSTALL_DIR}" ${SUPERCLUSTER_OPT} \
-            --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} \
+            --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${NO_SEARCH_INTERACT_OPT} \
             --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
             --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
             --dm-start ${DM_START} --dm-end ${DM_END} \

@@ -86,6 +86,7 @@ UPPER_FFT1=          # Tuning 1 upper FFT index for bandpass filtering.
 BP_WINDOW=           # Bandpass smoothing window for the RFI filtering.
 BL_WINDOW=           # Baseline smoothing window for the RFI filtering.
 
+NO_INTERACT=0
 
 
 # Parse command-line arguments, but be sure to only accept the first value of an option or argument.
@@ -218,6 +219,10 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         --no-interact) # Turn off user interaction.
+            NO_INTERACT=1
+            shift
+            ;;
          *) # Ignore 
             shift 
             ;;
@@ -331,22 +336,24 @@ echo "   Bandpass smoothing window = ${BP_WINDOW}"
 echo "   Baseline smoothing window = ${BL_WINDOW}"
 echo
 
-# Confirm that the user wishes to proceed with the current configuration.
-MENU_CHOICES=("yes" "no")
-echo "radiofilter.sh: Proceed with the above parameters?"
-PS3="Enter option number (1 or 2): "
-select USER_ANS in ${MENU_CHOICES[*]}
-do
-   if [[ "${USER_ANS}" == "yes" ]]; then
-      echo "radiofilter.sh: Proceding with reduction workflow..."
-      break
-   elif [[ "${USER_ANS}" == "no" ]]; then
-      echo "radiofilter.sh: Reduction workflow cancelled."
-      exit 1
-   else
-      continue
-   fi
-done
+if [ ${NO_INTERACT} -eq 0 ]; then
+   # Confirm that the user wishes to proceed with the current configuration.
+   MENU_CHOICES=("yes" "no")
+   echo "radiofilter.sh: Proceed with the above parameters?"
+   PS3="Enter option number (1 or 2): "
+   select USER_ANS in ${MENU_CHOICES[*]}
+   do
+      if [[ "${USER_ANS}" == "yes" ]]; then
+         echo "radiofilter.sh: Proceding with reduction workflow..."
+         break
+      elif [[ "${USER_ANS}" == "no" ]]; then
+         echo "radiofilter.sh: Reduction workflow cancelled."
+         exit 1
+      else
+         continue
+      fi
+   done
+fi
 
 # Workflow resume labels.  These are to label each executable stage of the workflow for use with
 # resumecmd.

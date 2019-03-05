@@ -85,6 +85,7 @@ DM_START=            # Starting dispersion measure for search.
 DM_END=              # Ending dispersion measure for search.
 SNR_THRESHOLD=       # SNR detection threshold.
 
+NO_INTERACT=0
 
 # Parse command-line arguments, but be sure to only accept the first value of an option or argument.
 if [[ ${#} -gt 0 ]]; then
@@ -187,6 +188,10 @@ if [[ ${#} -gt 0 ]]; then
                fi
             fi
             shift; shift
+            ;;
+         --no-interact) # Turn off user interaction.
+            NO_INTERACT=1
+            shift
             ;;
          -*) # Unknown option
             echo "WARNING: radiosearch.sh -> Unknown option"
@@ -317,22 +322,24 @@ echo "   DM start = ${DM_START}"
 echo "   DM end = ${DM_END}"
 echo
 
-# Confirm that the user wishes to proceed with the current configuration.
-MENU_CHOICES=("yes" "no")
-echo "radiosearch.sh: Proceed with the above parameters?"
-PS3="Enter option number (1 or 2): "
-select USER_ANS in ${MENU_CHOICES[*]}
-do
-   if [[ "${USER_ANS}" == "yes" ]]; then
-      echo "radiosearch.sh: Proceding with de-dispersed search workflow..."
-      break
-   elif [[ "${USER_ANS}" == "no" ]]; then
-      echo "radiosearch.sh: De-dispersed search workflow cancelled."
-      exit 0
-   else
-      continue
-   fi
-done
+if [ ${NO_INTERACT} -eq 0 ]; then
+   # Confirm that the user wishes to proceed with the current configuration.
+   MENU_CHOICES=("yes" "no")
+   echo "radiosearch.sh: Proceed with the above parameters?"
+   PS3="Enter option number (1 or 2): "
+   select USER_ANS in ${MENU_CHOICES[*]}
+   do
+      if [[ "${USER_ANS}" == "yes" ]]; then
+         echo "radiosearch.sh: Proceding with de-dispersed search workflow..."
+         break
+      elif [[ "${USER_ANS}" == "no" ]]; then
+         echo "radiosearch.sh: De-dispersed search workflow cancelled."
+         exit 0
+      else
+         continue
+      fi
+   done
+fi
 
 # Workflow resume labels.  These are to label each executable stage of the workflow for use with
 # resumecmd.
