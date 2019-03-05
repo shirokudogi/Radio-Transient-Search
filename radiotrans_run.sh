@@ -138,15 +138,10 @@ if [[ ${#} -gt 0 ]]; then
             shift
             ;;
          -I | --install-dir) # Set the install directory to the specified location.
-            if [ ${DO_PREMADE} -eq 0 ]; then
-               if [ -z "${INSTALL_DIR}" -a -d "${2}" ]; then
-                  INSTALL_DIR="${2}"
-               else
-                  echo "Cannot find install directory ${2}"
-               fi
+            if [ -z "${INSTALL_DIR}" -a -d "${2}" ]; then
+               INSTALL_DIR="${2}"
             else
-               echo "Install directory ignored.  Forced to default debug configuration."
-               echo "INSTALL_DIR = ${INSTALL_DIR}"
+               echo "Cannot find install directory ${2}"
             fi
             shift; shift
             ;;
