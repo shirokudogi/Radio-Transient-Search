@@ -90,8 +90,8 @@ if [[ ${#} -gt 0 ]]; then
 
             shift
             ;;
-         --CLeague ) # Perform pre-made run for Cleague.
-            echo "radiotrans_run.sh: Using GW170817 search parameter set."
+         --CLEAGUE ) # Perform pre-made run for Cleague.
+            echo "radiotrans_run.sh: Using CLEAGUE search parameter set."
 
             # Configure common radio run parameters.
             INTEGTIME=2089.80
@@ -138,7 +138,7 @@ if [[ ${#} -gt 0 ]]; then
             shift
             ;;
          -I | --install-dir) # Set the install directory to the specified location.
-            if [ ${DO_PREMADE} -eq 0]; then
+            if [ ${DO_PREMADE} -eq 0 ]; then
                if [ -z "${INSTALL_DIR}" -a -d "${2}" ]; then
                   INSTALL_DIR="${2}"
                else
