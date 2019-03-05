@@ -365,7 +365,7 @@ resumecmd -l ${LBL_SEARCH0} \
    --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T0.txt"
 report_resumecmd
 
-echo "     Performing de-dispersed search on tuning 0 data..."
+echo "     Performing de-dispersed search on tuning 1 data..."
 resumecmd -l ${LBL_SEARCH1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
    --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
