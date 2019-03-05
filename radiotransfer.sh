@@ -80,6 +80,7 @@ COMMCONFIG_FILE=     # Name of the common configuration file.
 SKIP_TAR=0           # Flag denoting whether to skip making tar file of results.
 SKIP_TRANSFER=0      # Flag denoting to skip the actual transfer.
 RELOAD_WORK=0        # Flag denoting to reload results back into the work directory.
+FORCE_OPT=
 
 
 
@@ -131,6 +132,10 @@ if [[ ${#} -gt 0 ]]; then
                LABEL="${2}"
             fi
             shift; shift
+            ;;
+         -f | --force-repeat) # Force repeat of previously complete stages.
+            FORCE_OPT="-f"
+            shift
             ;;
          *) # Ignore
             shift 
@@ -202,6 +207,7 @@ fi
 LBL_RESULTS="Results_Transfer"
 LBL_TAR="TAR_Files"
 LBL_DELWORK="DeleteWorkingDir"
+LBL_RELOAD="Reload_Work"
 
 if [ ${RELOAD_WORK} -eq 0 ]; then
    # Transfer results files to the results directory, if allowed by the user.
@@ -211,16 +217,17 @@ if [ ${RELOAD_WORK} -eq 0 ]; then
          echo "radiotransfer.sh: Transferring key results files to directory ${RESULTS_DIR}..."
          echo "   ${WORK_DIR} ---> ${RESULTS_DIR}"
          echo
-         resumecmd -l ${LBL_RESULTS} \
-            transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-            "*.npy" "*.png" "*.ini" "*.txt"
+         resumecmd -l ${LBL_RESULTS} ${FORCE_OPT} \
+                   transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
+                   "*.npy" "*.png" "*.ini" "*.txt"
          report_resumecmd
 
          # Delete the working directory, since we don't need it now, as long as it is not the current
          # directory.  As a safety, we want to avoid deleting the current directory.
          if [[ "${WORK_DIR}" != "." ]] && [[ ${KEEP_WORK_DIR} -eq 0 ]]; then
             echo "Removing working directory."
-            resumecmd -l ${LBL_DELWORK} -k ${RESUME_LASTCMD_SUCCESS} rm -rf "${WORK_DIR}"
+            resumecmd -l ${LBL_DELWORK} ${FORCE_OPT} -k ${RESUME_LASTCMD_SUCCESS} \
+                      rm -rf "${WORK_DIR}"
             report_resumecmd
          fi
       else
@@ -232,7 +239,8 @@ if [ ${RELOAD_WORK} -eq 0 ]; then
          echo "radiotransfer.sh: Building tar file of results."
          pushd "${RESULTS_DIR}" 1>/dev/null
          TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
-         resumecmd -l ${LBL_TAR} tar -cvzf "${RESULTS_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
+         resumecmd -l ${LBL_TAR} ${FORCE_OPT} \
+                   tar -cvzf "${RESULTS_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
          report_resumecmd
          popd 1>/dev/null
       else
@@ -246,7 +254,8 @@ if [ ${RELOAD_WORK} -eq 0 ]; then
          pushd "${WORK_DIR}" 1>/dev/null
          TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
          if [ -n "${TAR_FILES[*]}" ]; then
-            resumecmd -l ${LBL_TAR} tar -cvzf "${WORK_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
+            resumecmd -l ${LBL_TAR} ${FORCE_OPT} \
+                      tar -cvzf "${WORK_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
             report_resumecmd
          fi
          popd 1>/dev/null
@@ -260,7 +269,7 @@ else
       echo "radiotransfer.sh: Reloading from key files from results directory to working directory..."
       echo "   ${RESULTS_DIR} ---> ${WORK_DIR}"
       echo
-      resumecmd -l ${LBL_RELOAD} \
+      resumecmd -l ${LBL_RELOAD} ${FORCE_OPT} \
          transfer_files --src-dir "${RESULTS_DIR}" --dest-dir "${WORK_DIR}" \
          "*.npy" "*.png" "*.ini" "*.txt"
       report_resumecmd

@@ -61,6 +61,7 @@ SKIP_TRANSFER_OPT=
 DELWATERFALLS_OPT=
 SKIP_TAR_OPT=
 RELOAD_WORK=0
+FORCE_TRANSFER_OPT=
 
 
 
@@ -235,6 +236,7 @@ if [[ ${#} -gt 0 ]]; then
          --reload-work) # Reload key results from the results directory to the work directory and then
                         # rerun the workflow.
             RELOAD_WORK=1
+            FORCE_TRANSFER_OPT="--force-repeat"
             shift
             ;;
          --supercluster) # Specify workflow is running on the V-Tech supercluster.
@@ -611,7 +613,7 @@ do
       CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
       CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" ${SUPERCLUSTER_OPT} \
             --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}" 
-            ${SKIP_TRANSFER_OPT} ${SKIP_TAR_OPT})
+            ${SKIP_TRANSFER_OPT} ${SKIP_TAR_OPT} ${FORCE_TRANSFER_OPT} )
       # Perform transfer of results to results directory and build tar of results.
       ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
       RUN_STATUS=${?}
