@@ -315,7 +315,7 @@ do
    # run iteration.
    LABEL="${LABELS[${INDEX}]}"
    DATA_PATH="${DATA_DIR}/${DATA_FILENAMES[${INDEX}]}"
-   WORK_DIR="${WORK_ROOT}/${LABEL}}"
+   WORK_DIR="${WORK_ROOT}/${LABEL}"
    RESULTS_DIR="${RESULTS_ROOT}/${LABEL}"
    COMMCONFIG_FILE="config_${LABEL}.ini"
 
