@@ -149,7 +149,7 @@ if [[ ${#} -gt 0 ]]; then
             if [ -d "${2}" ]; then
                WORK_ROOT="${2}"
             else
-               echo "radiorun_lwa.sh (ERROR): Working root directory ${2} does not exist."
+               echo "radiotrans_run.sh (ERROR): Working root directory ${2} does not exist."
                echo "User needs to create the root directory."
                exit 1
             fi
@@ -159,7 +159,7 @@ if [[ ${#} -gt 0 ]]; then
             if [ -d "${2}" ]; then
                RESULTS_ROOT="${2}"
             else
-               echo "radiorun_lwa.sh (ERROR): Results root directory ${2} does not exist."
+               echo "radiotrans_run.sh (ERROR): Results root directory ${2} does not exist."
                echo "User needs to create the root directory."
                exit 1
             fi
@@ -169,7 +169,7 @@ if [[ ${#} -gt 0 ]]; then
             if [ -d "${2}" ]; then
                DATA_DIR="${2}"
             else
-               echo "radiorun_lwa.sh (ERROR): Data directory ${2} does not exist."
+               echo "radiotrans_run.sh (ERROR): Data directory ${2} does not exist."
                echo "User needs to create the data directory."
                exit 1
             fi
@@ -177,8 +177,8 @@ if [[ ${#} -gt 0 ]]; then
             ;;
          -A | --add-run) # Adds a run to the current set using the parameters that have been setup.
             if [ -n "${2}" ] && [ -n "${3}" ]; then
-               LABELS=("${LABELS[*]}" "${2}")
-               DATA_FILENAMES=("${DATA_FILENAMES[*]}" "${3}")
+               LABELS=(${LABELS[*]} "${2}")
+               DATA_FILENAMES=(${DATA_FILENAMES[*]} "${3}")
                RUN_INDICES=(${RUN_INDICES[*]} ${INDEX})
                INDEX=`expr ${INDEX} + 1`
                shift; shift; shift
@@ -321,7 +321,7 @@ do
 
    # Ensure the data file exists.
    if [ ! -f "${DATA_PATH}" ] && [ ${SKIP_REDUCE} -eq 0 ]; then
-      echo "radiorun_lwa.sh: ERROR => Data file ${DATA_PATH} not found."
+      echo "radiotrans_run.sh: ERROR => Data file ${DATA_PATH} not found."
       RUN_STATUS=1
    fi
 
@@ -425,7 +425,7 @@ do
                break
             elif [[ "${USER_SELECT}" == "quit" ]]; then
                # Quit from RFI-bandpass filtration.
-               echo "radiorun_lwa.sh: Quitting from RFI-bandpass filtration."
+               echo "radiotrans_run.sh: Quitting from RFI-bandpass filtration."
                RUN_STATUS=1
                MENU_BREAK=1
                break
@@ -520,7 +520,7 @@ do
       done # endwhile
    else
       if [ ${SKIP_RFIBP} -eq 1 ]; then
-         echo "radiorun_lwa.sh: Skipping RFI-bandpass filtration per user request."
+         echo "radiotrans_run.sh: Skipping RFI-bandpass filtration per user request."
          echo
       fi
    fi
@@ -532,14 +532,14 @@ do
          CMBPREFIX="${CMBPREFIX}_${LABEL}"
       fi
       if [ ! -f "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" ]; then
-         echo "radiorun_lwa.sh: Missing T0 RFI-bandpass filtered spectrogram."
+         echo "radiotrans_run.sh: Missing T0 RFI-bandpass filtered spectrogram."
          echo "                 Copying T0 unfiltered spectrogram as RFI-bandpass filtered."
          echo
          cp "${WORK_DIR}/${CMBPREFIX}-T0.npy" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
       fi
 
       if [ ! -f "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" ]; then
-         echo "radiorun_lwa.sh: Missing T1 RFI-bandpass filtered spectrogram."
+         echo "radiotrans_run.sh: Missing T1 RFI-bandpass filtered spectrogram."
          echo "                 Copying T1 unfiltered spectrogram as RFI-bandpass filtered."
          echo
          cp "${WORK_DIR}/${CMBPREFIX}-T1.npy" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
@@ -571,10 +571,10 @@ do
 
    # Report workflow execution status to user.
    if [ ${RUN_STATUS} -eq 0 ]; then
-      echo "radiorun_lwa.sh: All workflow phases executed successfully!"
+      echo "radiotrans_run.sh: All workflow phases executed successfully!"
       echo
    else
-      echo "radiorun_lwa.sh: Some phases of the workflow failed or could not be executed due to"
+      echo "radiotrans_run.sh: Some phases of the workflow failed or could not be executed due to"
       echo "                 prior failures.  Additional debug/investigation may be needed :("
       echo "   LABEL = ${LABEL}"
       echo "   DATA_FILE = ${DATA_PATH}"
@@ -586,10 +586,10 @@ do
 done
 
 if [ ${ALL_STATUS} -eq 0 ]; then
-   echo "radiorun_lwa.sh: All iterations of the workflow executed successfully!"
+   echo "radiotrans_run.sh: All iterations of the workflow executed successfully!"
    echo
 else
-   echo "radiorun_lwa.sh: Some iterations of the workflow failed"
+   echo "radiotrans_run.sh: Some iterations of the workflow failed"
    echo
 fi
 exit ${ALL_STATUS}
