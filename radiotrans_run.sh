@@ -53,7 +53,7 @@ DATA_UTILIZE=           # Fraction of raw data to use.  Positive values align to
                         # raw data, while negative values align to the end.
 SNR_THRESHOLD=5.0
 DM_START=30.0
-DM_END=1800.0
+DM_END=3600.0
 MAX_PULSE_WIDTH=2.0
 
 # Configure file management parameters.
@@ -89,7 +89,7 @@ if [[ ${#} -gt 0 ]]; then
             BL_WINDOW=50
             SNR_THRESHOLD=5.0
             DM_START=30.0
-            DM_END=1800.0
+            DM_END=5000.0
             MAX_PULSE_WIDTH=2.0
 
             shift
@@ -112,7 +112,7 @@ if [[ ${#} -gt 0 ]]; then
             BL_WINDOW=51
             SNR_THRESHOLD=5.0
             DM_START=30.0
-            DM_END=1000.0
+            DM_END=2000.0
             MAX_PULSE_WIDTH=2.0
 
             shift
