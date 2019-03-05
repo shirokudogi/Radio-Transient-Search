@@ -388,26 +388,31 @@ do
 
    # Stage to reduce radio data.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_REDUCE} -eq 0 ]; then
-      # Build the command-line to perform data reduction.
-      CMD_REDUCE="${INSTALL_DIR}/radioreduce.sh"
-      CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
-            --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN_OPT} \
-            --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-            --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
-            --data-utilization ${DATA_UTILIZE} ${SUPERCLUSTER_OPT} ${NO_REDUCE_INTERACT_OPT} \
-            --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
-            --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
+      if [ ${SKIP_REDUCE} -eq 0]; then
+         # Build the command-line to perform data reduction.
+         CMD_REDUCE="${INSTALL_DIR}/radioreduce.sh"
+         CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
+               --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN_OPT} \
+               --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+               --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
+               --data-utilization ${DATA_UTILIZE} ${SUPERCLUSTER_OPT} ${NO_REDUCE_INTERACT_OPT} \
+               --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
+               --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
 
-      # Perform the data reduction phase.
-      ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
-      RUN_STATUS=${?}
+         # Perform the data reduction phase.
+         ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"
+         RUN_STATUS=${?}
+      else
+         echo "radiotrans_run.sh: Skipping data reduction per user request."
+         echo
+      fi
    fi
 
    # Stage to perform RFI-bandpass filtration.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 0 ]; then
       echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
-      echo "to determine appropriate FFT index bound and smoothing window parameters before"
-      echo "proceeding to the next phase."
+      echo "                to determine appropriate FFT index bounds and smoothing window "
+      echo "                parameters before performing RFI-bandpass filtration."
       echo
       sleep 3
 
