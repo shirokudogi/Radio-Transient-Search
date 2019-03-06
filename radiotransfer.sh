@@ -219,7 +219,7 @@ if [ ${RELOAD_WORK} -eq 0 ]; then
          echo
          resumecmd -l ${LBL_RESULTS} ${FORCE_OPT} \
                    transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
-                   "*.npy" "*.png" "*.ini" "*.txt"
+                   "*.npy" "*.png" "*.comm" "*.txt"
          report_resumecmd
 
          # Delete the working directory, since we don't need it now, as long as it is not the current
@@ -238,7 +238,7 @@ if [ ${RELOAD_WORK} -eq 0 ]; then
       if [ -n "${LABEL}" -a ${SKIP_TAR} -eq 0 ]; then
          echo "radiotransfer.sh: Building tar file of results."
          pushd "${RESULTS_DIR}" 1>/dev/null
-         TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
+         TAR_FILES=$(ls ./*.npy ./*.png ./*.comm ./*.txt 2>/dev/null)
          resumecmd -l ${LBL_TAR} ${FORCE_OPT} \
                    tar -cvzf "${RESULTS_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
          report_resumecmd
@@ -252,7 +252,7 @@ if [ ${RELOAD_WORK} -eq 0 ]; then
       if [ -n "${LABEL}" -a ${SKIP_TAR} -eq 0 ]; then
          echo "radiotransfer.sh: Building tar file of results."
          pushd "${WORK_DIR}" 1>/dev/null
-         TAR_FILES=$(ls ./*.npy ./*.png ./*.ini ./*.txt 2>/dev/null)
+         TAR_FILES=$(ls ./*.npy ./*.png ./*.comm ./*.txt 2>/dev/null)
          if [ -n "${TAR_FILES[*]}" ]; then
             resumecmd -l ${LBL_TAR} ${FORCE_OPT} \
                       tar -cvzf "${WORK_DIR}/${LABEL}.tar.gz" "${TAR_FILES[*]}"
@@ -271,7 +271,7 @@ else
       echo
       resumecmd -l ${LBL_RELOAD} ${FORCE_OPT} \
          transfer_files --src-dir "${RESULTS_DIR}" --dest-dir "${WORK_DIR}" \
-         "*.npy" "*.png" "*.ini" "*.txt"
+         "*.npy" "*.png" "*.comm" "*.txt"
       report_resumecmd
    else
       echo "radiotransfer.sh: Skipping reload => results and working directories are the same."
@@ -282,9 +282,11 @@ fi
 if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
    echo "radiotransfer.sh: File transfer workflow completed successfully!"
    echo "radiotransfer.sh: Workflow exiting with status 0."
+   echo
    exit 0
 else
    echo "radiotransfer.sh: File transfer workflow ended, but not all components were executed."
    echo "radiotransfer.sh: Workflow exiting with status 1"
+   echo
    exit 1
 fi

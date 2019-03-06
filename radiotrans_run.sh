@@ -227,7 +227,7 @@ if [[ ${#} -gt 0 ]]; then
             SKIP_RFIBP=1
             shift
             ;;
-         --skip-reduction) # Skip the data reduction stage.
+         --skip-reduce) # Skip the data reduction stage.
             SKIP_REDUCE=1
             shift
             ;;
@@ -389,7 +389,7 @@ if [ -n "${PARAMS_FILE}" ]; then
    echo "     DM_START = ${DM_START}"
    echo "     DM_END = ${DM_END}"
    echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
-   exit 0
+   echo
 fi
 
 ALL_STATUS=0
@@ -403,7 +403,11 @@ do
    DATA_PATH="${DATA_DIR}/${DATA_FILENAMES[${INDEX}]}"
    WORK_DIR="${WORK_ROOT}/${LABEL}"
    RESULTS_DIR="${RESULTS_ROOT}/${LABEL}"
-   COMMCONFIG_FILE="config_${LABEL}.ini"
+   if [ -n "${LABEL}" ]; then
+      COMMCONFIG_FILE="${LABEL}.comm"
+   else
+      COMMCONFIG_FILE="radiotrans.comm"
+   fi
 
    # Ensure the data file exists.
    if [ ! -f "${DATA_PATH}" ] && [ ${SKIP_REDUCE} -eq 0 ]; then
@@ -445,7 +449,7 @@ do
 
    # Stage to reduce radio data.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_REDUCE} -eq 0 ]; then
-      if [ ${SKIP_REDUCE} -eq 0]; then
+      if [ ${SKIP_REDUCE} -eq 0 ]; then
          # Build the command-line to perform data reduction.
          CMD_REDUCE="${INSTALL_DIR}/radioreduce.sh"
          CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
@@ -484,7 +488,7 @@ do
       echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
       while [ ${MENU_BREAK} -eq 0 ]
       do
-         MENU_CHOICES=("yes" "no" "quit")
+         MENU_CHOICES=("proceed" "change" "quit")
          echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
          echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
          echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
@@ -547,83 +551,88 @@ do
                               "${LFFT1_STR}" "${UFFT1_STR}" \
                               "${BPW_STR}" "${BLW_STR}" "Done")
                PS3="Select parameter to change: "
-               select USER_SELECT in ${MENU_CHOICES[*]}
+               SUBMENU_BREAK=0
+               while [ ${SUBMENU_BREAK} -eq 0 ]
                do
-                  case "${USER_SELECT}" in
-                     "${LFFT0_STR}" | \
-                     "${UFFT0_STR}" | \
-                     "${LFFT1_STR}" | \
-                     "${UFFT1_STR}" | \
-                     "${BPW_STR}" | \
-                     "${BLW_STR}" )
-                        while [ 1 ] 
-                        do
-                           echo "Enter integer value: "
-                           read USER_VAL
-                           if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
-                              case "${USER_SELECT}" in
-                                 "${LFFT0_STR}" )
-                                    if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                       LOWER_FFT0=${USER_VAL}
-                                       break
-                                    else
-                                       echo "Entered value must be an integer from 0 to 4094"
-                                    fi
-                                    ;;
-                                 "${UFFT0_STR}" )
-                                    if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                       UPPER_FFT0=${USER_VAL}
-                                       break
-                                    else
-                                       echo "Entered value must be an integer from 0 to 4094"
-                                    fi
-                                    ;;
-                                 "${LFFT1_STR}" )
-                                    if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                       LOWER_FFT1=${USER_VAL}
-                                       break
-                                    else
-                                       echo "Entered value must be an integer from 0 to 4094"
-                                    fi
-                                    ;;
-                                 "${UFFT1_STR}" )
-                                    if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                       UPPER_FFT1=${USER_VAL}
-                                       break
-                                    else
-                                       echo "Entered value must be an integer from 0 to 4094"
-                                    fi
-                                    ;;
-                                 "${BPW_STR}" )
-                                    if [ ${USER_VAL} -gt 0 ]; then
-                                       BP_WINDOW=${USER_VAL}
-                                       break
-                                    else
-                                       echo "Entered value must be an integer greater than 0"
-                                    fi
-                                    ;;
-                                 "${BLW_STR}" )
-                                    if [ ${USER_VAL} -gt 0 ]; then
-                                       BL_WINDOW=${USER_VAL}
-                                       break
-                                    else
-                                       echo "Entered value must be an integer greater than 0"
-                                    fi
-                              esac
-                           else
-                              echo "Entered value must be an integer. "
-                           fi
-                        done # endwhile
-                        break
-                        ;;
-                     Done)
-                        break
-                        ;;
-                     *)
-                        continue
-                        ;;
-                  esac
-               done # endselect 
+                  select USER_SELECT in ${MENU_CHOICES[*]}
+                  do
+                     case "${USER_SELECT}" in
+                        "${LFFT0_STR}" | \
+                        "${UFFT0_STR}" | \
+                        "${LFFT1_STR}" | \
+                        "${UFFT1_STR}" | \
+                        "${BPW_STR}" | \
+                        "${BLW_STR}" )
+                           while [ 1 ] 
+                           do
+                              echo "Enter integer value: "
+                              read USER_VAL
+                              if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
+                                 case "${USER_SELECT}" in
+                                    "${LFFT0_STR}" )
+                                       if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                          LOWER_FFT0=${USER_VAL}
+                                          break
+                                       else
+                                          echo "Entered value must be an integer from 0 to 4094"
+                                       fi
+                                       ;;
+                                    "${UFFT0_STR}" )
+                                       if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                          UPPER_FFT0=${USER_VAL}
+                                          break
+                                       else
+                                          echo "Entered value must be an integer from 0 to 4094"
+                                       fi
+                                       ;;
+                                    "${LFFT1_STR}" )
+                                       if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                          LOWER_FFT1=${USER_VAL}
+                                          break
+                                       else
+                                          echo "Entered value must be an integer from 0 to 4094"
+                                       fi
+                                       ;;
+                                    "${UFFT1_STR}" )
+                                       if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                          UPPER_FFT1=${USER_VAL}
+                                          break
+                                       else
+                                          echo "Entered value must be an integer from 0 to 4094"
+                                       fi
+                                       ;;
+                                    "${BPW_STR}" )
+                                       if [ ${USER_VAL} -gt 0 ]; then
+                                          BP_WINDOW=${USER_VAL}
+                                          break
+                                       else
+                                          echo "Entered value must be an integer greater than 0"
+                                       fi
+                                       ;;
+                                    "${BLW_STR}" )
+                                       if [ ${USER_VAL} -gt 0 ]; then
+                                          BL_WINDOW=${USER_VAL}
+                                          break
+                                       else
+                                          echo "Entered value must be an integer greater than 0"
+                                       fi
+                                 esac
+                              else
+                                 echo "Entered value must be an integer. "
+                              fi
+                           done # endwhile
+                           break
+                           ;;
+                        Done)
+                           SUBMENU_BREAK=1
+                           break
+                           ;;
+                        *)
+                           continue
+                           ;;
+                     esac
+                  done # endselect 
+               done # endwhile
                break
             else
                continue

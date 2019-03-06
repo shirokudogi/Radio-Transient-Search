@@ -127,6 +127,7 @@ def main_routine(args):
 
       DFTLength = commConfigObj.getint("Reduced DFT Data", "dftlength")
       commConfigFile.close()
+      MPIComm.Barrier()
       # If this is the rank 0 process, update the common parameters file with the RFI and bandpass
       if rank == 0:
          try:

@@ -59,17 +59,17 @@ function transfer_files()
    fi
 
    # Check that the source and destination directories exist before proceding further.
-   if [ -d "${SRC_DIR}" -a -d "${DEST_DIR}" ]; then
+   if [ -d ${SRC_DIR} -a -d ${DEST_DIR} ]; then
       # Check if we have a list of files to transfer.
       if [ -z "${FILES[*]}" ]; then
          # If no particular files specified, then transfer everything in the source directory.
-         FILES=$(basename "${SRC_DIR}/*")
+         FILES=$(basename -a ${SRC_DIR}/*)
       else
          # If we are not in the source directory, then we will need to make sure we have an explicit list
          # of all the files to be moved.
-         if [[ $(pwd) != "${SRC_DIR}" ]]; then
-            pushd "${SRC_DIR}" 1>/dev/null
-            FILES=$(ls ${FILES[*]} 2>/dev/null)
+         if [[ $(pwd) != ${SRC_DIR} ]]; then
+            pushd ${SRC_DIR} 1>/dev/null
+            FILES=$(ls ./${FILES[*]} 2>/dev/null)
             popd 1>/dev/null
          fi
       fi
@@ -79,14 +79,14 @@ function transfer_files()
          for curr in ${FILES[*]}
          do
             echo "Moving ${curr}"
-            mv "${SRC_DIR}/${curr}" "${DEST_DIR}/${curr}" 2>/dev/null
+            mv ${SRC_DIR}/${curr} ${DEST_DIR}/${curr} 2>/dev/null
          done
       fi
    else
-      if [ ! -d "${SRC_DIR}" ]; then
+      if [ ! -d ${SRC_DIR} ]; then
          echo "Source directory ${SRC_DIR} does not exist or is not a directory."
       fi
-      if [ ! -d "${DEST_DIR}" ]; then
+      if [ ! -d ${DEST_DIR} ]; then
          echo "Destination directory ${DEST_DIR} does not exist or is not a directory."
       fi
       return 1

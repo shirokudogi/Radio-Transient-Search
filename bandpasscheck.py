@@ -88,7 +88,7 @@ def main(args):
       plotCurve = apputils.savitzky_golay(plotCurve, SGParams[0], SGParams[1])
    # endif
 
-   plt.plot(spectrogram.mean(0))
+   plt.plot(plotCurve)
    plt.suptitle(plotTitle, fontsize = 28)
    plt.ylabel('Mean Power', fontdict={'fontsize':16})
    plt.xlabel(plotXLabel, fontdict={'fontsize':16})
