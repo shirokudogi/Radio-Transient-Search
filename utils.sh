@@ -95,3 +95,56 @@ function transfer_files()
    return 0
 }
 # end transfer_files()
+
+
+function parse_config()
+{
+   local CONFIG_FILE="${1}"
+   local COMMENT_PATTERN="^[[:space:]]*#"
+   local ARRAY_PATTERN1='^\(.+([[:space:]].+)+[[:space:]]*\)$'
+   local ARRAY_PATTERN2='^.+([[:space:]].+)+$'
+   local PRIOR_IFS=${IFS}
+   local varname=
+   local varvalue=
+
+   shopt -s extglob
+
+   if [ -z "${CONFIG_FILE}" ]; then
+      return 0
+   elif [ ! -f "${CONFIG_FILE}" ]; then
+      echo "Could not find configuration file ${CONFIG_FILE}"
+      return 1
+   else
+      IFS='='
+      while read -r varname varvalue
+      do
+         # If the line is not blank and not a comment, parse the variable and value pair.
+         if [[ -n ${varname} ]] && [[ ! ${varname} =~ ${COMMENT_PATTERN} ]]; then
+            varvalue=${varvalue%%\#*}  # Remove inline comments on the right.
+            varvalue=${varvalue%%*( )} # Remove trailing spaces.
+            varvalue=${varvalue#\"*}   # Remove opening quotation mark.
+            varvalue=${varvalue%\"*}   # Remove closing quotation mark.
+            # Determine if the value is an array.
+            if [[ ${varvalue} =~ ${ARRAY_PATTERN1} ]] || [[ ${varvalue} =~ ${ARRAY_PATTERN2} ]]; then
+               # If the array is enclosed in parentheses, remove the parentheses.
+               if [[ ${varvalue} =~ ${ARRAY_PATTERN1} ]]; then
+                  varvalue=${varvalue#\(*}   # Remove opening parenthesis.
+                  varvalue=${varvalue%\)*}   # Remove closing parenthesis.
+               fi
+               # Convert to bash array and export.
+               IFS=' '
+               varvalue=(${varvalue})
+               export ${varname}=${varvalue}
+               IFS='='
+               # Convert to bash array.
+            else
+               export ${varname}=${varvalue}
+            fi
+
+         fi
+      done < ${CONFIG_FILE}
+      IFS=${PRIOR_IFS}
+   fi
+
+   return 0
+}

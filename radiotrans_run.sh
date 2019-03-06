@@ -20,6 +20,15 @@ SUPERCLUSTER_OPT=
 NO_SEARCH_INTERACT_OPT=
 NO_RFIBP_INTERACT_OPT=
 NO_REDUCE_INTERACT_OPT=
+ENABLE_HANN_OPT=
+DATA_UTILIZE=
+
+# Configure file management parameters.
+SKIP_TRANSFER_OPT=
+DELWATERFALLS_OPT=
+SKIP_TAR_OPT=
+RELOAD_WORK=0
+FORCE_TRANSFER_OPT=
 
 
 # Configure main directories.
@@ -32,36 +41,31 @@ DATA_DIR=
 RUN_INDICES=
 DATA_FILENAMES=
 LABELS=
-
-# Configure common radio run parameters to apply to all runs.
 COMMCONFIG_FILE=
-INTEGTIME=125        # In milliseconds.  Do not set this below 24.03265 ms to avoid corruption during 
-                     # RFI filtering and data smoothing.
-DECIMATION=10000
-RFI_STD=5.0
-SNR_CUTOFF=3.0
-SG_PARAMS0=(151 2 151 2)
-SG_PARAMS1=(111 2 151 2)
-LOWER_FFT0=0
-UPPER_FFT0=4094
-LOWER_FFT1=0
-UPPER_FFT1=4094
-BP_WINDOW=10
-BL_WINDOW=50
-ENABLE_HANN_OPT=            # Set to "--enable-hann" to enable Hann window on raw data during reduction.
-DATA_UTILIZE=           # Fraction of raw data to use.  Positive values align to the beginning of the 
-                        # raw data, while negative values align to the end.
-SNR_THRESHOLD=5.0
-DM_START=30.0
-DM_END=3600.0
-MAX_PULSE_WIDTH=2.0
+PARAMS_FILE=
 
-# Configure file management parameters.
-SKIP_TRANSFER_OPT=
-DELWATERFALLS_OPT=
-SKIP_TAR_OPT=
-RELOAD_WORK=0
-FORCE_TRANSFER_OPT=
+# Configure default run parameters to apply to all runs. These should be changed by either specifying a
+# pre-made set from the command-line or specifying a run parameters file from which will be loaded the
+# run parameters.
+export INTEGTIME=125        # In milliseconds.  Do not set this below 24.03265 ms to avoid corruption during 
+                     # RFI filtering and data smoothing.
+export DECIMATION=10000
+export RFI_STD=5.0
+export SNR_CUTOFF=3.0
+export SG_PARAMS0=(151 2 151 2)
+export SG_PARAMS1=(111 2 151 2)
+export LOWER_FFT0=0
+export UPPER_FFT0=4094
+export LOWER_FFT1=0
+export UPPER_FFT1=4094
+export BP_WINDOW=10
+export BL_WINDOW=50
+                        # raw data, while negative values align to the end.
+export SNR_THRESHOLD=5.0
+export DM_START=30.0
+export DM_END=3600.0
+export MAX_PULSE_WIDTH=2.0
+
 
 
 
@@ -71,8 +75,8 @@ if [[ ${#} -gt 0 ]]; then
    while [ -n "${1}" ]
    do
       case "${1}" in
-         --GW170817) # Perform pre-made run for GW170809.
-            echo "radiotrans_run.sh: Using GW170809 search parameter set."
+         --GW170809) # Perform pre-made run for GW170809.
+            echo "radiotrans_run.sh: Using GW170809 run parameter set."
 
             # Configure common radio run parameters.
             INTEGTIME=100
@@ -95,7 +99,7 @@ if [[ ${#} -gt 0 ]]; then
             shift
             ;;
          --CLEAGUE ) # Perform pre-made run for Cleague.
-            echo "radiotrans_run.sh: Using CLEAGUE search parameter set."
+            echo "radiotrans_run.sh: Using CLEAGUE run parameter set."
 
             # Configure common radio run parameters.
             INTEGTIME=2089.80
@@ -118,7 +122,7 @@ if [[ ${#} -gt 0 ]]; then
             shift
             ;;
          --DEBUG) # Run with debug search parameters.
-            echo "radiotrans_run.sh: Using DEBUG search parameter set."
+            echo "radiotrans_run.sh: Using DEBUG run parameter set."
 
             # Configure common radio run parameters.
             INTEGTIME=500.0
@@ -205,6 +209,12 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         -P | --parameters-file) # Specify the run parameters file from which to read run parameters.
+            if [ -z "${PARAMS_FILE}" ]; then
+               PARAMS_FILE="${2}"
+            fi
+            shift; shift
+            ;;
          --skip-transfer) # Skip transfer of results files to the results directory.
             SKIP_TRANSFER_OPT="--skip-transfer"
             shift
@@ -274,6 +284,7 @@ if [ -z "${RUN_INDICES[*]}" ]; then
    exit 1
 fi
 
+
 # Ensure the data utilization value is set.
 if [ -z "${DATA_UTILIZE}" ]; then
    DATA_UTILIZE=1.0
@@ -333,6 +344,52 @@ fi
 if [ -z "${DATA_DIR}" ] && [ ${SKIP_REDUCE} -eq 0 ]; then
    echo "radiotrans_run.sh: Data directory needs to be specified by user when doing data reduction."
    exit 1
+fi
+
+source "${INSTALL_DIR}/utils.sh"
+
+# Parse the parameters file, if one given.
+if [ -n "${PARAMS_FILE}" ]; then
+   parse_config "${PARAMS_FILE}"
+   if [ ${?} -eq 0 ]; then
+      echo "radiotrans_run.sh: Run parameters loaded from ${PARAMS_FILE}"
+      echo "                   (overrides pre-made values)."
+   else
+      echo "radiotrans_run.sh (WARNING): An error occurred reading parameters file.  Some run"
+      echo "                             parameters may not be set to desired values."
+      echo
+      MENU_CHOICES=("Continue" "Quit")
+      PS3="Select option: "
+      select USER_SELECT in ${MENU_CHOICES[*]}
+      do
+         if [[ ${USER_SELECT} == ${MENU_CHOICES[0]} ]]; then
+            break
+         elif [[ ${USER_SELECT} == ${MENU_CHOICES[1]} ]]; then
+            echo "radiotrans_run.sh: Quitting run."
+            exit 1
+         else
+            continue
+         fi
+      done
+   fi
+   echo
+   echo "     INTEGTIME = ${INTEGTIME}"
+   echo "     DECIMATION = ${DECIMATION}"
+   echo "     RFI_STD = ${RFI_STD}"
+   echo "     SNR_CUTOFF = ${SNR_CUTOFF}"
+   echo "     SG_PARAMS0 = ${SG_PARAMS0[*]}"
+   echo "     SG_PARAMS1 = ${SG_PARAMS1[*]}"
+   echo "     LOWER_FFT0 = ${LOWER_FFT0}"
+   echo "     UPPER_FFT0 = ${UPPER_FFT0}"
+   echo "     LOWER_FFT1 = ${LOWER_FFT1}"
+   echo "     UPPER_FFT1 = ${UPPER_FFT1}"
+   echo "     BP_WINDOW = ${BP_WINDOW}"
+   echo "     BL_WINDOW = ${BL_WINDOW}"
+   echo "     SNR_THRESHOLD = ${SNR_THRESHOLD}"
+   echo "     DM_START = ${DM_START}"
+   echo "     DM_END = ${DM_END}"
+   echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
+   exit 0
 fi
 
 ALL_STATUS=0
@@ -459,7 +516,7 @@ do
          PS3="Select option: "
          select USER_SELECT in ${MENU_CHOICES[*]}
          do
-            if [[ "${USER_SELECT}" == "yes" ]]; then
+            if [[ "${USER_SELECT}" == ${MENU_CHOICES[0]} ]]; then
                # Run the RFI-bandpass filtration.
                echo "radiofilter.sh: Proceding with RFI-bandpass filtration workflow..."
                echo
@@ -478,13 +535,13 @@ do
 
                MENU_BREAK=1
                break
-            elif [[ "${USER_SELECT}" == "quit" ]]; then
+            elif [[ "${USER_SELECT}" == ${MENU_CHOICES[2]} ]]; then
                # Quit from RFI-bandpass filtration.
                echo "radiotrans_run.sh: Quitting from RFI-bandpass filtration."
                RUN_STATUS=1
                MENU_BREAK=1
                break
-            elif [[ "${USER_SELECT}" == "no" ]]; then
+            elif [[ "${USER_SELECT}" == ${MENU_CHOICES[1]} ]]; then
                # Get new parameters for RFI-bandpass filtration from user.
                MENU_CHOICES=("${LFFT0_STR}" "${UFFT0_STR}" \
                               "${LFFT1_STR}" "${UFFT1_STR}" \

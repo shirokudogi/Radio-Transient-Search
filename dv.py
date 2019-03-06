@@ -12,7 +12,7 @@ import apputils
 
 
 class PulseSignal():
-   formatter = "{0.pulse:08d}    {0.SNR:10.6f}     {0.DM:10.4f}     {0.time:10.6f} " + \
+   formatter = "{0.pulse:10s}    {0.SNR:10.6f}     {0.DM:10.4f}     {0.time:10.6f} " + \
                "     {0.dtau:10.6f}     {0.dnu:.4f}     {0.nu:.4f}    {0.mean:.5f}" + \
                "    {0.rms:0.5f}     {0.nu1:.4f}    {0.nu2:.4f}\n " 
 
@@ -305,7 +305,7 @@ def main_routine(args):
                apputils.procMessage( "dv.py: {num} pulses found.  Writing to file.".format(
                                     num=len(pulseIndices)) )
                for index in pulseIndices:# Now record all pulses above threshold
-                  pulse.pulse = rank*segmentSize[rank] + pulseID
+                  pulse.pulse = "{idnum}_{rank}".format(rank=rank, idnum=pulseID)
                   pulse.SNR = snr[index]
                   pulse.DM = DM
                   pulse.time = index*tInt*ndown
