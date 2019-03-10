@@ -12,9 +12,9 @@ import apputils
 
 
 class PulseSignal():
-   formatter = "{0.pulse:10s}    {0.SNR:10.6f}     {0.DM:10.4f}     {0.time:10.6f} " + \
-               "     {0.dtau:10.6f}     {0.dnu:.4f}     {0.nu:.4f}    {0.mean:.5f}" + \
-               "    {0.rms:0.5f}     {0.nu1:.4f}    {0.nu2:.4f}\n " 
+   formatter = "{0.pulse:10s}    {0.SNR:10.6f}    {0.DM:10.4f}    {0.time:10.6f} " + \
+               "    {0.dtau:10.6f}    {0.dnu:.4f}    {0.nu:.4f}    {0.mean:.5f}" + \
+               "    {0.rms:0.5f}    {0.nu1:.4f}    {0.nu2:.4f}\n " 
 
    def __init__(self):
       self.pulse = None    # Pulse Number
@@ -33,6 +33,15 @@ class PulseSignal():
    def __str__(self):
       return PulseSignal.formatter.format(self)
    # end __str__()
+
+   def field_names(self):
+      return  "{0:10s}    {1:10s}    {2:10s}    {3:10s} " + \
+              "    {4:10s}    {5:5s}    {6:6s}    {7:7s}" + \
+              "    {8:5s}    {9:6s}    {10:6s}\n ".format("pulse_ID", "snr", "DM", "time",
+                                                          "width", "dnu", "cfreq", "mean",
+                                                          "rms", "nu1", "nu2")
+   # end field_names()
+   
 # end class PulseSignal
 
 
@@ -115,6 +124,9 @@ def main_routine(args):
    cmdlnParser.add_option("-e", "--dm-end", dest="DMEnd", type="float", default=1000.0, action="store",
                            help="Ending dispersion measure value.",
                            metavar="DM")
+   cmdlnParser.add_option("--dm-step", dest="DMStep", type=float, default=1.0, action="store",
+                           help="Interval step-size for dispersion measure search."
+                           metavar="STEP")
    # Parse the commandline.                           
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
 
@@ -140,7 +152,7 @@ def main_routine(args):
       # Parse bandwidth and center frequency.
       bandwidth = commConfigObj.getfloat("Raw Data","samplerate")/10**6
       lowerFFTIndex = 0
-      upperFFTIndex = DFTLength - 2
+      upperFFTIndex = DFTLength - 1
       if not cmdlnOpts.enableTuning1:
          centerFreq = commConfigObj.getfloat("Raw Data", "tuningfreq0")/10**6
          if commConfigObj.has_section("RFI Bandpass"):
@@ -157,7 +169,7 @@ def main_routine(args):
 
       # Compute channel width, with the caveat that the DC component of the DFT was removed during the
       # data reduction.
-      channelWidth = bandwidth/(DFTLength + 1)
+      channelWidth = bandwidth/(DFTLength)
    except:
       apputils.procMessage("dv.py: Could not open or read common parameters file {file}".format(
                   file=cmdlnOpts.configFilepath), msg_type="ERROR")
@@ -214,43 +226,42 @@ def main_routine(args):
    thresh= cmdlnOpts.SNRThreshold
    DMstart = cmdlnOpts.DMStart
    DMend = cmdlnOpts.DMEnd
+   DMstep = cmdlnOpts.DMStep
 
-   # Compute the set of frequencies in the bandpass to de-disperse.  These are the frequencies at the
-   # top of the frequency bins.
-   freqs = apputils.computeFreqs(centerFreq, bandwidth, lowerFFTIndex,
-                                 upperFFTIndex, DFTLength + 1)  + channelWidth
-   freqIndices = np.arange(len(freqs), dtype=np.int32)
-   bottomFreqBP = freqs[0] - channelWidth # Bottom frequency in the bandpass.
+   # Compute the set of frequencies in the bandpass to de-disperse.  The topmost frequency is the top
+   # frequency of the bandpass, which is pinned in placed for the de-dispersion.  The frequencies below
+   # that are the frequencies at the center of each frequency channel.
+   chFreqs = apputils.computeFreqs(centerFreq, bandwidth, lowerFFTIndex,
+                                 upperFFTIndex, DFTLength)
+   bottomFreqBP = chFreqs[0]    # Bottom frequency in the bandpass.
+   topFreqBP = chFreqs[-1] + channelWidth   # Top frequency in the bandpass.
+   numChannels = len(chFreqs)
+   # Compute dispersed frequencies.
+   freqs = np.zeros(numChannels + 1, dtype=np.float32)
+   freqs[0:numChannels] = freqs[0:numChannels] + 0.5*channelWidth
+   freqs[-1] = topFreqBP
+   # Create list of indices for the dispersed channels.
+   freqIndices = np.arange(numFreqs, dtype=np.int32)
 
    # Setup pulse search parameters and add the maximum pulse-width to the common parameters file..
    log2MaxPulseWidth = np.round( np.log2(cmdlnOpts.maxPulseWidth/tInt) ).astype(np.int32) + 1 
    pulseID = 0
 
    # Determine dispersion measure trials and scaled dispersion delays.
-   DMtrials = None
-   scaledDelays = None
-   if rank == 0:
-      numMidTrials = np.floor(cmdlnOpts.DMEnd) - np.ceil(cmdlnOpts.DMStart)
-      DMtrials = np.zeros(numMidTrials + 2, dtype=np.float32)
-      DMtrials[0] = cmdlnOpts.DMStart
-      DMtrials[1:numMidTrials + 1] = np.arange(numMidTrials, dtype=np.float32) + np.ceil(cmdlnOpts.DMStart)
-      DMtrials[numMidTrials + 1] = cmdlnOpts.DMEnd
-
-      scaledDelays = apputils.scaleDelays(freqs)
-   # endif
-   # Distribute dispersion measure trials and scaled dispersion delays.
-   DMtrials = MPIComm.bcast(DMtrials, root=0)
-   scaledDelays = MPIComm.bcast(scaledDelays, root=0)
+   DMtrials = np.arange(cmdlnParser.DMStart, cmdlnParser.DMEnd, cmdlnParser.DMStep, dtype=np.float32)
+   scaledDelays = apputils.scaleDelays(freqs)/tInt
 
    # Allocate the de-dispersed time series. Yes, this is allocating the worst case, which results in
    # some wasted space, but it should run much faster without having to perform an allocation for each
    # DM trial.  Also, the time series occupy far, far less space than the spectrogram.
-   tbMax = np.round(cmdlnOpts.DMEnd/tInt*scaledDelays[0]).astype(np.int32)
+   tbMax = np.floor(cmdlnOpts.DMEnd*scaledDelays[0]).astype(np.int32)
    ts = np.zeros(tbMax + numSpectLines, dtype=np.float32)
    tstotal = np.zeros(ts.shape[0], dtype=np.float32)
 
 
    # Write additional parameter information into the common parameters file.
+   MPIComm.Barrier() # To ensure all processes have had a chance to read the common parameters file
+                     # before update.
    if rank == 0:
       try:
          commConfigFile = open(cmdlnOpts.configFilepath, 'w')
@@ -259,6 +270,7 @@ def main_routine(args):
          # endif
          commConfigObj.set("De-disperse Search", "dmstart", cmdlnOpts.DMStart)
          commConfigObj.set("De-disperse Search", "dmend", cmdlnOpts.DMEnd)
+         commConfigObj.set("De-disperse Search", "dmstep", cmdlnOpts.DMStep)
          commConfigObj.set("De-disperse Search", "maxpulsewidth", cmdlnOpts.maxPulseWidth)
          commConfigObj.write(commConfigFile)
          commConfigFile.close()
@@ -279,8 +291,8 @@ def main_routine(args):
    for DM in DMtrials:
       apputils.procMessage("dv.py: De-dispersion with DM = {dm}".format(dm=DM), root=0)
       # Compute array of dispersion delays as an index in units of tInt.
-      tb=np.round(DM/tInt*scaledDelays).astype(np.int32)
-      fShifts = tb[0] - tb
+      tShifts = np.floor(DM*scaledDelays).astype(np.int32)
+      fShifts = tShifts[0] - tShifts
       # De-disperse the frequencies assigned to this process.
       for fIndex in freqIndices: 
          beginIndex = segmentOffset[rank] + fShifts[fIndex]
@@ -297,7 +309,7 @@ def main_routine(args):
 
          # Cut the dispersed time lag.
          ndown = 2**rank #decimate the time series
-         dedispTS = apputils.DecimateNPY(tstotal[tb[0] : numSpectLines], ndown)
+         dedispTS = apputils.DecimateNPY(tstotal[tShifts[0] : numSpectLines], ndown)
          if len(dedispTS) != 0:
             (snr, mean, rms) =  Threshold(dedispTS, thresh, niter=0)
             pulseIndices = np.where(snr != -1)[0]
@@ -308,14 +320,14 @@ def main_routine(args):
                   pulse.pulse = "{idnum}_{rank}".format(rank=rank, idnum=pulseID)
                   pulse.SNR = snr[index]
                   pulse.DM = DM
-                  pulse.time = index*tInt*ndown
+                  pulse.time = (index + 0.5)*tInt*ndown
                   pulse.dtau = tInt*ndown
                   pulse.dnu = channelWidth
                   pulse.nu = centerFreq
                   pulse.mean = mean
                   pulse.rms = rms
                   pulse.nu1 = bottomFreqBP
-                  pulse.nu2 = freqs[-1]
+                  pulse.nu2 = topFreqBP
                   outFile.Write_shared(pulse.__str__()[:]) 
 
                   pulseID += 1

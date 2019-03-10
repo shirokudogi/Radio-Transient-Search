@@ -9,7 +9,8 @@ from ConfigParser import ConfigParser
 import apputils 
 
 def bpf(x, windows = 40):
-   x2 = x/apputils.savitzky_golay(x, windows, 1)
+   x2 = np.divide(x, apputils.savitzky_golay(x, windows, 1) )
+   x2[ np.isnan(x2) ] = 1.0
    mask = apputils.snr(x2) > 1
    y = np.ma.array(x, mask = mask)
    indices = np.arange(len(y))

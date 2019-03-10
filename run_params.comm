@@ -21,4 +21,5 @@ BL_WINDOW=51         # Baseline smoothing window for RFI filter.
 SNR_THRESHOLD=5.0    # SNR threshold for de-dispersed pulse search.
 DM_START=30.0        # Staring dispersion measure, in pc cm^-3, for de-dispersed search.
 DM_END=3600.0        # Ending dispersion measure, in pc cm^-3, for de-dispersed search.
+DM_STEP=1.0          # Interval step-size for dispersion measure trials in de-dispersed search.
 MAX_PULSE_WIDTH=2.0  # Maximum pulse width, in seconds, for de-dispersed search.

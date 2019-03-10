@@ -64,6 +64,7 @@ export BL_WINDOW=50
 export SNR_THRESHOLD=5.0
 export DM_START=30.0
 export DM_END=3600.0
+export DM_STEP=1.0
 export MAX_PULSE_WIDTH=2.0
 
 
@@ -94,6 +95,7 @@ if [[ ${#} -gt 0 ]]; then
             SNR_THRESHOLD=5.0
             DM_START=30.0
             DM_END=5000.0
+            DM_STEP=1.0
             MAX_PULSE_WIDTH=2.0
 
             shift
@@ -117,6 +119,7 @@ if [[ ${#} -gt 0 ]]; then
             SNR_THRESHOLD=5.0
             DM_START=30.0
             DM_END=2000.0
+            DM_STEP=1.0
             MAX_PULSE_WIDTH=2.0
 
             shift
@@ -141,6 +144,7 @@ if [[ ${#} -gt 0 ]]; then
             SNR_THRESHOLD=5.0
             DM_START=30.0
             DM_END=1000.0
+            DM_STEP=1.0
             MAX_PULSE_WIDTH=2.0
 
             shift
@@ -388,6 +392,7 @@ if [ -n "${PARAMS_FILE}" ]; then
    echo "     SNR_THRESHOLD = ${SNR_THRESHOLD}"
    echo "     DM_START = ${DM_START}"
    echo "     DM_END = ${DM_END}"
+   echo "     DM_STEP = ${DM_STEP}"
    echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
    echo
 fi
@@ -652,6 +657,7 @@ do
       if [ -n "${LABEL}" ]; then
          CMBPREFIX="${CMBPREFIX}_${LABEL}"
       fi
+      # Check for T0 RFI-bandpass filtered spectrogram.
       if [ ! -f "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" ]; then
          echo "radiotrans_run.sh: Missing T0 RFI-bandpass filtered spectrogram."
          echo "                 Copying T0 unfiltered spectrogram as RFI-bandpass filtered."
@@ -659,19 +665,21 @@ do
          cp "${WORK_DIR}/${CMBPREFIX}-T0.npy" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
       fi
 
+      # Check for T1 RFI-bandpass filtered spectrogram.
       if [ ! -f "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" ]; then
          echo "radiotrans_run.sh: Missing T1 RFI-bandpass filtered spectrogram."
          echo "                 Copying T1 unfiltered spectrogram as RFI-bandpass filtered."
          echo
          cp "${WORK_DIR}/${CMBPREFIX}-T1.npy" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
       fi
+
       # Build the command-line to perform the de-dispersed search.
       CMD_SEARCH="${INSTALL_DIR}/radiosearch.sh"
       CMD_SEARCH_OPTS=(--install-dir "${INSTALL_DIR}" ${SUPERCLUSTER_OPT} \
             --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${NO_SEARCH_INTERACT_OPT} \
             --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
             --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
-            --dm-start ${DM_START} --dm-end ${DM_END} \
+            --dm-start ${DM_START} --dm-end ${DM_END} --dm-step ${DM_STEP} \
             --snr-threshold ${SNR_THRESHOLD} --max-pulse-width ${MAX_PULSE_WIDTH})
       # Perform the RFI-bandpass filtration.
       ${CMD_SEARCH} ${CMD_SEARCH_OPTS[*]}

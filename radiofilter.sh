@@ -311,11 +311,11 @@ LBL_TUNE1FCH="TUNE1FCH"
 LBL_BPWINDOW="BPWINDOW"
 LBL_BLWINDOW="BLWINDOW"
 resumevar -l ${LBL_TUNE0FCL} LOWER_FFT0 0       # Lower FFT index for tuning 0.
-resumevar -l ${LBL_TUNE0FCH} UPPER_FFT0 4094    # Upper FFT index for tuning 0.
+resumevar -l ${LBL_TUNE0FCH} UPPER_FFT0 4095    # Upper FFT index for tuning 0.
 resumevar -l ${LBL_TUNE1FCL} LOWER_FFT1 0       # Lower FFT index for tuning 1.
-resumevar -l ${LBL_TUNE1FCH} UPPER_FFT1 4094    # Upper FFT index for tuning 1.
-resumevar -l ${LBL_BPWINDOW} BP_WINDOW 10       # Bandpass smoothing window.
-resumevar -l ${LBL_BLWINDOW} BL_WINDOW 50       # Baseline smoothing window.
+resumevar -l ${LBL_TUNE1FCH} UPPER_FFT1 4095    # Upper FFT index for tuning 1.
+resumevar -l ${LBL_BPWINDOW} BP_WINDOW 11       # Bandpass smoothing window.
+resumevar -l ${LBL_BLWINDOW} BL_WINDOW 51       # Baseline smoothing window.
 
 #  User feedback to confirm run parameters.
 echo "radiofilter.sh: Starting radio data reduction workflow:"

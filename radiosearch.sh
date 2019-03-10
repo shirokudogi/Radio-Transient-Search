@@ -83,9 +83,11 @@ COMMCONFIG_FILE=     # Name of the common configuration file.
 MAX_PULSE=           # Maximum pulse width in seconds.
 DM_START=            # Starting dispersion measure for search.
 DM_END=              # Ending dispersion measure for search.
+DM_STEP=             # Step size for dispersion measure intervals.
 SNR_THRESHOLD=       # SNR detection threshold.
 
 NO_INTERACT=0
+DM_STEP_OPT=
 
 # Parse command-line arguments, but be sure to only accept the first value of an option or argument.
 if [[ ${#} -gt 0 ]]; then
@@ -114,7 +116,7 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
-         -s | --supercluster) # Specify that we need to initialize for execution on a supercluster.
+         -c | --supercluster) # Specify that we need to initialize for execution on a supercluster.
             SUPERCLUSTER=1
             shift
             ;;
@@ -177,6 +179,14 @@ if [[ ${#} -gt 0 ]]; then
             if [ -z "${DM_END}" ]; then
                if [[ "${2}" =~ ${REAL_NUM} ]]; then
                   DM_END=${2}
+               fi
+            fi
+            shift; shift
+            ;;
+         -t | --dm-step) # Specify the stepping of dispersion measures.
+            if [ -z "${DM_STEP}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  DM_STEP=${2}
                fi
             fi
             shift; shift
@@ -284,6 +294,11 @@ if [ -z "${DM_END}" ]; then
    DM_END=5.0
 fi
 
+# Check if a dispersion measure step-size is specified.
+if [ -n "${DM_STEP}" ]; then
+   DM_STEP_OPT="--dm-step ${DM_STEP}"
+fi
+
 
 # Source the utility functions.
 source ${INSTALL_DIR}/utils.sh
@@ -362,6 +377,7 @@ resumecmd -l ${LBL_SEARCH0} \
    mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" \
    --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --dm-start ${DM_START} --dm-end ${DM_END} --max-pulse-width ${MAX_PULSE} \
+   ${DM_STEP_OPT} \
    --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T0.txt"
 report_resumecmd
 
@@ -370,6 +386,7 @@ resumecmd -l ${LBL_SEARCH1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
    --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --dm-start ${DM_START} --dm-end ${DM_END} --max-pulse-width ${MAX_PULSE} --tuning1 \
+   ${DM_STEP_OPT} \
    --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T1.txt"
 report_resumecmd
 

@@ -73,7 +73,7 @@ def main(argv):
    rawDataNumFramesPerPol = int(rawDataNumFrames/rawDataFramesPerBeam)
    rawDataSamplesPerFrame = 4096
    LFFT = rawDataSamplesPerFrame # Length of the FFT.
-   DFTLength = LFFT - 1
+   DFTLength = LFFT
 
    # Open the raw data file.
    try:
@@ -227,7 +227,7 @@ def main(argv):
                   else:
                      timeData = currFrame.data.iq
                   # endif
-                  frameDFT = numpy.fft.fftshift(numpy.fft.fft(timeData)[1:])
+                  frameDFT = numpy.fft.fftshift(numpy.fft.fft(timeData))
                   # Determine the tuning of the computed DFT and add its power to the appropriate power DFT.
                   (beam, tune, pol) = currFrame.parseID()
                   if tune == 0:
