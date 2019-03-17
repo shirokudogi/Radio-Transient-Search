@@ -89,7 +89,7 @@ def main(args):
    # endif
 
    plt.plot(plotCurve)
-   plt.suptitle(plotTitle, fontsize = 28)
+   plt.suptitle(plotTitle, fontsize = 24, wrap=True)
    plt.ylabel('Mean Power', fontdict={'fontsize':16})
    plt.xlabel(plotXLabel, fontdict={'fontsize':16})
    plt.savefig(cmdlnOpts.outFilepath)

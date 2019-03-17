@@ -282,42 +282,59 @@ def snr(a):
 # end snr()
 #
 
-def scaleDelays(freqs):
+def scaleDelays(freqs, topFreq=None):
    """
    Calculate the scaled relative delays of the given collection of frequencies from the maximum
-   frequency in the collection.  The frequencies are assumed to be in units of MHz.
+   frequency in the collection, if topFreq is not specified.  In the case that topFreq is specified,
+   then the delays are relative to that frequency.  The frequencies are assumed to be in units of MHz.
    """
    # Dispersion constant in MHz^2 s / pc cm^-3
    dispConst = 4.148808e3
    # Compute inverse square of each of the frequencies and the inverse square of the maximum frequency
    # among them.
    sqrInvFreqs = 1.0/(freqs**2)
-   sqrInvFreqN = 1.0/(freqs.max()**2)
+   if topFreq is None:
+      sqrInvFreqN = 1.0/(freqs.max()**2)
+   else:
+      sqrInvFreqN = 1.0/topFreq**2
+   # endif
 
    # Compute the relative delays from the maximum frequency.
    return dispConst*(sqrInvFreqs - sqrInvFreqN)
 # end scaleDelays()
 
-def computeFreqs(centerFreq, bandwidth, botIndex, topIndex, numBins = None):
+def computeFreqs(centerFreq, bandwidth, botIndex=None, topIndex=None, numBins = None):
    """
    Compute the collection of frequencies for the bandpass region defined by a center frequency, total
    bandwidth, a bottom frequency index, a top frequency index, and total number of bins that the total
    bandwidth is divided amongst (if total bins is not given, it is assumed that topIndex + 1 is the
    total number of bins.
    """
-   if numBins is None:
-      numBins = topIndex + 1
+
+   freqs = None
+   if topIndex is not None or  numBins is not None:
+      if numBins is None:
+         numBins = topIndex + 1
+      elif topIndex is None:
+         topIndex = numBins - 1
+      else:
+         topIndex = np.minimum(topIndex, numBins - 1)
+      # endif
+
+      if botIndex is None:
+         botIndex = 0
+      # endif
+
+      numFreqs = topIndex - botIndex + 1
+      indices = np.arange(numFreqs)
+      freqs = np.zeros(numFreqs, dtype=np.float32)
+
+      BWFactor = bandwidth/(2.0*numBins)
+      for index in indices:
+         freqIndex = botIndex + index
+         freqs[index] = centerFreq + BWFactor*(2*freqIndex - numBins)
+      # endfor
    # endif
-
-   numFreqs = topIndex - botIndex + 1
-   indices = np.arange(numFreqs)
-   freqs = np.zeros(numFreqs, dtype=np.float32)
-
-   BWFactor = bandwidth/(2.0*numBins)
-   for index in indices:
-      freqIndex = botIndex + index
-      freqs[index] = centerFreq + BWFactor*(2*freqIndex - numBins)
-   # endfor
    
    return freqs
 # end computeFreqs()

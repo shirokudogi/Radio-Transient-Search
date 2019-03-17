@@ -4,6 +4,7 @@ import mpi4py.MPI as MPI
 import os
 import sys
 import numpy
+from scipy.sparse import csr_matrix
 import getopt
 import drx
 import time
@@ -49,6 +50,30 @@ def main(argv):
                            action='store',
                            help='Fraction (0 < abs(x) <= 1.0) of total spectrogram lines to create.',
                            metavar='FRAC')
+   cmdlnParser.add_option("--inject-power", dest="injectPower", default=10.0, type='float',
+                           action='store',
+                           help='Total spectral power of injected simulated burst signals.',
+                           metavar='POWR')
+   cmdlnParser.add_option("--inject-spectral-index", dest='injectSpectIndex', default=0.0, type='float',
+                           action='store',
+                           help='Spectral index for injected simulated burst signals.',
+                           metavar='INDEX')
+   cmdlnParser.add_option('--num-injections', dest='numInjects', default=0, type='int', action='store',
+                           help='Number of simulated burst signals to inject.', metavar='NUM')
+   cmdlnParser.add_option('--injection-time-span', dest='injTimeSpan',
+                           default=(None, None), action='store', nargs=2, type='float',
+                           help='Time span in data, (BEGIN END) in seconds, containing injections.',
+                           metavar='BEGIN END')
+   cmdlnParser.add_option('--injection-dm-span', dest='injDMProfile',
+                           default=(None, None) action='store', nargs=2, type='float',
+                           help='Range of DMs, (BEGIN END) in pc cm^-3, spanned by injections',
+                           metavar='BEGIN END')
+   cmdlnParser.add_option('--inject-regular-times', dest='injRegularTimes', default=False,
+                           action='store_true',
+                           help='Inject simulated signals at regular time intervals.')
+   cmdlnParser.add_option('--inject-regular-dms', dest='injRegularDMs', default=False,
+                           action='store_true',
+                           help='Inject simulated signals at regular DM intervals.')
    (cmdlnOpts, args) = cmdlnParser.parse_args(argv)
    if len(args) == 0:
       print "Must supply a path to the radio data file."
@@ -61,6 +86,14 @@ def main(argv):
       print 'waterfall.py: WARNING => Invalid value for data utilization.  Forcing to 1.0'
       dataUtilFrac = 1.0
    # endif
+   #
+   # Check waterfall injection specifications.
+   cmdlnOpts.injectPower = numpy.maximum(0.0, cmdlnOpts.injectPower)
+   cmdlnOpts.numInjects = apputils.forceIntValue(cmdlnOpts.numInjects, 0, 50)
+   cmdlnOpts.injectSpectIndex = numpy.maximum(-2.0, numpy.minimum(2.0, cmdlnOpts.injectSpectIndex))
+   if cmdlnOpts.injectPower == 0.0:
+      cmdlnOpts.numInjects = 0
+   # endif
 
 
    # Obtain common parameters for the data reduction and subsequent parts of the transient search.
@@ -70,7 +103,7 @@ def main(argv):
    rawDataFileSize = os.path.getsize(rawDataFilePath)
    rawDataFrameSize = drx.FrameSize
    rawDataNumFrames = int(rawDataFileSize/rawDataFrameSize)
-   rawDataNumFramesPerPol = int(rawDataNumFrames/rawDataFramesPerBeam)
+   rawDataNumFramesPerTune = int(rawDataNumFrames/rawDataFramesPerBeam)
    rawDataSamplesPerFrame = 4096
    LFFT = rawDataSamplesPerFrame # Length of the FFT.
    DFTLength = LFFT
@@ -124,7 +157,7 @@ def main(argv):
 
    # Compute data reduction parameters.
    numDFTsPerSpectLine = max(1, int(spectIntegTime/rawDataFrameTime))
-   rawDataNumSpectLines = max(1, int( rawDataNumFramesPerPol/numDFTsPerSpectLine ))
+   rawDataNumSpectLines = max(1, int( rawDataNumFramesPerTune/numDFTsPerSpectLine ))
    numSpectLines = max(1, int( abs(dataUtilFrac)*rawDataNumSpectLines ))
    memSpectLinesPerProc = int( memLimit/(2*nProcs*LFFT*numpy.dtype(numpy.float32).itemsize) )
    numSpectLinesPerProc = min(int(numSpectLines/nProcs), memSpectLinesPerProc)
@@ -143,7 +176,7 @@ def main(argv):
          commConfigObj.set('Raw Data', 'framesize', rawDataFrameSize)
          commConfigObj.set('Raw Data', 'numframes', rawDataNumFrames)
          commConfigObj.set('Raw Data', 'numframesperbeam', rawDataFramesPerBeam)
-         commConfigObj.set('Raw Data', 'numframesperpol', rawDataNumFramesPerPol)
+         commConfigObj.set('Raw Data', 'numframespertune', rawDataNumFramesPerTune)
          commConfigObj.set('Raw Data', 'numsamplesperframe', rawDataSamplesPerFrame)
          commConfigObj.set('Raw Data', 'numspectrogramlines', rawDataNumSpectLines)
          commConfigObj.set('Raw Data', 'samplerate', rawDataSampleRate)
@@ -162,6 +195,14 @@ def main(argv):
                               numSpectLines - nProcs*numSpectLinesPerProc)
          commConfigObj.set('Reduced DFT Data', 'enablehannwindow', cmdlnOpts.enableHann)
          commConfigObj.set('Run', 'label', cmdlnOpts.label)
+         if cmdlnOpts.numInjects != 0:
+            commConfigObj.add_section("Injections")
+            commConfigObj.set("Injections", "numinjects", cmdlnOpts.numInjects)
+            commConfigObj.set("Injections", "injectpower", cmdlnOpts.injectPower)
+            commConfigObj.set("Injections", "injectspectralindex", cmdlnOpts.injectSpectIndex)
+            commConfigObj.set("Injections", "injecttemporalprofile", cmdlnOpts.injTemporalProfile)
+            commConfigObj.set("Injections", "injectdmprofile", cmdlnOpts.injDMProfile)
+         # endif
          commConfigObj.write(commConfigFile)
          commConfigFile.flush()
          commConfigFile.close()
@@ -206,15 +247,42 @@ def main(argv):
       hannWindow[:] = 0.5*(1 - numpy.cos(hannWindow[:]))
    # endif
 
+   # If waterfall injections enabled, create waterfall injection.
+   injSpect0 = None  # Injection spectrogram for tuning 0.
+   injSpect1 = None  # Injection spectrogram for tuning 1.
+   if procRank == 0 cmdlnOpts.enableInject:
+      bandwidth = rawDataSampleRate/1.0e6
+      channelWidth = bandwidth/DFTLength
+      freqs0 = apputils.computeFreqs(rawDataTuningFreq0, bandwidth, DFTLength)
+      freqs1 = apputils.computeFreqs(rawDataTuningFreq1, bandwidth, DFTLength)
+
+      injSpect0 = waterfallinject.create_injections(freqs0, channelWidth, rawDataNumFramesPerTune,
+                                                    rawDataFrameTime, cmdlnOpts.injectPower,
+                                                    cmdlnOpts.injSpectIndex,
+                                                    cmdlnOpts.injTemporalProfile, cmdlnOpts.injDMProfile,
+                                                    cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
+                                                    cmdlnOpts.injRegularDMs)
+      injSpect1 = waterfallinject.create_injections(freqs1, channelWidth, rawDataNumFramesPerTune,
+                                                    rawDataFrameTime, cmdlnOpts.injectPower,
+                                                    cmdlnOpts.injSpectIndex,
+                                                    cmdlnOpts.injTemporalProfile, cmdlnOpts.injDMProfile,
+                                                    cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
+                                                    cmdlnOpts.injRegularDMs)
+   # endif
+   # Broadcast injections to other processes.
+   injSpect0 = MPIComm.bcast(injSpect0, root=0)
+   injSpect1 = MPIComm.bcast(injSpect1, root=0)
+
    # Create spectrogram tiles.
-   tileIndex = numSpectLinesPerProc*procRank
+   lineOffset = numSpectLinesPerProc*procRank
+   injOffset = lineOffset*numDFTsPerSpectLine
    while fileOffset < endFileOffset:
       rawDataFile.seek(fileOffset, os.SEEK_CUR)
-      apputils.procMessage("Integrating tile={tile} => lines {start} to {end}...".format(start=tileIndex,
-                           end=tileIndex + numSpectLinesPerProc - 1, tile=tileIndex), root=0)
+      apputils.procMessage("Integrating lines {start} to {end}...".format(start=lineOffset,
+                           end=lineOffset + numSpectLinesPerProc - 1, tile=lineOffset), root=0)
       for i in lineIndices:
-         apputils.procMessage("Integrating line={line} of {total} in tileIndex={tile}...".format(line=i+1, 
-                              tile=tileIndex, total=numSpectLinesPerProc), root=0)
+         apputils.procMessage("Integrating {line} of {total} from lineOffset={tile}...".format(line=i+1, 
+                              tile=lineOffset, total=numSpectLinesPerProc), root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
             k = 0
@@ -231,15 +299,26 @@ def main(argv):
                   # Determine the tuning of the computed DFT and add its power to the appropriate power DFT.
                   (beam, tune, pol) = currFrame.parseID()
                   if tune == 0:
-                     powerDFT0 = powerDFT0 + frameDFT.real**2 + frameDFT.imag**2
+                     powerDFT0[:] += frameDFT.real[:]**2 + frameDFT.imag[:]**2
                   else:
-                     powerDFT1 = powerDFT1 + frameDFT.real**2 + frameDFT.imag**2
+                     powerDFT1[:] += frameDFT.real[:]**2 + frameDFT.imag[:]**2
                   # endif
                   k += 1
                else:
                   k = rawDataFramesPerBeam
                # endif
             # endwhile
+
+            # Add waterfall injections, if we have any.
+            if cmdlnOpts.numInjects > 0:
+               injIndex = injOffset + i*numDFTsPerSpectLine + j
+               if injSpect0 is not None:
+                  powerDFT0[:] += injSpect0[injIndex, :]
+               # endif
+               if injSpect1 is not None:
+                  powerDFT1[:] += injSpect1[injIndex, :]
+               # endif
+            # endif
          # endfor
          
          # Normalize to units of energy and time average the integrated power DFTs and save them 
@@ -247,19 +326,19 @@ def main(argv):
          spectTile0[i,:] = powerDFT0[:]/(4*LFFT*numDFTsPerSpectLine)
          spectTile1[i,:] = powerDFT1[:]/(4*LFFT*numDFTsPerSpectLine)
 
-         # Reset for the next integrated power DFTs.
+         # Reset for the next integration of power DFTs.
          powerDFT0.fill(0)
          powerDFT1.fill(0)
       # endfor
 
       # Write tuning 0  spectrogram tile to numpy file.
-      apputils.procMessage("Writing tuning 0 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
-      outFilepath = apputils.createWaterfallFilepath(tile=tileIndex, tuning=0, beam=rawDataBeamID,
+      apputils.procMessage("Writing tuning 0 spectrogram tile lineOffset={tile}...".format(tile=lineOffset))
+      outFilepath = apputils.createWaterfallFilepath(tile=lineOffset, tuning=0, beam=rawDataBeamID,
                                             label=cmdlnOpts.label, workDir=cmdlnOpts.workDir)
       numpy.save(outFilepath, spectTile0)
       # Write tuning 1 spectrogram tile to numpy file.
-      apputils.procMessage("Writing tuning 1 spectrogram tile tileIndex={tile}...".format(tile=tileIndex))
-      outFilepath = apputils.createWaterfallFilepath(tile=tileIndex, tuning=1, beam=rawDataBeamID,
+      apputils.procMessage("Writing tuning 1 spectrogram tile lineOffset={tile}...".format(tile=lineOffset))
+      outFilepath = apputils.createWaterfallFilepath(tile=lineOffset, tuning=1, beam=rawDataBeamID,
                                             label=cmdlnOpts.label, workDir=cmdlnOpts.workDir)
       numpy.save(outFilepath, spectTile1)
 
@@ -267,7 +346,7 @@ def main(argv):
       # Compute the fileOffset in the raw data from which we will create the next spectrogram tile for
       # this process and determine if that is past the end of the file (in which case, we stop).
       fileOffset = fileOffset + fileStep*nProcs
-      tileIndex = tileIndex + numSpectLinesPerProc*nProcs
+      lineOffset = lineOffset + numSpectLinesPerProc*nProcs
       if fileOffset < endFileOffset:
          # Compute how much remains of the raw data file and determine whether there is enough to create
          # a full spectrogram tile or whether we need to create a smaller tile.

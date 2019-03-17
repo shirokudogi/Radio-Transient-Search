@@ -123,7 +123,7 @@ def main(args):
    timeStep = integTime * int(numSpectLines/decimation)
    plt.imshow(waterfall.T, cmap='Greys_r', origin = 'low', aspect = 'auto')
    plt.suptitle('{label} RFI {std:.2f}$\sigma$'.format(label=cmdlnOpts.label,
-                  std=cmdlnOpts.RFIStd), fontsize = 28)
+                  std=cmdlnOpts.RFIStd), fontsize = 24, wrap=True)
    plt.xlabel('Time ({step:.4f} sec)'.format(step=timeStep),fontdict={'fontsize':16})
    plt.ylabel('Frequency ({step:.3f} kHz)'.format(step=freqStep),fontdict={'fontsize':16})
    plt.colorbar().set_label('SNR',size=16)
