@@ -394,6 +394,13 @@ if [ -n "${PARAMS_FILE}" ]; then
    echo "     DM_END = ${DM_END}"
    echo "     DM_STEP = ${DM_STEP}"
    echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
+   echo "     INJ_NUM = ${INJ_NUM}"
+   echo "     INJ_POWER = ${INJ_POWER}"
+   echo "     INJ_SPECTINDEX = ${INJ_SPECTINDEX}"
+   echo "     INJ_TIMES = ${INJ_TIMES[*]}"
+   echo "     INJ_DMS = ${INJ_DMS[*]}"
+   echo "     INJ_REGULAR_TIMES_OPT = ${INJ_REGULAR_TIME_OPT}"
+   echo "     INJ_REGULAR_DMS_OPT = ${INJ_REGULAR_DMS_OPT}"
    echo
 fi
 
@@ -464,6 +471,18 @@ do
                --data-utilization ${DATA_UTILIZE} ${SUPERCLUSTER_OPT} ${NO_REDUCE_INTERACT_OPT} \
                --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \
                --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${DELWATERFALLS_OPT})
+         # Add options for injections.
+         INJ_VARS=(INJ_NUM INJ_SPECTINDEX INJ_POWER INJ_TIMES INJ_DMS)
+         INJ_OPTS=("--num-injections" "--inject-spectral-index" "--inject-power" \
+                   "--injection-time-span" "--injection-dm-span")
+         for INDEX in ${!INJ_VARS[@]}
+         do
+            VAR_VALUE="${INJ_VARS[${INDEX}]}[@]"
+            if [ -n "${!VAR_VALUE}" ]; then
+               CMD_REDUCE_OPTS=(${INJ_OPTS[${INDEX}]} ${!VAR_VALUE} ${CMD_REDUCE_OPTS[*]})
+            fi
+         done
+         CMD_REDUCE_OPTS=(${INJ_REGULAR_TIMES_OPT} ${INJ_REGULAR_DMS_OPT} ${CMD_REDUCE_OPTS[*]})
 
          # Perform the data reduction phase.
          ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"

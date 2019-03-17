@@ -89,6 +89,13 @@ INSTALL_DIR=
 
 DATA_PATH=           # Path to the radio time-series data file.
 INTEGTIME=           # Spectral integration time in milliseconds.
+INJ_POWER=           # Waterfall injection power.
+INJ_SPECTINDEX=      # Waterfall injection spectral index.
+INJ_NUM=             # Number of waterfall injections.
+INJ_TIMES=           # Time span over which waterfall injections begin.
+INJ_DMS=             # Span of DMs for waterfall injections.
+INJ_REGULAR_TIMES_OPT=     # Option specifying to start waterfall injections at regular times.
+INJ_REGULAR_DMS_OPT=       # Option specifying to create waterfall injections at regular DMs.
 WORK_DIR=            # Working directory.
 RESULTS_DIR=         # Results directory.
 MEM_LIMIT=           # Total memory usage limit, in MB, for spectrogram tiles among all processes.
@@ -263,6 +270,58 @@ if [[ ${#} -gt 0 ]]; then
             NO_INTERACT=1
             shift
             ;;
+         --inject-power) # Specify injection power.
+            if [ -z "${INJ_POWER}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  INJ_POWER=${2}
+               fi
+            fi
+            shift; shift
+            ;;
+         --inject-spectral-index) # Specify injection spectral index
+            if [ -z "${INJ_SPECTINDEX}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  INJ_SPECTINDEX=${2}
+               fi
+            fi
+            shift; shift
+            ;;
+         --num-injections) # Specify number of injections 
+            if [ -z "${INJ_NUM}" ]; then
+               if [[ "${2}" =~ ${INTEGER_NUM} ]]; then
+                  INJ_NUM=${2}
+               fi
+            fi
+            shift; shift
+            ;;
+         --injection-time-span) # Specify time span over which injections start.
+            if [ -z "${INJ_TIMES[*]}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]] && [[ "${3}" =~ ${REAL_NUM} ]]; then
+                  INJ_TIMES=(${2} ${3})
+               fi
+            fi
+            shift; shift; shift
+            ;;
+         --injection-dm-span) # Specify span of DMs for injections.
+            if [ -z "${INJ_DMS[*]}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]] && [[ "${3}" =~ ${REAL_NUM} ]]; then
+                  INJ_DMS=(${2} ${3})
+               fi
+            fi
+            shift; shift; shift
+            ;;
+         --inject-regular-times) # Specify to place injections at regular time intervals.
+            if [ - z "${INJ_REGULAR_TIME_OPT}" ]; then
+               INJ_REGULAR_TIME_OPT="--inject-regular-times"
+            fi
+            shift
+            ;;
+         --inject-regular-dms) # Specify to make injections at regular DM intervals.
+            if [ - z "${INJ_REGULAR_DMS_OPT}" ]; then
+               INJ_REGULAR_DMS_OPT="--inject-regular-times"
+            fi
+            shift
+            ;;
          -*) # Unknown option
             echo "WARNING: radioreduce.sh -> Unknown option"
             echo "     ${1}"
@@ -384,6 +443,12 @@ if [ -n "${LABEL}" ]; then
    LABEL_OPT="--label ${LABEL}"
 fi
 
+# Check specifications for injections.
+if [ -z "${INJ_NUM}" ]; then
+   INJ_NUM=0
+else
+fi
+
 # Source the utility functions.
 source ${INSTALL_DIR}/utils.sh
 
@@ -474,12 +539,37 @@ LBL_SGBASELINEIMG1="WaterfallSGBaselineImg_Tune1"
 
 # Generate the waterfall tiles for the reduced-data spectrogram
 echo "radioreduce.sh: Generating waterfall tiles for spectrogram from ${DATA_PATH}..."
-resumecmd -l ${LBL_WATERFALL} \
-   mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
-   --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" \
-   ${ENABLE_HANN} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
-   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
-report_resumecmd
+if [ -z "${INJ_NUM}" ] || [ ${INJ_NUM} -lt 1 ]; then
+   resumecmd -l ${LBL_WATERFALL} \
+      mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
+      --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" \
+      ${ENABLE_HANN} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
+      --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
+   report_resumecmd
+else
+   if [ -z "${INJ_POWER}" ]; then
+      INJ_POWER=10.0
+   fi
+   if [ -z "${INJ_SPECTINDEX}" ]; then
+      INJ_SPECTINDEX=1.1
+   fi
+   if [ -n "${INJ_TIMES}" ]; then
+      INJ_TIMES_OPT="--injection-time-span ${INJ_TIMES[*]}"
+   fi
+   if [ -n "${INJ_DMS}" ]; then
+      INJ_DMS_OPT="--injection-dm-span ${INJ_DMS[*]}"
+   fi
+   # Generate waterfall tiles with injection of simulated dispersed signals.
+   resumecmd -l ${LBL_WATERFALL} \
+      mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
+      --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" \
+      ${ENABLE_HANN} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
+      --num-injections ${INJ_NUM} --inject-spectral-index ${INJ_SPECTINDEX} \
+      --inject-power ${INJ_POWER} \
+      ${INJ_TIMES_OPT} ${INJ_DMS_OPT} ${INJ_REGULAR_TIMES_OPT} ${INJ_REGULAR_DMS_OPT} \
+      --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
+   report_resumecmd
+fi
 
 
 # Create the combined and coarse combined waterfalls for both tuning 0 and tuning 1.

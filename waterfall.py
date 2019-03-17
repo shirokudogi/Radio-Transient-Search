@@ -285,7 +285,8 @@ def main(argv):
                               tile=lineOffset, total=numSpectLinesPerProc), root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
-            k = 0
+            #k = 0
+            k = rawDataFramesPerBeam # CCY - Temporary blocking of reading raw data to test injections.
             while k < rawDataFramesPerBeam:
                # Compute the DFT of the current frame.
                currFrame = drx.readFrameOpt(rawDataFile)
