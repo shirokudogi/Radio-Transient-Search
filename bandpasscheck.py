@@ -71,15 +71,29 @@ def main(args):
       # Configure for bandpass plot.
       plotCurve = spectrogram.mean(0)
       freqStep = samplerate/(numSamplesPerFrame*1000.0)
-      plotTitle = '{label} Bandpass'.format(label=cmdlnOpts.label)
+      plotTitle = '{label} Mean Bandpass'.format(label=cmdlnOpts.label)
       plotXLabel = 'Frequency ({step:.3f} kHz)'.format(step=freqStep)
+      commConfigObj.set('Reduced DFT Data', 'meanbandpasspower', np.sum(plotCurve))
    else:
       # Configure for baseline plot.
       plotCurve = spectrogram.mean(1)
       timeStep = integTime * int(numSpectLines/decimation)
       plotTitle = '{label} Baseline'.format(label=cmdlnOpts.label)
       plotXLabel = 'Time ({step:.4f} sec)'.format(step=timeStep)
+      commConfigObj.set('Reduced DFT Data', 'meanbaselinepower', plotCurve.mean())
+      commConfigObj.set('Reduced DFT Data', 'medianbaselinepower', np.median(plotCurve))
    # endif
+   try:
+      configFile = open(cmdlnOpts.configFilepath,"w")
+      commConfigObj.write(configFile)
+      configFile.close()
+   except:
+      print 'bandpasscheck.py: Could not write common parameters file {file}'.format(
+               file= cmdlnOpts.configFilepath)
+      print anError
+      configFile.close()
+      sys.exit(1)
+   # endtry
 
    # If Savitzky-Golay parameters are provided, perform Savitzky-Golay smoothing.
    if cmdlnOpts.SGParams is not None and len(cmdlnOpts.SGParams.split(',')) > 1:

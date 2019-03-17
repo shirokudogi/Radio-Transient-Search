@@ -16,7 +16,7 @@ def create_spectrum(freqs, spectralIndex)
 # end create_spectrum()
 
 def create_injection(freqs, channelWdith, numIntervals, intervalTime, totalPower, spectralIndex,
-                     temporalProfile=(None, None), DMProfile=(0, 5000.0), numInjects=1,
+                     temporalProfile=(None, None), DMProfile=(None, None), numInjects=1,
                      regularTimes=False, regularDMs=False):
    """ Creates a spectrogram of dispersed, simulated signals with time resolution specified by
    intervalTime.  This spectrogram is built using a sparse matrix (to save space). """
@@ -30,6 +30,7 @@ def create_injection(freqs, channelWdith, numIntervals, intervalTime, totalPower
       topFreqSqrd = topFreq**2
       invChannelWidth = 1.0/channelWidth
 
+      maxTime = intervalTime*numIntervals
       timeStart = temporalProfile[0]
       timeEnd = temporalProfile[1]
       DMStart = DMProfile[0]
@@ -46,6 +47,8 @@ def create_injection(freqs, channelWdith, numIntervals, intervalTime, totalPower
       if timeEnd is None:
          timeEnd = numIntervals*intervalTime
       # endif
+      timeStart = apputils.clipValue(timeStart, 0.0, maxTime, np.float32)
+      timeEnd = apputils.clipValue(timeEnd, 0.0, maxTime, np.float32), 
       #
       # Create times of injections.
       if regularTimes is True:
@@ -55,7 +58,20 @@ def create_injection(freqs, channelWdith, numIntervals, intervalTime, totalPower
       # endif
       # Scale the injection times to the interval time.
       injTimesPrime = injTimes/intervalTime
-      
+     
+      # Set DM bounds for injections.
+      if not (DMStart is None and DMEnd is None):
+         if DMEnd is None:
+            DMEnd = DMStart
+         else:
+            DMStart = DMEnd
+         # endif
+         DMStart = apputils.clipValue(DMStart, 0.0, 5000.0, np.float32)
+         DMEnd = apputils.clipValue(DMEnd, 0.0, 5000.0, np.float32)
+      else:
+         DMStart = 0.0
+         DMEnd = 5000.0
+      # endif
       # Create injection DMs.
       if regularDMs is True:
          injDMs = np.linspace(DMStart, DMEnd, numInjects, dtype=np.float64)

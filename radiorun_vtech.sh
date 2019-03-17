@@ -16,8 +16,10 @@ SUPERCLUSTER_OPT=
 
 DATA_FILENAMES=("057974_001488582")
 LABELS=("GWR170809B2")
+PARAM_FILE="./run_params.comm"
 
 ${INSTALL_DIR}/radiotrans_run.sh -I "${INSTALL_DIR}" -W "${WORK_ROOT}" -R "${RESULTS_ROOT}" \
+                                 -P "${PARAM_FILE}" \
                                  --reload-work ${SUPERCLUSTER_OPT} \
                                  --GW170809 --skip-reduce --do-dedispersed-search \
                                  -A "${LABELS[0]}" "${DATA_FILENAMES[0]}"

@@ -394,6 +394,7 @@ if [ -n "${PARAMS_FILE}" ]; then
    echo "     DM_END = ${DM_END}"
    echo "     DM_STEP = ${DM_STEP}"
    echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
+   echo "     ENABLE_HANN_OPT = ${ENABLE_HANN_OPT}"
    echo "     INJ_NUM = ${INJ_NUM}"
    echo "     INJ_POWER = ${INJ_POWER}"
    echo "     INJ_SPECTINDEX = ${INJ_SPECTINDEX}"

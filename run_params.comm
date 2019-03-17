@@ -3,14 +3,31 @@
 # Create a copy of this file and change the values of these parameters for a given set of runs.
 # Then specify the file to radiotrans_run.sh to perform runs with the specified parameter values.
 
+# == DATA REDUCTION PHASE ==
+# Data reduction parameters (creation of waterfalls and subsequent spectrograms).
 INTEGTIME=100        # Waterfall integration time, in milliseconds.  Do not set this below 24.03265 
                      # to avoid corruption during RFI-bandpass filtering.
 DECIMATION=10000     # Decimation of spectrogram when building coarse spectrogram for plotting.
+#ENABLE_HANN_OPT=--enable-hann   # Enable Hann windowing on raw data.
+
+# Simulated signal injection parameters (injections occur during the data reduction phase).
+INJ_NUM=0            # Number of injections.  Set this to integer >0 to create injected signals.
+INJ_POWER=10.0       # Total spectral power of waterfall injections.
+INJ_SPECTINDEX=1.1   # Spectral index for waterfall injections (-2.0 <= x <= 2.0)
+INJ_TIMES=(0 10800)  # Time span over which injections begin, in seconds.
+INJ_DMS=(30 2000)    # Range of DMs for injections, in pc cm^-3.
+#INJ_REGULAR_TIMES_OPT=--inject-regular-times  # Injections start at regular time intervals.
+#INJ_REGULAR_DMS_OPT=--inject-regular-dms      # Injections are created at regular DM intervals.
+
+# Coarse spectrogram plotting parameters.
 RFI_STD=5.0          # RFI cut-off for plotting coarse spectrogram.
 SNR_CUTOFF=3.0       # SNR cut-off for plotting coarse spectrogram.
 SG_PARAMS0=(151 2 151 2)   # Savitzky-Golay parameters for smoothing tuning 0 coarse spectrogram plot.
 SG_PARAMS1=(111 2 151 2)   # Savitzky-Golay parameters for smoothing tuning 1 coarse spectrogram plot.
 
+
+# == RFI-BANDPASS FILTRATION PHASE ==
+# RFI-Bandpass filtration parameters.
 LOWER_FFT0=0         # Lower FFT index bound for bandpass filter on tuning 0 spectrogram.
 UPPER_FFT0=4094      # Upper FFT index bound for bandpass filter on tuning 0 spectrograms.
 LOWER_FFT1=0         # Lower FFT index bound for bandpass filter on tuning 1 spectrograms.
@@ -18,8 +35,12 @@ UPPER_FFT1=4094      # Upper FFT index bound for bandpass filter on tuning 1 spe
 BP_WINDOW=11         # Bandpass smoothing window for RFI filter.
 BL_WINDOW=51         # Baseline smoothing window for RFI filter.
 
+
+# == DE-DISPERSED SEARCH PHASE ==
+# De-dispersed signal search parameters.
 SNR_THRESHOLD=5.0    # SNR threshold for de-dispersed pulse search.
 DM_START=30.0        # Staring dispersion measure, in pc cm^-3, for de-dispersed search.
 DM_END=3600.0        # Ending dispersion measure, in pc cm^-3, for de-dispersed search.
 DM_STEP=1.0          # Interval step-size for dispersion measure trials in de-dispersed search.
 MAX_PULSE_WIDTH=2.0  # Maximum pulse width, in seconds, for de-dispersed search.
+
