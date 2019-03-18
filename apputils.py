@@ -7,9 +7,57 @@ import os
 import sys
 import numpy as np
 from mpi4py import MPI
+import scipy.sparse as sparse
 
 
 epsilon = np.float(10.0**(-15))
+
+def __MPIBcast_SCIPY_CSR_Matrix(inMatrix, root=0):
+   MPIComm = MPI.COMM_WORLD
+   procRank = MPIComm.Get_rank()
+
+   outMatrix = inMatrix
+
+   # Break apart the CSR sparse matrix and broadcast its components.
+   data = None
+   indptr = None
+   indices = None
+   shape = None
+   dtype = None
+   if procRank == root:
+      if inMatrix is not None:
+         data = inMatrix.data
+         indptr = inMatrix.indptr
+         indices = inMatrix.indices
+         shape = inMatrix.shape
+         dtype = inMatrix.dtype
+      else:
+         raise TypeError('Input argument \'None\' is not of type scipy.sparse.csr_matrix') 
+      # endif
+   # endif
+   data = MPIComm.bcast(data, root=root)
+   indptr = MPIComm.bcast(indptr, root=root)
+   indices = MPIComm.bcast(indices, root=root)
+   shape = MPIComm.bcast(shape, root=root)
+   dtype = MPIComm.bcast(dtype, root=root)
+
+   # Reconstruct the sparse matrix from its components.
+   outMatrix = sparse.csr_matrix((data, indices, indptr), shape=shape, dtype=dtype)
+
+   return outMatrix
+# end __MPIBcast_SCIPY_CSR_Matrix()
+
+def MPIBcast_SCIPY_Sparse_Matrix(inMatrix, root=0):
+   retMatrix = None
+   if inMatrix is None or isinstance(inMatrix, sparse.csr_matrix):
+      retMatrix = __MPIBcast_SCIPY_CSR_Matrix(inMatrix, root=root) 
+   else
+      raise TypeError('Input argument is not a recognized or handled SciPy sparse matrix type.')
+   # endif
+   
+   return retMatrix
+# end MPIBcast_SCIPY_Sparse_Matrix()
+
 
 def MPIAbort(code=0):
    MPI.COMM_WORLD.Abort(code)

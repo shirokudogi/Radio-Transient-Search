@@ -6,4 +6,4 @@
 # PURPOSE: Short script to allow me to quickly reopen files in vim and resume any work that I was doing
 #           previously.
 
-vim -p change.log resumedev.sh waterfall.py  waterfallinject.py bandpasscheck.py 
+vim -p change.log resumedev.sh waterfall.py  waterfallinject.py bandpasscheck.py apputils.py

@@ -261,7 +261,7 @@ def main(argv):
       apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 0.', root=0)
       freqs = apputils.computeFreqs(rawDataTuningFreq0/1.0e6, bandwidth, numBins=DFTLength)
       injSpect0 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
-                                                    rawDataFrameTime, cmdlnOpts.injPower,
+                                                    rawDataFrameTime, cmdlnOpts.injPower*(4.0*LFFT),
                                                     cmdlnOpts.injSpectIndex,
                                                     cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
                                                     cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
@@ -270,20 +270,27 @@ def main(argv):
       apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 1.', root=0)
       freqs = apputils.computeFreqs(rawDataTuningFreq1/1.0e6, bandwidth, numBins=DFTLength)
       injSpect1 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
-                                                    rawDataFrameTime, cmdlnOpts.injPower,
+                                                    rawDataFrameTime, cmdlnOpts.injPower*(4.0*LFFT),
                                                     cmdlnOpts.injSpectIndex,
                                                     cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
                                                     cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
                                                     cmdlnOpts.injRegularDMs)
    # endif
    # Broadcast injections to other processes.
-   # CCY - Current issue with broadcasting sparse matrix.
-   injSpect0 = MPIComm.bcast(injSpect0, root=0)
-   injSpect1 = MPIComm.bcast(injSpect1, root=0)
+   try:
+      injSpect0 = apputils.MPIBcast_SCIPY_Sparse_Matrix(injSpect0, root=0)
+      injSpect1 = apputils.MPIBcast_SCIPY_Sparse_Matrix(injSpect1, root=0)
+   except Exception as anError:
+      apputils.procMessage(str(anError), msg_type='ERROR')
+      apputils.procMessage('waterfall.py: Could not broadcast sparse matrix to processes',
+                           msg_type='ERROR')
+      apputils.MPIAbort(1)
+   # endtry
 
    # Create spectrogram tiles.
    lineOffset = numSpectLinesPerProc*procRank
    injOffset = lineOffset*numDFTsPerSpectLine
+   normFactor = (4.0*LFFT*numDFTsPerSpectLine)
    while fileOffset < endFileOffset:
       rawDataFile.seek(fileOffset, os.SEEK_CUR)
       apputils.procMessage("Integrating lines {start} to {end}...".format(start=lineOffset,
@@ -293,8 +300,7 @@ def main(argv):
                               tile=lineOffset, total=numSpectLinesPerProc), root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
-            #k = 0
-            k = rawDataFramesPerBeam # CCY - Temporary blocking of reading raw data to test injections.
+            k = 0
             while k < rawDataFramesPerBeam:
                # Compute the DFT of the current frame.
                currFrame = drx.readFrameOpt(rawDataFile)
@@ -317,23 +323,22 @@ def main(argv):
                   k = rawDataFramesPerBeam
                # endif
             # endwhile
-
+            
             # Add waterfall injections, if we have any.
             if cmdlnOpts.numInjects > 0:
+               # Determine where to add injection power.
                injIndex = injOffset + i*numDFTsPerSpectLine + j
+               # Add injection power, if there is any.
                if injSpect0 is not None:
                   powerDFT0[:] += injSpect0[injIndex, :].toarray().flatten()
                # endif
                if injSpect1 is not None:
                   powerDFT1[:] += injSpect1[injIndex, :].toarray().flatten()
                # endif
-            # endif
          # endfor
          
-         # Normalize to units of energy and time average the integrated power DFTs and save them 
-         # in the appropriate spectrogram tile.
-         spectTile0[i,:] = powerDFT0[:]/(4*LFFT*numDFTsPerSpectLine)
-         spectTile1[i,:] = powerDFT1[:]/(4*LFFT*numDFTsPerSpectLine)
+         spectTile0[i,:] = powerDFT0[:]/(normFactor)
+         spectTile1[i,:] = powerDFT1[:]/(normFactor)
 
          # Reset for the next integration of power DFTs.
          powerDFT0.fill(0)
