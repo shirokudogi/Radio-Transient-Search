@@ -17,6 +17,7 @@ INJ_TIMES=(0 10800)  # Time span over which injections begin, in seconds.
 INJ_DMS=(30 2000)    # Range of DMs for injections, in pc cm^-3.
 #INJ_REGULAR_TIMES_OPT=--inject-regular-times  # Injections start at regular time intervals.
 #INJ_REGULAR_DMS_OPT=--inject-regular-dms      # Injections are created at regular DM intervals.
+#INJ_ONLY_OPT=--injections-only                # Only use injections for waterfall.
 
 # Coarse spectrogram plotting parameters.
 DECIMATION=10000     # Decimation of spectrogram when building coarse spectrogram for plotting.

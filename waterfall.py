@@ -76,6 +76,8 @@ def main(argv):
    cmdlnParser.add_option('--inject-regular-dms', dest='injRegularDMs', default=False,
                            action='store_true',
                            help='Inject simulated signals at regular DM intervals.')
+   cmdlnParser.add_option('--injections-only', dest='injOnly', default=False, action='store_true',
+                           help='Only use injections to create waterfalls.')
    (cmdlnOpts, args) = cmdlnParser.parse_args(argv)
    if len(args) == 0:
       apputils.procMessage("waterfall.py: Must supply a path to the radio data file.", root=0,
@@ -316,7 +318,11 @@ def main(argv):
                               tile=lineOffset, total=numSpectLinesPerProc), root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
-            k = 0
+            if not cmdlnOpts.injOnly:
+               k = 0
+            else:
+               k = rawDataFramesPerBeam
+            # endif
             while k < rawDataFramesPerBeam:
                # Compute the DFT of the current frame.
                currFrame = drx.readFrameOpt(rawDataFile)

@@ -403,6 +403,7 @@ if [ -n "${PARAMS_FILE}" ]; then
    echo "     INJ_DMS = ${INJ_DMS[*]}"
    echo "     INJ_REGULAR_TIMES_OPT = ${INJ_REGULAR_TIME_OPT}"
    echo "     INJ_REGULAR_DMS_OPT = ${INJ_REGULAR_DMS_OPT}"
+   echo "     INJ_ONLY_OPT = ${INJ_ONLY_OPT}"
    echo
 fi
 
@@ -484,7 +485,8 @@ do
                CMD_REDUCE_OPTS=(${INJ_OPTS[${INDEX}]} ${!VAR_VALUE} ${CMD_REDUCE_OPTS[*]})
             fi
          done
-         CMD_REDUCE_OPTS=(${INJ_REGULAR_TIMES_OPT} ${INJ_REGULAR_DMS_OPT} ${CMD_REDUCE_OPTS[*]})
+         CMD_REDUCE_OPTS=(${INJ_REGULAR_TIMES_OPT} ${INJ_REGULAR_DMS_OPT} ${INJ_ONLY_OPT} \
+                           ${CMD_REDUCE_OPTS[*]})
 
          # Perform the data reduction phase.
          ${CMD_REDUCE} ${CMD_REDUCE_OPTS[*]} "${DATA_PATH}"

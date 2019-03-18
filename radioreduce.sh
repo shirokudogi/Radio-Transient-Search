@@ -311,14 +311,20 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift; shift
             ;;
          --inject-regular-times) # Specify to place injections at regular time intervals.
-            if [ - z "${INJ_REGULAR_TIME_OPT}" ]; then
+            if [ -z "${INJ_REGULAR_TIME_OPT}" ]; then
                INJ_REGULAR_TIME_OPT="--inject-regular-times"
             fi
             shift
             ;;
          --inject-regular-dms) # Specify to make injections at regular DM intervals.
-            if [ - z "${INJ_REGULAR_DMS_OPT}" ]; then
+            if [ -z "${INJ_REGULAR_DMS_OPT}" ]; then
                INJ_REGULAR_DMS_OPT="--inject-regular-times"
+            fi
+            shift
+            ;;
+         --injections-only) # Specifies to only use injections for waterfalls.
+            if [ -z "${INJ_ONLY_OPT}" ]; then
+               INJ_ONLY_OPT="--injections-only"
             fi
             shift
             ;;
@@ -576,7 +582,7 @@ else
       --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" \
       ${ENABLE_HANN} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
       --num-injections ${INJ_NUM} --inject-spectral-index ${INJ_SPECTINDEX} \
-      --inject-power ${INJ_POWER} \
+      --inject-power ${INJ_POWER} ${INJ_ONLY_OPT} \
       ${INJ_TIMES_OPT} ${INJ_DMS_OPT} ${INJ_REGULAR_TIMES_OPT} ${INJ_REGULAR_DMS_OPT} \
       --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
    report_resumecmd
