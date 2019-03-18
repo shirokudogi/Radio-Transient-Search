@@ -260,7 +260,7 @@ def main(argv):
 
       apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 0.', root=0)
       freqs = apputils.computeFreqs(rawDataTuningFreq0/1.0e6, bandwidth, numBins=DFTLength)
-      injSpect0 = waterfallinject.create_injections(freqs0, channelWidth, rawDataNumFramesPerTune,
+      injSpect0 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
                                                     rawDataFrameTime, cmdlnOpts.injPower,
                                                     cmdlnOpts.injSpectIndex,
                                                     cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
@@ -269,7 +269,7 @@ def main(argv):
 
       apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 1.', root=0)
       freqs = apputils.computeFreqs(rawDataTuningFreq1/1.0e6, bandwidth, numBins=DFTLength)
-      injSpect1 = waterfallinject.create_injections(freqs1, channelWidth, rawDataNumFramesPerTune,
+      injSpect1 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
                                                     rawDataFrameTime, cmdlnOpts.injPower,
                                                     cmdlnOpts.injSpectIndex,
                                                     cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
