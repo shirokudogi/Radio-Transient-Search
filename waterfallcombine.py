@@ -54,7 +54,10 @@ def main(args):
 
       # Update common parameters with decimation factor.
       configFile = open(cmdlnOpts.configFilepath,"w")
-      commConfigObj.set('Reduced DFT Data', 'decimation', cmdlnOpts.decimation)
+      if not commConfigObj.has_section('Spectrogram Plot'):
+         commConfigObj.add_section('Spectrogram Plot')
+      # endif
+      commConfigObj.set('Spectrogram Plot', 'decimation', cmdlnOpts.decimation)
       commConfigObj.write(configFile)
       configFile.close()
    except Exception as anError:

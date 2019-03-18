@@ -1,16 +1,17 @@
 #from mpi4py import MPI
-import mpi4py 
-import mpi4py.MPI as MPI
 import os
 import sys
-import numpy
-from scipy.sparse import csr_matrix
-import getopt
-import drx
+import traceback
+import mmap
 import time
+import getopt
+import numpy
+import mpi4py 
+import mpi4py.MPI as MPI
+from scipy.sparse import csr_matrix
+import drx
 import matplotlib.pyplot as plt
 from ConfigParser import ConfigParser
-import mmap
 from math import ceil
 from math import floor
 from optparse import OptionParser
@@ -77,14 +78,16 @@ def main(argv):
                            help='Inject simulated signals at regular DM intervals.')
    (cmdlnOpts, args) = cmdlnParser.parse_args(argv)
    if len(args) == 0:
-      print "Must supply a path to the radio data file."
-      sys.exit(1)
+      apputils.procMessage("waterfall.py: Must supply a path to the radio data file.", root=0,
+                           msg_type='ERROR')
+      apputils.MPIAbort(1)
    # endif
    spectIntegTime = cmdlnOpts.spectIntTime/1000.0
    memLimit = apputils.forceIntValue(cmdlnOpts.memLimit, 100, 64000)*1e6
    dataUtilFrac = cmdlnOpts.dataUtilFrac
    if abs(dataUtilFrac) > 1.0 or dataUtilFrac == 0.0:
-      print 'waterfall.py: WARNING => Invalid value for data utilization.  Forcing to 1.0'
+      apputils.procMessage('waterfall.py: Invalid value for data utilization.  Forcing to 1.0', root=0,
+                           msg_type='WARNING')
       dataUtilFrac = 1.0
    # endif
    #
@@ -112,9 +115,12 @@ def main(argv):
    # Open the raw data file.
    try:
       rawDataFile = open(rawDataFilePath, 'rb')
-   except:
-      print rawDataFilePath,' not found'
-      sys.exit(1)
+   except Exception as anError:
+      traceback.print_tb(sys.exc_info()[2], file=sys.stderr)
+      apputils.procMessage('waterfall.py: {0}'.format(str(anError)), msg_type='ERROR')
+      apputils.procMessage('waterfall.py: {0} not found or could not be opened.'.format(rawDataFilePath),
+                           msg_type='ERROR')
+      apputils.MPIAbort(1)
    # endtry
    # Obtain metadata for the raw data file.
    try:
@@ -127,10 +133,12 @@ def main(argv):
          rawDataFrameTime = rawDataSamplesPerFrame*rawDataSampleTime
          rawDataBeamID, tune, pol = junkFrame.parseID()
          pass
-      except ZeroDivisionError:
-         print 'zero division error computing sample rate.'
+      except ZeroDivisionError as anError:
+         traceback.print_tb(sys.exc_info()[2], file=sys.stderr)
+         apputils.procMessage('waterfall.py: Zero division error computing sample rate.',
+                              msg_type='ERROR')
          rawDataFile.close()
-         sys.exit(1)
+         apputils.MPIAbort(1)
       # endtry
 
       # Obtain the tuning frequencies by reading the first 4 frames.
@@ -150,10 +158,12 @@ def main(argv):
       # endfor
       rawDataFile.seek(-rawDataFramesPerBeam*rawDataFrameSize, os.SEEK_CUR)
    except Exception as anError:
-      print 'Could not obtain metadata for radio data file.'
-      print anError
+      traceback.print_tb(sys.exc_info()[2], file=sys.stderr)
+      apputils.procMessage('waterfall.py: {0}'.format(str(anError)), msg_type='ERROR')
+      apputils.procMessage('waterfall.py: Could not obtain metadata for radio data file.',
+                           msg_type='ERROR')
       rawDataFile.close()
-      sys.exit(1)
+      apputils.MPIAbort(1)
    # endtry
 
    # Compute data reduction parameters.
@@ -208,9 +218,10 @@ def main(argv):
          commConfigFile.flush()
          commConfigFile.close()
       except Exception as anError:
+         traceback.print_tb(sys.exc_info()[2], file=sys.stderr)
+         apputils.procMessage('waterfall.py: {0}'.format(str(anError)), root=0, msg_type='ERROR')
          apputils.procMessage('waterfall.py: Could not open or write common parameters file.', root=0,
                               msg_type='ERROR')
-         apputils.procMessage(str(anError), root=0)
          commConfigFile.close()
          MPIComm.Abort(1)
       # endtry
@@ -250,42 +261,47 @@ def main(argv):
       hannWindow[:] = 0.5*(1 - numpy.cos(hannWindow[:]))
    # endif
 
-   # If waterfall injections enabled, create waterfall injection.
+   # If waterfall injections enabled, create waterfall injections.
    injSpect0 = None  # Injection spectrogram for tuning 0.
    injSpect1 = None  # Injection spectrogram for tuning 1.
-   if procRank == 0 and cmdlnOpts.numInjects > 0:
-      apputils.procMessage('waterfall.py: Generating waterfall injections.', root=0)
-      bandwidth = rawDataSampleRate/1.0e6
-      channelWidth = bandwidth/DFTLength
+   if cmdlnOpts.numInjects > 0:
+      if procRank == 0:
+         apputils.procMessage('waterfall.py: Generating waterfall injections.', root=0)
+         bandwidth = rawDataSampleRate/1.0e6
+         channelWidth = bandwidth/DFTLength
 
-      apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 0.', root=0)
-      freqs = apputils.computeFreqs(rawDataTuningFreq0/1.0e6, bandwidth, numBins=DFTLength)
-      injSpect0 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
-                                                    rawDataFrameTime, cmdlnOpts.injPower*(4.0*LFFT),
-                                                    cmdlnOpts.injSpectIndex,
-                                                    cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
-                                                    cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
-                                                    cmdlnOpts.injRegularDMs)
+         apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 0.', root=0)
+         freqs = apputils.computeFreqs(rawDataTuningFreq0/1.0e6, bandwidth, numBins=DFTLength)
+         injSpect0 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
+                                                       rawDataFrameTime, cmdlnOpts.injPower*(4.0*LFFT),
+                                                       cmdlnOpts.injSpectIndex,
+                                                       cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
+                                                       cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
+                                                       cmdlnOpts.injRegularDMs, root=0)
 
-      apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 1.', root=0)
-      freqs = apputils.computeFreqs(rawDataTuningFreq1/1.0e6, bandwidth, numBins=DFTLength)
-      injSpect1 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
-                                                    rawDataFrameTime, cmdlnOpts.injPower*(4.0*LFFT),
-                                                    cmdlnOpts.injSpectIndex,
-                                                    cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
-                                                    cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
-                                                    cmdlnOpts.injRegularDMs)
+         apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 1.', root=0)
+         freqs = apputils.computeFreqs(rawDataTuningFreq1/1.0e6, bandwidth, numBins=DFTLength)
+         injSpect1 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
+                                                       rawDataFrameTime, cmdlnOpts.injPower*(4.0*LFFT),
+                                                       cmdlnOpts.injSpectIndex,
+                                                       cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
+                                                       cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
+                                                       cmdlnOpts.injRegularDMs, root=0)
+      # endif
+      # Broadcast injections to other processes.
+      try:
+         apputils.procMessage('waterfall.py: Broadcasting tuning 0 injections to processes.', root=0)
+         injSpect0 = apputils.MPIBcast_SCIPY_Sparse_Matrix(injSpect0, root=0)
+         apputils.procMessage('waterfall.py: Broadcasting tuning 1 injections to processes.', root=0)
+         injSpect1 = apputils.MPIBcast_SCIPY_Sparse_Matrix(injSpect1, root=0)
+      except Exception as anError:
+         traceback.print_tb(sys.exc_info()[2], file=sys.stderr)
+         apputils.procMessage('waterfall.py: {0}'.format(str(anError)), msg_type='ERROR')
+         apputils.procMessage('waterfall.py: Could not broadcast sparse matrix to processes',
+                              msg_type='ERROR')
+         apputils.MPIAbort(1)
+      # endtry
    # endif
-   # Broadcast injections to other processes.
-   try:
-      injSpect0 = apputils.MPIBcast_SCIPY_Sparse_Matrix(injSpect0, root=0)
-      injSpect1 = apputils.MPIBcast_SCIPY_Sparse_Matrix(injSpect1, root=0)
-   except Exception as anError:
-      apputils.procMessage(str(anError), msg_type='ERROR')
-      apputils.procMessage('waterfall.py: Could not broadcast sparse matrix to processes',
-                           msg_type='ERROR')
-      apputils.MPIAbort(1)
-   # endtry
 
    # Create spectrogram tiles.
    lineOffset = numSpectLinesPerProc*procRank
@@ -296,7 +312,7 @@ def main(argv):
       apputils.procMessage("Integrating lines {start} to {end}...".format(start=lineOffset,
                            end=lineOffset + numSpectLinesPerProc - 1, tile=lineOffset), root=0)
       for i in lineIndices:
-         apputils.procMessage("Integrating {line} of {total} from lineOffset={tile}...".format(line=i+1, 
+         apputils.procMessage("Integrating {line} of {total} from lineOffset = {tile}...".format(line=i+1, 
                               tile=lineOffset, total=numSpectLinesPerProc), root=0)
          for j in dftIndices:
             # Read 4 frames from the raw data and compute their DFTs.
@@ -376,7 +392,7 @@ def main(argv):
          # endif
       # endif
    # endwhile
-   apputils.procMessage("Done!")
+   apputils.procMessage("Done creating waterfall!")
 # end main()
 
 

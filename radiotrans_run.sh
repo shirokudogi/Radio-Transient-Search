@@ -47,25 +47,25 @@ PARAMS_FILE=
 # Configure default run parameters to apply to all runs. These should be changed by either specifying a
 # pre-made set from the command-line or specifying a run parameters file from which will be loaded the
 # run parameters.
-export INTEGTIME=125        # In milliseconds.  Do not set this below 24.03265 ms to avoid corruption during 
+INTEGTIME=125        # In milliseconds.  Do not set this below 24.03265 ms to avoid corruption during 
                      # RFI filtering and data smoothing.
-export DECIMATION=10000
-export RFI_STD=5.0
-export SNR_CUTOFF=3.0
-export SG_PARAMS0=(151 2 151 2)
-export SG_PARAMS1=(111 2 151 2)
-export LOWER_FFT0=0
-export UPPER_FFT0=4094
-export LOWER_FFT1=0
-export UPPER_FFT1=4094
-export BP_WINDOW=10
-export BL_WINDOW=50
+DECIMATION=10000
+RFI_STD=5.0
+SNR_CUTOFF=3.0
+SG_PARAMS0=(151 2 151 2)
+SG_PARAMS1=(111 2 151 2)
+LOWER_FFT0=0
+UPPER_FFT0=4094
+LOWER_FFT1=0
+UPPER_FFT1=4094
+BP_WINDOW=10
+BL_WINDOW=50
                         # raw data, while negative values align to the end.
-export SNR_THRESHOLD=5.0
-export DM_START=30.0
-export DM_END=3600.0
-export DM_STEP=1.0
-export MAX_PULSE_WIDTH=2.0
+SNR_THRESHOLD=5.0
+DM_START=30.0
+DM_END=3600.0
+DM_STEP=1.0
+MAX_PULSE_WIDTH=2.0
 
 
 

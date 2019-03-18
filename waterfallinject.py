@@ -18,7 +18,7 @@ def create_spectrum(freqs, spectralIndex):
 
 def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPower, spectralIndex,
                       temporalProfile=(None, None), DMProfile=(None, None), numInjects=1,
-                      regularTimes=False, regularDMs=False):
+                      regularTimes=False, regularDMs=False, root=-1):
    """ Creates a spectrogram of dispersed, simulated signals with time resolution specified by
    intervalTime.  This spectrogram is built using a sparse matrix (to save space). """
 
@@ -85,7 +85,8 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       freqIndices = np.arange(numFreqs)
       scaleDelays = apputils.scaleDelays(freqs, topFreq)/intervalTime
 
-      apputils.procMessage('waterfallinject.py: Determining data size needed for injection sparse matrix.')
+      apputils.procMessage('waterfallinject.py: Determining data size needed for injection sparse matrix.',
+                           root=root)
       # Compute the total number of data elements we will have.  Need this for constructing the sparse
       # matrix that will hold the injection spectrogram.
       dataCount = 0
@@ -106,7 +107,7 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       data = np.zeros(dataCount, dtype=np.float32)
       qOffset = 0 # Offset into the sparse data arrays.
 
-      apputils.procMessage('waterfallinject.py: Compiling data for injection sparse matrix.')
+      apputils.procMessage('waterfallinject.py: Compiling data for injection sparse matrix.', root=root)
       # Compute sparse data for dispersed simulated signal spectrogram.
       # Pre-allocate compute arrays that will be used in building up the sparse data.
       qIndices = np.arange(maxQIndices, dtype=np.int32)
@@ -115,8 +116,8 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       weights = np.zeros(maxQIndices, dtype=np.float32)
       # For each injection, compute the dispersed power at each time and frequency.
       for i in injIndices:
-         apputils.procMessage('waterfallinject.py: Compiling data for injection {0} of {1}.'.format(
-                              i+1, numInjects) )
+         apputils.procMessage('waterfallinject.py: Compiling data for injection ' + \
+                              '{0:d} of {1:d}.'.format(np.int(i+1), np.int(numInjects)), root=root)
          T0 = injTimes[i]
          kFactor = 4.148808e3*injDMs[i]
          fFactor = kFactor*topFreqSqrd
@@ -157,9 +158,10 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       # endfor
       #
       # Create the simulated signal spectrogram as a sparse matrix from the sparse data.
-      apputils.procMessage('waterfallinject.py: Constructing injection sparse matrix.')
+      apputils.procMessage('waterfallinject.py: Constructing injection sparse matrix.', root=root)
       injSpectrogram = coo_matrix((data, (rows, cols)), shape = (numIntervals, numFreqs)).tocsr()
-      apputils.procMessage('waterfallinject.py: Construction of injection sparse matrix complete.')
+      apputils.procMessage('waterfallinject.py: Construction of injection sparse matrix complete.',
+                           root=root)
    # endif
  
    return injSpectrogram

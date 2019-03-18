@@ -42,18 +42,26 @@ def __MPIBcast_SCIPY_CSR_Matrix(inMatrix, root=0):
    dtype = MPIComm.bcast(dtype, root=root)
 
    # Reconstruct the sparse matrix from its components.
-   outMatrix = sparse.csr_matrix((data, indices, indptr), shape=shape, dtype=dtype)
+
+   if procRank != root:
+      outMatrix = sparse.csr_matrix(shape, dtype=dtype)
+      outMatrix.data = data
+      outMatrix.indptr = indptr
+      outMatrix.indices = indices
+   # endif
 
    return outMatrix
 # end __MPIBcast_SCIPY_CSR_Matrix()
 
 def MPIBcast_SCIPY_Sparse_Matrix(inMatrix, root=0):
    retMatrix = None
+
    if inMatrix is None or isinstance(inMatrix, sparse.csr_matrix):
       retMatrix = __MPIBcast_SCIPY_CSR_Matrix(inMatrix, root=root) 
-   else
+   else:
       raise TypeError('Input argument is not a recognized or handled SciPy sparse matrix type.')
    # endif
+   MPI.COMM_WORLD.Barrier()
    
    return retMatrix
 # end MPIBcast_SCIPY_Sparse_Matrix()
@@ -77,8 +85,15 @@ def procMessage(msg, root=-1, msg_type=None):
 # end procMessage()
 
 def DEBUG_MSG(msg, root=-1):
-   procMessage("DEBUG: {msg}".format(msg=msg), root)
-# end debugMsg()
+   procMessage("{msg}".format(msg=msg), root=root, msg_type='DEBUG')
+# end DEBUG_MSG()
+def ERROR_MSG(msg, root=-1):
+   procMessage("{msg}".format(msg=msg), root=root, msg_type='ERROR')
+# end ERROR_MSG()
+def WARNING_MSG(msg, root=-1):
+   procMessage("{msg}".format(msg=msg), root=root, msg_type='WARNING')
+# end WARNING_MSG()
+#
 
 def clipValue(inValue, lower, upper, valueType=None):
    # CCY - NOTE: while this works, it needs to be smarter about checking that the type specified is a
