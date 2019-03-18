@@ -61,7 +61,7 @@ def main(args):
       commConfigObj.readfp(configFile, cmdlnOpts.configFilepath)
       samplerate = commConfigObj.getfloat('Raw Data', 'samplerate')
       numSamplesPerFrame = commConfigObj.getint('Raw Data', 'numsamplesperframe')
-      decimation = commConfigObj.getint('Reduced DFT Data', 'decimation')
+      decimation = commConfigObj.getint('Spectrogram Plot', 'decimation')
       integTime = commConfigObj.getfloat('Reduced DFT Data', 'integrationtime')
       numSpectLines = commConfigObj.getint('Reduced DFT Data', 'numspectrogramlines')
       DFTLength = commConfigObj.getint('Reduced DFT Data', 'dftlength')
