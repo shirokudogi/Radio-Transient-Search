@@ -53,7 +53,7 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       #
       # Create times of injections.
       if regularTimes is True:
-         injTimes = np.linspace(timeStart, timeEnd, numInjects, dtype=np.float64) 
+         injTimes = np.linspace(np.float32(timeStart), np.float32(timeEnd), np.float32(numInjects))
       else:
          injTimes = np.random.random(numInjects)*(timeEnd - timeStart) + timeStart
       # endif
@@ -75,7 +75,7 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       # endif
       # Create injection DMs.
       if regularDMs is True:
-         injDMs = np.linspace(DMStart, DMEnd, numInjects, dtype=np.float64)
+         injDMs = np.linspace(np.float32(DMStart), np.float32(DMEnd), np.float32(numInjects) )
       else:
          injDMs = np.random.random(numInjects)*(DMEnd - DMStart) + DMStart
       # endif

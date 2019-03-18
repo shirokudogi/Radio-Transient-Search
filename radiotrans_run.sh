@@ -401,7 +401,7 @@ if [ -n "${PARAMS_FILE}" ]; then
    echo "     INJ_SPECTINDEX = ${INJ_SPECTINDEX}"
    echo "     INJ_TIMES = ${INJ_TIMES[*]}"
    echo "     INJ_DMS = ${INJ_DMS[*]}"
-   echo "     INJ_REGULAR_TIMES_OPT = ${INJ_REGULAR_TIME_OPT}"
+   echo "     INJ_REGULAR_TIMES_OPT = ${INJ_REGULAR_TIMES_OPT}"
    echo "     INJ_REGULAR_DMS_OPT = ${INJ_REGULAR_DMS_OPT}"
    echo "     INJ_ONLY_OPT = ${INJ_ONLY_OPT}"
    echo

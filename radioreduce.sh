@@ -311,8 +311,8 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift; shift
             ;;
          --inject-regular-times) # Specify to place injections at regular time intervals.
-            if [ -z "${INJ_REGULAR_TIME_OPT}" ]; then
-               INJ_REGULAR_TIME_OPT="--inject-regular-times"
+            if [ -z "${INJ_REGULAR_TIMES_OPT}" ]; then
+               INJ_REGULAR_TIMES_OPT="--inject-regular-times"
             fi
             shift
             ;;
@@ -511,6 +511,11 @@ if [ -n "${INJ_NUM}" ] && [ ${INJ_NUM} -gt 0 ]; then
       echo "   Inject at regular DM = false"
    else
       echo "   Inject at regular DM = true"
+   fi
+   if [ -z "${INJ_ONLY}" ]; then
+      echo "   Injections only = false"
+   else
+      echo "   Injections only = true"
    fi
 fi
 echo
