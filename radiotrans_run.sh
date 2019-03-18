@@ -354,7 +354,8 @@ source "${INSTALL_DIR}/utils.sh"
 
 # Parse the parameters file, if one given.
 if [ -n "${PARAMS_FILE}" ]; then
-   parse_config "${PARAMS_FILE}"
+   #parse_config "${PARAMS_FILE}"
+   source "${PARAMS_FILE}"
    if [ ${?} -eq 0 ]; then
       echo "radiotrans_run.sh: Run parameters loaded from ${PARAMS_FILE}"
       echo "                   (overrides pre-made values)."
@@ -478,7 +479,7 @@ do
                    "--injection-time-span" "--injection-dm-span")
          for INDEX in ${!INJ_VARS[@]}
          do
-            VAR_VALUE="${INJ_VARS[${INDEX}]}[@]"
+            VAR_VALUE="${INJ_VARS[${INDEX}]}[*]"
             if [ -n "${!VAR_VALUE}" ]; then
                CMD_REDUCE_OPTS=(${INJ_OPTS[${INDEX}]} ${!VAR_VALUE} ${CMD_REDUCE_OPTS[*]})
             fi

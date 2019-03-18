@@ -2,12 +2,11 @@
 #
 # Create a copy of this file and change the values of these parameters for a given set of runs.
 # Then specify the file to radiotrans_run.sh to perform runs with the specified parameter values.
-
+#
 # == DATA REDUCTION PHASE ==
 # Data reduction parameters (creation of waterfalls and subsequent spectrograms).
 INTEGTIME=100        # Waterfall integration time, in milliseconds.  Do not set this below 24.03265 
                      # to avoid corruption during RFI-bandpass filtering.
-DECIMATION=10000     # Decimation of spectrogram when building coarse spectrogram for plotting.
 #ENABLE_HANN_OPT=--enable-hann   # Enable Hann windowing on raw data.
 
 # Simulated signal injection parameters (injections occur during the data reduction phase).
@@ -20,6 +19,7 @@ INJ_DMS=(30 2000)    # Range of DMs for injections, in pc cm^-3.
 #INJ_REGULAR_DMS_OPT=--inject-regular-dms      # Injections are created at regular DM intervals.
 
 # Coarse spectrogram plotting parameters.
+DECIMATION=10000     # Decimation of spectrogram when building coarse spectrogram for plotting.
 RFI_STD=5.0          # RFI cut-off for plotting coarse spectrogram.
 SNR_CUTOFF=3.0       # SNR cut-off for plotting coarse spectrogram.
 SG_PARAMS0=(151 2 151 2)   # Savitzky-Golay parameters for smoothing tuning 0 coarse spectrogram plot.

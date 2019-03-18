@@ -443,12 +443,6 @@ if [ -n "${LABEL}" ]; then
    LABEL_OPT="--label ${LABEL}"
 fi
 
-# Check specifications for injections.
-if [ -z "${INJ_NUM}" ]; then
-   INJ_NUM=0
-else
-fi
-
 # Source the utility functions.
 source ${INSTALL_DIR}/utils.sh
 
@@ -495,6 +489,23 @@ if [ ${FLAG_DELWATERFALLS} -eq 0 ]; then
    echo "   Delete reduced waterfall files = false"
 else
    echo "   Delete reduced waterfall files = true"
+fi
+if [ -n "${INJ_NUM}" ] && [ ${INJ_NUM} -gt 0 ]; then
+   echo "   Number injections = ${INJ_NUM}"
+   echo "   Injection power = ${INJ_POWER}"
+   echo "   Injection spectral index = ${INJ_SPECTINDEX}"
+   echo "   Injection time span = ${INJ_TIMES[*]}"
+   echo "   Injection DM span = ${INJ_DMS}"
+   if [ -z "${INJ_REGULAR_TIMES_OPT}" ]; then
+      echo "   Inject at regular time = false"
+   else
+      echo "   Inject at regular time = true"
+   fi
+   if [ -z "${INJ_REGULAR_DMS_OPT}" ]; then
+      echo "   Inject at regular DM = false"
+   else
+      echo "   Inject at regular DM = true"
+   fi
 fi
 echo
 

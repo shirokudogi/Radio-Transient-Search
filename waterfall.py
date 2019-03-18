@@ -15,6 +15,7 @@ from math import ceil
 from math import floor
 from optparse import OptionParser
 import apputils
+import waterfallinject
 
 
 
@@ -50,11 +51,11 @@ def main(argv):
                            action='store',
                            help='Fraction (0 < abs(x) <= 1.0) of total spectrogram lines to create.',
                            metavar='FRAC')
-   cmdlnParser.add_option("--inject-power", dest="injectPower", default=10.0, type='float',
+   cmdlnParser.add_option("--inject-power", dest="injPower", default=10.0, type='float',
                            action='store',
                            help='Total spectral power of injected simulated burst signals.',
                            metavar='POWR')
-   cmdlnParser.add_option("--inject-spectral-index", dest='injectSpectIndex', default=0.0, type='float',
+   cmdlnParser.add_option("--inject-spectral-index", dest='injSpectIndex', default=0.0, type='float',
                            action='store',
                            help='Spectral index for injected simulated burst signals.',
                            metavar='INDEX')
@@ -64,8 +65,8 @@ def main(argv):
                            default=(None, None), action='store', nargs=2, type='float',
                            help='Time span in data, (BEGIN END) in seconds, containing injections.',
                            metavar='BEGIN END')
-   cmdlnParser.add_option('--injection-dm-span', dest='injDMProfile',
-                           default=(None, None) action='store', nargs=2, type='float',
+   cmdlnParser.add_option('--injection-dm-span', dest='injDMSpan',
+                           default=(None, None), action='store', nargs=2, type='float',
                            help='Range of DMs, (BEGIN END) in pc cm^-3, spanned by injections',
                            metavar='BEGIN END')
    cmdlnParser.add_option('--inject-regular-times', dest='injRegularTimes', default=False,
@@ -88,10 +89,10 @@ def main(argv):
    # endif
    #
    # Check waterfall injection specifications.
-   cmdlnOpts.injectPower = numpy.maximum(0.0, cmdlnOpts.injectPower)
+   cmdlnOpts.injectPower = numpy.maximum(0.0, cmdlnOpts.injPower)
    cmdlnOpts.numInjects = apputils.forceIntValue(cmdlnOpts.numInjects, 0, 50)
-   cmdlnOpts.injectSpectIndex = numpy.maximum(-2.0, numpy.minimum(2.0, cmdlnOpts.injectSpectIndex))
-   if cmdlnOpts.injectPower == 0.0:
+   cmdlnOpts.injectSpectIndex = numpy.maximum(-2.0, numpy.minimum(2.0, cmdlnOpts.injSpectIndex))
+   if cmdlnOpts.injPower == 0.0:
       cmdlnOpts.numInjects = 0
    # endif
 
@@ -200,16 +201,18 @@ def main(argv):
             commConfigObj.set("Injections", "numinjects", cmdlnOpts.numInjects)
             commConfigObj.set("Injections", "injectpower", cmdlnOpts.injectPower)
             commConfigObj.set("Injections", "injectspectralindex", cmdlnOpts.injectSpectIndex)
-            commConfigObj.set("Injections", "injecttemporalprofile", cmdlnOpts.injTemporalProfile)
-            commConfigObj.set("Injections", "injectdmprofile", cmdlnOpts.injDMProfile)
+            commConfigObj.set("Injections", "injecttemporalprofile", cmdlnOpts.injTimeSpan)
+            commConfigObj.set("Injections", "injectdmprofile", cmdlnOpts.injDMSpan)
          # endif
          commConfigObj.write(commConfigFile)
          commConfigFile.flush()
          commConfigFile.close()
-      except:
-         print 'Could not open or write common parameters file.'
+      except Exception as anError:
+         apputils.procMessage('waterfall.py: Could not open or write common parameters file.', root=0,
+                              msg_type='ERROR')
+         apputils.procMessage(str(anError), root=0)
          commConfigFile.close()
-         sys.exit(1)
+         MPIComm.Abort(1)
       # endtry
    # endif
 
@@ -250,26 +253,32 @@ def main(argv):
    # If waterfall injections enabled, create waterfall injection.
    injSpect0 = None  # Injection spectrogram for tuning 0.
    injSpect1 = None  # Injection spectrogram for tuning 1.
-   if procRank == 0 cmdlnOpts.enableInject:
+   if procRank == 0 and cmdlnOpts.numInjects > 0:
+      apputils.procMessage('waterfall.py: Generating waterfall injections.', root=0)
       bandwidth = rawDataSampleRate/1.0e6
       channelWidth = bandwidth/DFTLength
-      freqs0 = apputils.computeFreqs(rawDataTuningFreq0, bandwidth, DFTLength)
-      freqs1 = apputils.computeFreqs(rawDataTuningFreq1, bandwidth, DFTLength)
 
+      apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 0.', root=0)
+      freqs = apputils.computeFreqs(rawDataTuningFreq0/1.0e6, bandwidth, numBins=DFTLength)
       injSpect0 = waterfallinject.create_injections(freqs0, channelWidth, rawDataNumFramesPerTune,
-                                                    rawDataFrameTime, cmdlnOpts.injectPower,
+                                                    rawDataFrameTime, cmdlnOpts.injPower,
                                                     cmdlnOpts.injSpectIndex,
-                                                    cmdlnOpts.injTemporalProfile, cmdlnOpts.injDMProfile,
+                                                    cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
                                                     cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
                                                     cmdlnOpts.injRegularDMs)
+
+      apputils.MPIAbort(1)
+      apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 1.', root=0)
+      freqs = apputils.computeFreqs(rawDataTuningFreq1/1.0e6, bandwidth, numBins=DFTLength)
       injSpect1 = waterfallinject.create_injections(freqs1, channelWidth, rawDataNumFramesPerTune,
-                                                    rawDataFrameTime, cmdlnOpts.injectPower,
+                                                    rawDataFrameTime, cmdlnOpts.injPower,
                                                     cmdlnOpts.injSpectIndex,
-                                                    cmdlnOpts.injTemporalProfile, cmdlnOpts.injDMProfile,
+                                                    cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
                                                     cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
                                                     cmdlnOpts.injRegularDMs)
    # endif
    # Broadcast injections to other processes.
+   # CCY - Current issue with broadcasting sparse matrix.
    injSpect0 = MPIComm.bcast(injSpect0, root=0)
    injSpect1 = MPIComm.bcast(injSpect1, root=0)
 

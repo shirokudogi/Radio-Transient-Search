@@ -11,6 +11,10 @@ from mpi4py import MPI
 
 epsilon = np.float(10.0**(-15))
 
+def MPIAbort(code=0):
+   MPI.COMM_WORLD.Abort(code)
+# end MPIAbort()
+
 def procMessage(msg, root=-1, msg_type=None):
    if msg_type is not None:
       msg_type = " ({type})".format(type=msg_type)
@@ -312,7 +316,7 @@ def computeFreqs(centerFreq, bandwidth, botIndex=None, topIndex=None, numBins = 
    """
 
    freqs = None
-   if topIndex is not None or  numBins is not None:
+   if topIndex is not None or numBins is not None:
       if numBins is None:
          numBins = topIndex + 1
       elif topIndex is None:
@@ -332,7 +336,7 @@ def computeFreqs(centerFreq, bandwidth, botIndex=None, topIndex=None, numBins = 
       BWFactor = bandwidth/(2.0*numBins)
       for index in indices:
          freqIndex = botIndex + index
-         freqs[index] = centerFreq + BWFactor*(2*freqIndex - numBins)
+         freqs[index] = centerFreq + BWFactor*(2.0*freqIndex - numBins)
       # endfor
    # endif
    
