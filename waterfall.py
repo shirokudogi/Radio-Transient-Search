@@ -267,7 +267,6 @@ def main(argv):
                                                     cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
                                                     cmdlnOpts.injRegularDMs)
 
-      apputils.MPIAbort(1)
       apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 1.', root=0)
       freqs = apputils.computeFreqs(rawDataTuningFreq1/1.0e6, bandwidth, numBins=DFTLength)
       injSpect1 = waterfallinject.create_injections(freqs1, channelWidth, rawDataNumFramesPerTune,
