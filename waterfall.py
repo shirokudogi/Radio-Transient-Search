@@ -215,6 +215,7 @@ def main(argv):
             commConfigObj.set("Injections", "injectspectralindex", cmdlnOpts.injectSpectIndex)
             commConfigObj.set("Injections", "injecttemporalprofile", cmdlnOpts.injTimeSpan)
             commConfigObj.set("Injections", "injectdmprofile", cmdlnOpts.injDMSpan)
+            commConfigObj.set("Injections", "injectionsonly", cmdlnOpts.injOnly)
          # endif
          commConfigObj.write(commConfigFile)
          commConfigFile.flush()
