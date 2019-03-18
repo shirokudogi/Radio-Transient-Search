@@ -322,10 +322,10 @@ def main(argv):
             if cmdlnOpts.numInjects > 0:
                injIndex = injOffset + i*numDFTsPerSpectLine + j
                if injSpect0 is not None:
-                  powerDFT0[:] += injSpect0[injIndex, :]
+                  powerDFT0[:] += injSpect0[injIndex, :].toarray().flatten()
                # endif
                if injSpect1 is not None:
-                  powerDFT1[:] += injSpect1[injIndex, :]
+                  powerDFT1[:] += injSpect1[injIndex, :].toarray().flatten()
                # endif
             # endif
          # endfor
