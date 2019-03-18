@@ -279,7 +279,7 @@ else
 fi
 
 # Determine exit status
-if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
+if [ -z "${RESUME_LASTCMD_SUCCESS}" ] || [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
    echo "radiotransfer.sh: File transfer workflow completed successfully!"
    echo "radiotransfer.sh: Workflow exiting with status 0."
    echo

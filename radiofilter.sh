@@ -392,7 +392,7 @@ resumecmd -l ${LBL_CLEAN} -k ${RESUME_LASTCMD_SUCCESS} \
 report_resumecmd
 
 # Determine exit status
-if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
+if [ -z "${RESUME_LASTCMD_SUCCESS}" ] || [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
    echo "radiofilter.sh: RFI-bandpass filtration workflow completed successfully!"
    echo "radiofilter.sh: Workflow exiting with status 0."
    echo

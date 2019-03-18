@@ -712,7 +712,7 @@ fi
 
 
 # Determine exit status
-if [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
+if [ -z "${RESUME_LASTCMD_SUCCESS}" ] || [ ${RESUME_LASTCMD_SUCCESS} -eq 1 ]; then
    echo "radioreduce.sh: Radio data reduction workflow completed successfully!"
    echo "radioreduce.sh: Workflow exiting with status 0."
    echo
