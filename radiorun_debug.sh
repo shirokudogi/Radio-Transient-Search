@@ -5,6 +5,13 @@
 # PURPOSE: Runs the radio transient search workflow on LWA using a debug search parameter configuration.
 #
 
+while [ ! -z "${1}" ]
+do
+   if [[ "${1}" == "--clean" ]]; then
+      CLEAN_RUN_OPT="--clean"
+   fi
+   shift
+done
 
 INSTALL_DIR="${HOME}/dev/radiotrans"
 WORK_ROOT="/mnt/toaster/cyancey"
@@ -19,5 +26,5 @@ PARAM_FILE="./run_params.comm"
 
 ${INSTALL_DIR}/radiotrans_run.sh -I "${INSTALL_DIR}" -W "${WORK_ROOT}" -R "${RESULTS_ROOT}" \
                                  -D "${DATA_DIR}" --DEBUG ${SEARCH_OPT} --delete-waterfalls \
-                                 -P "${PARAM_FILE}" \
+                                 -P "${PARAM_FILE}" ${CLEAN_RUN_OPT} \
                                  -A "${LABELS[0]}" "${DATA_FILENAMES[0]}"

@@ -275,6 +275,10 @@ if [[ ${#} -gt 0 ]]; then
             NO_REDUCE_INTERACT_OPT="--no-interact"
             shift
             ;;
+         --clean) # Clear the working and results directories and restart the run from scratch.
+            CLEAN_RUN=1
+            shift
+            ;;
          *) # Ignore anything else.
             shift
             ;;
@@ -437,6 +441,16 @@ do
          echo "Could not create working directory ${WORK_DIR}"
          RUN_STATUS=1
       fi
+   else
+      # If this is to be a clean run, then clear the working directory.
+      if [ ! -z "${CLEAN_RUN}" ] && [ ${CLEAN_RUN} -eq 1 ]; then
+         rm -rf "${WORK_DIR}"
+         mkdir -p "${WORK_DIR}"
+         if [ ! -d "${WORK_DIR}" ]; then
+            echo "Could not recreate working directory ${WORK_DIR}"
+            RUN_STATUS=1
+         fi
+      fi
    fi
 
    # Create the results directory, if it doesn't exist.
@@ -446,11 +460,21 @@ do
          echo "Could not create results directory ${RESULTS_DIR}"
          RUN_STATUS=1
       fi
+   else
+      # If this is to be a clean run, then clear the results directory.
+      if [ ! -z "${CLEAN_RUN}" ] && [ ${CLEAN_RUN} -eq 1 ]; then
+         rm -rf "${RESULTS_DIR}"
+         mkdir -p "${RESULTS_DIR}"
+         if [ ! -d "${RESULTS_DIR}" ]; then
+            echo "Could not recreate results directory ${RESULTS_DIR}"
+            RUN_STATUS=1
+         fi
+      fi
    fi
 
 
-   # Stage to reload work into the working directory.
-   if [ ${RUN_STATUS} -eq 0 ] && [ ${RELOAD_WORK} -eq 1 ]; then
+   # Reload work if requested by user and this is not a clean run.
+   if [ ${RUN_STATUS} -eq 0 ] && [ ${RELOAD_WORK} -eq 1 ] && [ -z "${CLEAN_RUN}" ]; then
       # Build the command-line to perform the file transfer to the working directory from results
       # directory.
       CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
