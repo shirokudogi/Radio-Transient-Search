@@ -28,7 +28,7 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
    if numInjects > 0:
       numFreqs = len(freqs)
       topFreq = freqs[-1] + channelWidth
-      topFreqSqrd = topFreq**2
+      invTopFreqSqrd = 1.0/(topFreq**2)
       invChannelWidth = 1.0/channelWidth
 
       maxTime = intervalTime*numIntervals
@@ -82,7 +82,7 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
 
       # Compute indices and scaled delay times.
       injIndices = np.arange(numInjects)
-      freqIndices = np.arange(numFreqs)
+      freqIndices = np.arange(numFreqs -1, 0, step=-1)
       scaleDelays = apputils.scaleDelays(freqs, topFreq)/intervalTime
 
       apputils.procMessage('waterfallinject.py: Determining data size needed for injection sparse matrix.',
@@ -113,29 +113,30 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       qIndices = np.arange(maxQIndices, dtype=np.int32)
       innerTimes = np.zeros(maxQIndices, dtype=np.float32)
       innerFreqs = np.zeros(maxQIndices, dtype=np.float32)
+      invFreqsSqrd = np.zeros(maxQIndices, dtype=np.float32)
       weights = np.zeros(maxQIndices, dtype=np.float32)
       # For each injection, compute the dispersed power at each time and frequency.
       for i in injIndices:
          apputils.procMessage('waterfallinject.py: Compiling data for injection ' + \
                               '{0:d} of {1:d}.'.format(np.int(i+1), np.int(numInjects)), root=root)
          T0 = injTimes[i]
+         T0Prime = injTimesPrime[i]
          kFactor = 4.148808e3*injDMs[i]
-         fFactor = kFactor*topFreqSqrd
          # Compute the time-index containing the time of the top frequency of the top channel on the 
          # dispersion curve.
-         mIndexPrior = np.floor(injTimesPrime[i]).astype(np.int32) 
+         mIndexPrior = np.floor(T0Prime).astype(np.int32) 
          upperFreq = topFreq  # Upper frequency of the current channel.
          # Compute sparse data for each channel.
-         for j in reversed(freqIndices):
+         for j in freqIndices:
             # Compute the time-index containing the time of the bottom frequency of the channel on the
             # dispersion curve.
-            mIndex = np.floor(scaleDelays[j]*injDMs[i] + injTimesPrime[i]).astype(np.int32) 
+            mIndex = np.floor(scaleDelays[j]*injDMs[i] + T0Prime).astype(np.int32) 
             # Compute the times of intervals lying completely between the dispersed time of the top
             # frequency of the channel and the bottom frequency of the channel.
             qSpan = (mIndex - mIndexPrior)
             innerTimes[0:qSpan] = intervalTime*(mIndexPrior + 1 + qIndices[0:qSpan])
             # Compute the frequencies on the dispersion curve at the inner time intervals.
-            innerFreqs[0:qSpan] = np.sqrt( fFactor/(topFreqSqrd*(innerTimes[0:qSpan] - T0) + kFactor) )
+            innerFreqs[0:qSpan] = np.sqrt( 1.0/((innerTimes[0:qSpan] - T0)/kFactor + invTopFreqSqrd) )
             # Compute the weights of dispersed power over each interval covered by the dispersion curve
             # in the current channel.
             weights[0] = invChannelWidth*(upperFreq - innerFreqs[0])
@@ -143,16 +144,18 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
             weights[qSpan] = invChannelWidth*(innerFreqs[qSpan - 1] - freqs[j])
             # Determine row indices for sparse matrix data and mask off any that exceed the dimensions
             # of the matrix.
-            endIndex = qOffset + qSpan + 1
-            rowIndices = mIndexPrior + qIndices[0:qSpan + 1]
-            mask = rowIndices < numIntervals
+            endIndex = np.minimum(qOffset + qSpan + 1, dataCount)
+            qSpan = np.minimum(qSpan, endIndex - qOffset - 1)
+            rowIndices = mIndexPrior + qIndices[0:(qSpan + 1)]
             # Populate sparse matrix data for current channel.
-            rows[qOffset:endIndex][mask] = rowIndices[mask]
-            cols[qOffset:endIndex][mask] = j
-            data[qOffset:endIndex][mask] = weights[mask]*injSpectrum[j] 
+            rows[qOffset:endIndex] = rowIndices[0:(qSpan + 1)]
+            cols[qOffset:endIndex] = j
+            data[qOffset:endIndex] = weights[0:(qSpan + 1)]*injSpectrum[j] 
                
             # Prepare for the next channel.
             mIndexPrior = mIndex
+
+            # Prepare for the next set of data.
             qOffset = qOffset + qSpan + 1
          # endfor
       # endfor
