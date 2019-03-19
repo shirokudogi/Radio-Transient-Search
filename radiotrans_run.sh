@@ -279,6 +279,10 @@ if [[ ${#} -gt 0 ]]; then
             CLEAN_RUN=1
             shift
             ;;
+         --destroy) # Destroy the run.
+            DESTROY_RUN="DO IT!"
+            shift
+            ;;
          *) # Ignore anything else.
             shift
             ;;
@@ -426,6 +430,21 @@ do
       COMMCONFIG_FILE="${LABEL}.comm"
    else
       COMMCONFIG_FILE="radiotrans.comm"
+   fi
+
+   # Destroy the run, if requested.
+   if [ ! -z "${DESTROY_RUN}" ]; then
+      echo "radiotrans_run.sh: Destroying run ${LABEL}"
+      if [ -d "${WORK_DIR}" ]; then
+         echo "     Destroying working directory ${WORK_DIR}"
+         rm -rf "${WORK_DIR}"
+      fi
+      if [ -d "${RESULTS_DIR}" ]; then
+         echo "     Destroying results directory ${RESULTS_DIR}"
+         rm -rf "${RESULTS_DIR}"
+      fi
+      echo "radiotrans_run.sh: Run ${LABEL}=> DESTROYED!!!"
+      exit 0
    fi
 
    # Ensure the data file exists.

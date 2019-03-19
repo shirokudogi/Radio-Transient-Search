@@ -10,6 +10,9 @@ do
    if [[ "${1}" == "--clean" ]]; then
       CLEAN_RUN_OPT="--clean"
    fi
+   if [[ "${1}" == "--destroy" ]]; then
+      DESTROY_OPT="--destroy"
+   fi
    shift
 done
 
@@ -25,6 +28,6 @@ PARAM_FILE="./run_params.comm"
 
 ${INSTALL_DIR}/radiotrans_run.sh -I "${INSTALL_DIR}" -W "${WORK_ROOT}" -R "${RESULTS_ROOT}" \
                                  -D "${DATA_DIR}" --GW170809 --skip-rfi-bandpass \
-                                 -P "${PARAM_FILE}" ${CLEAN_RUN_OPT} \
+                                 -P "${PARAM_FILE}" ${CLEAN_RUN_OPT} ${DESTROY_OPT} \
                                  --delete-waterfalls \
                                  -A "${LABELS[0]}" "${DATA_FILENAMES[0]}"
