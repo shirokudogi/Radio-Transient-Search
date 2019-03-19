@@ -55,7 +55,7 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       if regularTimes is True:
          injTimes = np.linspace(np.float32(timeStart), np.float32(timeEnd), np.float32(numInjects))
       else:
-         injTimes = np.random.random(numInjects)*(timeEnd - timeStart) + timeStart
+         injTimes = np.random.random(numInjects).astype(np.float32)*(timeEnd - timeStart) + timeStart
       # endif
       # Scale the injection times to the interval time.
       injTimesPrime = injTimes/intervalTime
@@ -81,8 +81,8 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       # endif
 
       # Compute indices and scaled delay times.
-      injIndices = np.arange(numInjects)
-      freqIndices = np.arange(numFreqs -1, 0, step=-1)
+      injIndices = np.arange(numInjects, dtype=np.int32)
+      freqIndices = np.arange(numFreqs, dtype=np.int32)
       scaleDelays = apputils.scaleDelays(freqs, topFreq)/intervalTime
 
       apputils.procMessage('waterfallinject.py: Determining data size needed for injection sparse matrix.',
@@ -90,30 +90,28 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
       # Compute the total number of data elements we will have.  Need this for constructing the sparse
       # matrix that will hold the injection spectrogram.
       dataCount = 0
-      counts = np.zeros(numFreqs, dtype=np.int32)
+      qSpans = np.zeros(numFreqs, dtype=np.int32)
+      mIndices = np.zeros(numFreqs + 1, dtype=np.int32)
       maxQIndices = 0
       for i in injIndices:
-         counts[-1] = np.floor(scaleDelays[-1]*injDMs[i] + injTimesPrime[i]).astype(np.int32) - \
-                        np.floor(injTimesPrime[i]).astype(np.int32) + 2
-         counts[0:-1] = np.floor(scaleDelays[0:-1]*injDMs[i] + injTimesPrime[i]).astype(np.int32) - \
-                  np.floor(scaleDelays[1:]*injDMs[i] + injTimesPrime[i]).astype(np.int32) + 2
-         maxQIndices = np.maximum(maxQIndices, counts[0])
-         dataCount += np.sum(counts)
+         mIndices[0:numFreqs] = np.floor(scaleDelays[0:numFreqs]*injDMs[i] + \
+                                          injTimesPrime[i]).astype(np.int32)
+         mIndices[numFreqs] = np.floor(injTimesPrime[i]).astype(np.int32)
+         qSpans[0:numFreqs] = (mIndices[0:numFreqs] - mIndices[1:numFreqs + 1]) + 2
+         maxQIndices = np.maximum(maxQIndices, qSpans[0])
+         dataCount += np.sum(qSpans)
          # endfor
       # endfor
       # Allocate sparse data arrays for sparse matrix.
-      rows = np.zeros(dataCount, dtype=np.int32)
-      cols = np.zeros(dataCount, dtype=np.int32)
-      data = np.zeros(dataCount, dtype=np.float32)
+      rows = apputils.create_NUMPY_memmap((dataCount, ), dtype=np.int32)
+      cols = apputils.create_NUMPY_memmap((dataCount, ), dtype=np.int32)
+      data = apputils.create_NUMPY_memmap((dataCount, ), dtype=np.float32)
       qOffset = 0 # Offset into the sparse data arrays.
 
       apputils.procMessage('waterfallinject.py: Compiling data for injection sparse matrix.', root=root)
-      # Compute sparse data for dispersed simulated signal spectrogram.
-      # Pre-allocate compute arrays that will be used in building up the sparse data.
       qIndices = np.arange(maxQIndices, dtype=np.int32)
       innerTimes = np.zeros(maxQIndices, dtype=np.float32)
       innerFreqs = np.zeros(maxQIndices, dtype=np.float32)
-      invFreqsSqrd = np.zeros(maxQIndices, dtype=np.float32)
       weights = np.zeros(maxQIndices, dtype=np.float32)
       # For each injection, compute the dispersed power at each time and frequency.
       for i in injIndices:
@@ -122,45 +120,53 @@ def create_injections(freqs, channelWidth, numIntervals, intervalTime, totalPowe
          T0 = injTimes[i]
          T0Prime = injTimesPrime[i]
          kFactor = 4.148808e3*injDMs[i]
-         # Compute the time-index containing the time of the top frequency of the top channel on the 
-         # dispersion curve.
-         mIndexPrior = np.floor(T0Prime).astype(np.int32) 
-         upperFreq = topFreq  # Upper frequency of the current channel.
-         # Compute sparse data for each channel.
-         for j in freqIndices:
-            # Compute the time-index containing the time of the bottom frequency of the channel on the
-            # dispersion curve.
-            mIndex = np.floor(scaleDelays[j]*injDMs[i] + T0Prime).astype(np.int32) 
-            # Compute the times of intervals lying completely between the dispersed time of the top
-            # frequency of the channel and the bottom frequency of the channel.
-            qSpan = (mIndex - mIndexPrior)
-            innerTimes[0:qSpan] = intervalTime*(mIndexPrior + 1 + qIndices[0:qSpan])
-            # Compute the frequencies on the dispersion curve at the inner time intervals.
-            innerFreqs[0:qSpan] = np.sqrt( 1.0/((innerTimes[0:qSpan] - T0)/kFactor + invTopFreqSqrd) )
-            # Compute the weights of dispersed power over each interval covered by the dispersion curve
-            # in the current channel.
-            weights[0] = invChannelWidth*(upperFreq - innerFreqs[0])
-            weights[1:qSpan] = invChannelWidth*(innerFreqs[0:qSpan - 1] - innerFreqs[1:qSpan])
-            weights[qSpan] = invChannelWidth*(innerFreqs[qSpan - 1] - freqs[j])
-            # Determine row indices for sparse matrix data and mask off any that exceed the dimensions
-            # of the matrix.
-            endIndex = np.minimum(qOffset + qSpan + 1, dataCount)
-            qSpan = np.minimum(qSpan, endIndex - qOffset - 1)
-            rowIndices = mIndexPrior + qIndices[0:(qSpan + 1)]
-            # Populate sparse matrix data for current channel.
-            rows[qOffset:endIndex] = rowIndices[0:(qSpan + 1)]
-            cols[qOffset:endIndex] = j
-            data[qOffset:endIndex] = weights[0:(qSpan + 1)]*injSpectrum[j] 
-               
-            # Prepare for the next channel.
-            mIndexPrior = mIndex
 
-            # Prepare for the next set of data.
-            qOffset = qOffset + qSpan + 1
+         mIndices[0:numFreqs] = np.floor(scaleDelays*injDMs[i] + T0Prime).astype(np.int32)
+         mIndices[numFreqs] = np.floor(T0Prime).astype(np.int32)
+         qSpans[0:numFreqs] = mIndices[0:numFreqs] - mIndices[1:(numFreqs + 1)]
+
+         # Determine the dispersed power of each frequency channel for the current injection.
+         for j in freqIndices:
+            qSpan = qSpans[j]
+            if qSpan > 0:
+               # Determine inner time intervals and frequencies within the channel intersecting the
+               # dispersion curve.
+               innerTimes[0:qSpan] = intervalTime*(mIndices[j + 1] + 1 + qIndices[0:qSpan]) - T0
+               innerFreqs[0:qSpan] = np.sqrt(1.0/(innerTimes[0:qSpan]/kFactor + invTopFreqSqrd))
+
+               # Determine dispersion weights for each time interval along the dispersion curve within
+               # the channel.
+               if j == (numFreqs - 1):
+                  weights[0] = invChannelWidth*(topFreq - innerFreqs[0])
+               else:
+                  weights[0] = invChannelWidth*(freqs[j + 1] - innerFreqs[0])
+               # endif
+               weights[1:qSpan] = invChannelWidth*(innerFreqs[0:(qSpan - 1)] - innerFreqs[1:qSpan])
+               weights[qSpan] = invChannelWidth*(innerFreqs[qSpan - 1] - freqs[j])
+
+               # Determine row indices for sparse matrix data and mask off any that exceed the dimensions
+               # of the matrix.
+               endIndex = np.minimum(qOffset + qSpan + 1, dataCount)
+               qSpan = np.minimum(qSpan + 1, endIndex - qOffset)
+               rowIndices = mIndices[j+1] + qIndices[0:qSpan]
+               mask = rowIndices < numIntervals
+               # Populate sparse matrix data for current channel.
+               rows[qOffset:endIndex][mask] = rowIndices[0:qSpan][mask]
+               cols[qOffset:endIndex][mask] = j
+               data[qOffset:endIndex][mask] = weights[0:qSpan][mask]*injSpectrum[j] 
+            else:
+               qSpan = 1
+               rows[qOffset] = mIndices[j+1]
+               cols[qOffset] = j
+               data[qOffset] = injSpectrum[j] 
+            # endif
+            #
+            # Prepare for the next set of weighted data.
+            qOffset = qOffset + qSpan
          # endfor
       # endfor
       #
-      # Create the simulated signal spectrogram as a sparse matrix from the sparse data.
+      # Construct the simulated signal spectrogram as a sparse matrix from the dispersed power data.
       apputils.procMessage('waterfallinject.py: Constructing injection sparse matrix.', root=root)
       injSpectrogram = coo_matrix((data, (rows, cols)), shape = (numIntervals, numFreqs)).tocsr()
       apputils.procMessage('waterfallinject.py: Construction of injection sparse matrix complete.',

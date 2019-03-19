@@ -26,6 +26,7 @@ def main(argv):
    nProcs = MPIComm.Get_size()
    procRank = MPIComm.Get_rank()
 
+
    # Initialize command-line parser and then parse the command-line
    usage = " Usage: %prog [options] <radio filepath>"
    cmdlnParser = OptionParser(usage=usage)
@@ -84,6 +85,9 @@ def main(argv):
                            msg_type='ERROR')
       apputils.MPIAbort(1)
    # endif
+   #
+   apputils.set_mmap_dir(cmdlnOpts.workDir)
+
    spectIntegTime = cmdlnOpts.spectIntTime/1000.0
    memLimit = apputils.forceIntValue(cmdlnOpts.memLimit, 100, 64000)*1e6
    dataUtilFrac = cmdlnOpts.dataUtilFrac

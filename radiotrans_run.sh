@@ -438,16 +438,17 @@ do
    if [ ! -d "${WORK_DIR}" ]; then
       mkdir -p "${WORK_DIR}"
       if [ ! -d "${WORK_DIR}" ]; then
-         echo "Could not create working directory ${WORK_DIR}"
+         echo "radiotrans_run.sh: Could not create working directory ${WORK_DIR}"
          RUN_STATUS=1
       fi
    else
       # If this is to be a clean run, then clear the working directory.
       if [ ! -z "${CLEAN_RUN}" ] && [ ${CLEAN_RUN} -eq 1 ]; then
+         echo "radiotrans_run.sh: Cleaning working directory."
          rm -rf "${WORK_DIR}"
          mkdir -p "${WORK_DIR}"
          if [ ! -d "${WORK_DIR}" ]; then
-            echo "Could not recreate working directory ${WORK_DIR}"
+            echo "radiotrans_run.sh: Could not recreate working directory ${WORK_DIR}"
             RUN_STATUS=1
          fi
       fi
@@ -457,16 +458,17 @@ do
    if [ ! -d "${RESULTS_DIR}" ]; then
       mkdir -p "${RESULTS_DIR}"
       if [ ! -d "${RESULTS_DIR}" ]; then
-         echo "Could not create results directory ${RESULTS_DIR}"
+         echo "radiotrans_run.sh: Could not create results directory ${RESULTS_DIR}"
          RUN_STATUS=1
       fi
    else
       # If this is to be a clean run, then clear the results directory.
       if [ ! -z "${CLEAN_RUN}" ] && [ ${CLEAN_RUN} -eq 1 ]; then
+         echo "radiotrans_run.sh: Cleaning results directory."
          rm -rf "${RESULTS_DIR}"
          mkdir -p "${RESULTS_DIR}"
          if [ ! -d "${RESULTS_DIR}" ]; then
-            echo "Could not recreate results directory ${RESULTS_DIR}"
+            echo "radiotrans_run.sh: Could not recreate results directory ${RESULTS_DIR}"
             RUN_STATUS=1
          fi
       fi

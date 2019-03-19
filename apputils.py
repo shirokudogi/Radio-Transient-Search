@@ -5,12 +5,80 @@
 #
 import os
 import sys
+import tempfile
+import mmap
 import numpy as np
 from mpi4py import MPI
 import scipy.sparse as sparse
 
 
 epsilon = np.float(10.0**(-15))
+MAX_NUMPY_ARRAY_BYTES=1000000000
+MMAP_DIR="~/temp"
+NumPy2MPIType={'float32':MPI.FLOAT, 
+               'int32':MPI.INT, 
+               'complex64':MPI.COMPLEX, 
+               'int64':MPI.LONG}
+
+def set_mmap_dir(mmapDir="~/temp"):
+   global MMAP_DIR
+
+   MMAP_DIR = mmapDir
+# end set_mmap_dir()
+
+def create_NUMPY_memmap(shape=(1,), dtype=np.int32, mode='w+', mapDir=None):
+   global MMAP_DIR
+
+   if mapDir is None:
+      mapDir = MMAP_DIR
+   # endif
+   (tempFD, tempFilepath) = tempfile.mkstemp(prefix='tmp', suffix='.dtmp', dir=mapDir)
+   memmapArr = np.memmap(filename=tempFilepath, shape=shape, dtype=dtype, mode=mode)
+
+   return memmapArr
+# end create_NUMPY_memmap()
+
+def __MPIBcast_NUMPY_Array(inArray, root=0):
+   global MMAP_DIR
+   global MAX_NUMPY_ARRAY_BYTES
+   global NumPy2MPIType
+
+   MPIComm = MPI.COMM_WORLD
+   procRank = MPIComm.Get_rank()
+   numProcs = MPIComm.Get_size()
+
+   outArray = inArray
+   numElems = None
+   dtype = None
+
+   if procRank == root:
+      if inArray is not None:
+         if isinstance(inArray, np.ndarray) or isinstance(inArray, np.memmap):
+            numElems = np.int64(len(inArray))
+            dtype = inArray.dtype
+         else:
+            raise TypeError('Input argument is not type numpy.ndarray or numpy.memmap') 
+         # endif
+      else:
+         raise TypeError('Input argument \'None\'is not type numpy.ndarray or numpy.memmap') 
+      # endif
+   # endif
+   numElems = MPIComm.bcast(numElems, root=root)
+   dtype = MPIComm.bcast(dtype, root=root)
+
+   numBytes = numElems*np.dtype(dtype).itemsize
+   if numBytes < MAX_NUMPY_ARRAY_BYTES:
+      outArray = MPIComm.bcast(outArray, root=root)
+   else:
+      if procRank != root:
+         outArray = create_NUMPY_memmap(shape=(numElems,), dtype=dtype, mode='w+')
+      # endif
+      
+      MPIComm.Bcast([outArray, numElems, NumPy2MPIType[dtype.name]], root=root)
+   # endif
+
+   return outArray
+# end __MPIBcast_NUMPY_Array()
 
 def __MPIBcast_SCIPY_CSR_Matrix(inMatrix, root=0):
    MPIComm = MPI.COMM_WORLD
@@ -35,9 +103,12 @@ def __MPIBcast_SCIPY_CSR_Matrix(inMatrix, root=0):
          raise TypeError('Input argument \'None\' is not of type scipy.sparse.csr_matrix') 
       # endif
    # endif
-   data = MPIComm.bcast(data, root=root)
-   indptr = MPIComm.bcast(indptr, root=root)
-   indices = MPIComm.bcast(indices, root=root)
+   #data = MPIComm.bcast(data, root=root)
+   #indptr = MPIComm.bcast(indptr, root=root)
+   #indices = MPIComm.bcast(indices, root=root)
+   data = __MPIBcast_NUMPY_Array(data, root=root)
+   indptr = __MPIBcast_NUMPY_Array(indptr, root=root)
+   indices = __MPIBcast_NUMPY_Array(indices, root=root)
    shape = MPIComm.bcast(shape, root=root)
    dtype = MPIComm.bcast(dtype, root=root)
 
