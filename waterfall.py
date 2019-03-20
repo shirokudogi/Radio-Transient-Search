@@ -313,7 +313,7 @@ def main(argv):
    # Create spectrogram tiles.
    lineOffset = numSpectLinesPerProc*procRank
    injOffset = lineOffset*numDFTsPerSpectLine
-   normFactor = (4.0*LFFT*numDFTsPerSpectLine)
+   normFactor = (4.0*LFFT)
    while fileOffset < endFileOffset:
       rawDataFile.seek(fileOffset, os.SEEK_CUR)
       apputils.procMessage("Integrating lines {start} to {end}...".format(start=lineOffset,
