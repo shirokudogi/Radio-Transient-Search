@@ -30,6 +30,8 @@ def main(args):
                            help="Flag denoting to produce a baseline plot instead of a bandpass plot.")
    cmdlnParser.add_option("-g", "--savitzky-golay", dest='SGParams', default=None, type='string',
                            action='store', help='Savitzky-Golay parameters', metavar='PARAMS')
+   cmdlnParser.add_option("--standard-dev", dest="fStdDev", default=False, action="store_true",
+                           help="Flag denoting to produce plot of standard deviations instead of mean")
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
 
    # Check that a spectrogram file has been provided and that it exists.
@@ -69,16 +71,26 @@ def main(args):
    # Determine if we are making a bandpass or baseline plot.
    if not cmdlnOpts.fPlotBaseline:
       # Configure for bandpass plot.
-      plotCurve = spectrogram.mean(0)
+      if not cmdlnOpts.fStdDev:
+         plotCurve = spectrogram.mean(0)
+         plotTitle = '{label} Mean Bandpass'.format(label=cmdlnOpts.label)
+      else
+         plotCurve = spectrogram.std(0)
+         plotTitle = '{label} StdDev Bandpass'.format(label=cmdlnOpts.label)
+      # endif
       freqStep = samplerate/(numSamplesPerFrame*1000.0)
-      plotTitle = '{label} Mean Bandpass'.format(label=cmdlnOpts.label)
       plotXLabel = 'Frequency ({step:.3f} kHz)'.format(step=freqStep)
       commConfigObj.set('Reduced DFT Data', 'meanbandpasspower', np.sum(plotCurve))
    else:
       # Configure for baseline plot.
-      plotCurve = spectrogram.mean(1)
+      if not cmdlnOpts.fStdDev:
+         plotCurve = spectrogram.mean(1)
+         plotTitle = '{label} Mean Baseline'.format(label=cmdlnOpts.label)
+      else
+         plotCurve = spectrogram.std(1)
+         plotTitle = '{label} StdDev Baseline'.format(label=cmdlnOpts.label)
+      # endif
       timeStep = integTime * int(numSpectLines/decimation)
-      plotTitle = '{label} Baseline'.format(label=cmdlnOpts.label)
       plotXLabel = 'Time ({step:.4f} sec)'.format(step=timeStep)
       commConfigObj.set('Reduced DFT Data', 'meanbaselinepower', plotCurve.mean())
       commConfigObj.set('Reduced DFT Data', 'medianbaselinepower', np.median(plotCurve))

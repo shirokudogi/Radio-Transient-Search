@@ -19,11 +19,9 @@
 # Make sure extended regular expressions are supported.
 shopt -s extglob
 
-# User input test patterns.
-AFFIRMATIVE='^(y|yes|yup|yea|yeah|ya)$'
-INTEGER_NUM='^[+-]?[0-9]+$'
-REAL_NUM='^[+-]?[0-9]+([.][0-9]+)?$'
 
+source "OPT-INSTALL_DIR/test_patterns.sh"
+#source "${HOME}/dev/radiotrans/test_patterns.sh"   # Use only when debugging.
 
 USAGE='
 radioextract

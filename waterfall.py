@@ -79,6 +79,8 @@ def main(argv):
                            help='Inject simulated signals at regular DM intervals.')
    cmdlnParser.add_option('--injections-only', dest='injOnly', default=False, action='store_true',
                            help='Only use injections to create waterfalls.')
+   cmdlnParser.add_option('--no-time-average', dest='noTimeAvg', default=False, action='store_true',
+                           help='Only accumulate spectral power over time; don\'t perform averaging.')
    (cmdlnOpts, args) = cmdlnParser.parse_args(argv)
    if len(args) == 0:
       apputils.procMessage("waterfall.py: Must supply a path to the radio data file.", root=0,
@@ -314,6 +316,9 @@ def main(argv):
    lineOffset = numSpectLinesPerProc*procRank
    injOffset = lineOffset*numDFTsPerSpectLine
    normFactor = (4.0*LFFT)
+   if cmdlnParser.noTimeAvg == False:     # Toggle averaging spectral power over integration time.
+      normFactor *= np.float32(numDFTsPerSpectLine) 
+   # endif
    while fileOffset < endFileOffset:
       rawDataFile.seek(fileOffset, os.SEEK_CUR)
       apputils.procMessage("Integrating lines {start} to {end}...".format(start=lineOffset,

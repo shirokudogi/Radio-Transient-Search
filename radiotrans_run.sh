@@ -2,10 +2,8 @@
 
 shopt -s extglob
 
-# User input test patterns.
-AFFIRMATIVE='^(y|yes|yup|yea|yeah|ya)$'
-INTEGER_NUM='^[+-]?[0-9]+$'
-REAL_NUM='^[+-]?[0-9]+([.][0-9]+)?$'
+source "OPT-INSTALL_DIR/test_patterns.sh"
+#source "${HOME}/dev/radiotrans/test_patterns.sh"   # Use only when debugging.
 
 
 # Configure process parameters.
@@ -275,6 +273,13 @@ if [[ ${#} -gt 0 ]]; then
             NO_REDUCE_INTERACT_OPT="--no-interact"
             shift
             ;;
+         --no-time-average) # Specify to just do the time integration without taking the time-average
+                            # afterwards during the data reduction phase.
+            if [ -z "${NO_TIME_AVG_OPT}" ]; then
+               NO_TIME_AVG_OPT="--no-time-average"
+            fi
+            shift
+            ;;
          --clean) # Clear the working and results directories and restart the run from scratch.
             CLEAN_RUN=1
             shift
@@ -387,6 +392,8 @@ if [ -n "${PARAMS_FILE}" ]; then
    fi
    echo
    echo "     INTEGTIME = ${INTEGTIME}"
+   echo "     ENABLE_HANN_OPT = ${ENABLE_HANN_OPT}"
+   echo "     TIME_AVERAGE_TOGGLE = ${NO_TIME_AVG_OPT}"
    echo "     DECIMATION = ${DECIMATION}"
    echo "     RFI_STD = ${RFI_STD}"
    echo "     SNR_CUTOFF = ${SNR_CUTOFF}"
@@ -403,7 +410,6 @@ if [ -n "${PARAMS_FILE}" ]; then
    echo "     DM_END = ${DM_END}"
    echo "     DM_STEP = ${DM_STEP}"
    echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
-   echo "     ENABLE_HANN_OPT = ${ENABLE_HANN_OPT}"
    echo "     INJ_NUM = ${INJ_NUM}"
    echo "     INJ_POWER = ${INJ_POWER}"
    echo "     INJ_SPECTINDEX = ${INJ_SPECTINDEX}"
@@ -514,7 +520,7 @@ do
          CMD_REDUCE="${INSTALL_DIR}/radioreduce.sh"
          CMD_REDUCE_OPTS=(--install-dir "${INSTALL_DIR}" --integrate-time ${INTEGTIME} \
                --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${ENABLE_HANN_OPT} \
-               --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+               --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" ${NO_TIME_AVG_OPT} \
                --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
                --data-utilization ${DATA_UTILIZE} ${SUPERCLUSTER_OPT} ${NO_REDUCE_INTERACT_OPT} \
                --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}" \

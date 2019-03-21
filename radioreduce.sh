@@ -23,10 +23,8 @@
 # Make sure extended regular expressions are supported.
 shopt -s extglob
 
-# User input test patterns.
-AFFIRMATIVE='^(y|yes|yup|yea|yeah|ya)$'
-INTEGER_NUM='^[+-]?[0-9]+$'
-REAL_NUM='^[+-]?[0-9]+([.][0-9]+)?$'
+source "OPT-INSTALL_DIR/test_patterns.sh"
+#source "${HOME}/dev/radiotrans/test_patterns.sh"   # Use only when debugging.
 
 
 USAGE='
@@ -100,7 +98,7 @@ WORK_DIR=            # Working directory.
 RESULTS_DIR=         # Results directory.
 MEM_LIMIT=           # Total memory usage limit, in MB, for spectrogram tiles among all processes.
 LABEL=               # User label attached to output files from data reduction.
-ENABLE_HANN=         # Commandline option string to enable Hann windowing in the data reduction.
+ENABLE_HANN_OPT=         # Commandline option string to enable Hann windowing in the data reduction.
 DECIMATION=          # Decimation for producing coarse spectrogram.
 RFI_STD=             # RFI standard deviation cutoff.
 DATA_UTILIZE=        # Fraction of the spectrogram lines to output from the raw data.
@@ -195,7 +193,7 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift
             ;;
          --enable-hann) # Enable Hann windowing on the raw DFTs during reduction.
-            ENABLE_HANN="--enable-hann"
+            ENABLE_HANN_OPT="--enable-hann"
             shift
             ;;
          --delete-waterfalls) # Specify deletion of waterfall files at the end of the run.
@@ -325,6 +323,13 @@ if [[ ${#} -gt 0 ]]; then
          --injections-only) # Specifies to only use injections for waterfalls.
             if [ -z "${INJ_ONLY_OPT}" ]; then
                INJ_ONLY_OPT="--injections-only"
+            fi
+            shift
+            ;;
+         --no-time-average) # Specify to just do the time integration without taking the time-average
+                            # afterwards during the data reduction phase.
+            if [ -z "${NO_TIME_AVG_OPT}" ]; then
+               NO_TIME_AVG_OPT="--no-time-average"
             fi
             shift
             ;;
@@ -479,9 +484,13 @@ echo "   Memory limit (MB) = ${MEM_LIMIT}"
 echo "   Common parameters file = ${COMMCONFIG_FILE}"
 echo
 echo "   Run label = ${LABEL}"
-echo "   Integration time = ${INTEGTIME}"
+if [ -z "${NO_TIME_AVG_OPT}" ]; then
+   echo "   Integration time = ${INTEGTIME} (averaging)"
+else
+   echo "   Integration time = ${INTEGTIME} (accumulation only)"
+fi
 echo "   Raw data utilization = ${DATA_UTILIZE}"
-if [ -z "${ENABLE_HANN}" ]; then
+if [ -z "${ENABLE_HANN_OPT}" ]; then
    echo "   Enable Hann windowing = false"
 else
    echo "   Enable Hann windowing = true"
@@ -564,8 +573,8 @@ echo "radioreduce.sh: Generating waterfall tiles for spectrogram from ${DATA_PAT
 if [ -z "${INJ_NUM}" ] || [ ${INJ_NUM} -lt 1 ]; then
    resumecmd -l ${LBL_WATERFALL} \
       mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
-      --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" \
-      ${ENABLE_HANN} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
+      --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" ${NO_TIME_AVG_OPT} \
+      ${ENABLE_HANN_OPT} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
       --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --memory-limit ${MEM_LIMIT} "${DATA_PATH}"
    report_resumecmd
 else
@@ -584,8 +593,8 @@ else
    # Generate waterfall tiles with injection of simulated dispersed signals.
    resumecmd -l ${LBL_WATERFALL} \
       mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/waterfall.py \
-      --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" \
-      ${ENABLE_HANN} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
+      --integrate-time ${INTEGTIME} --work-dir "${WORK_DIR}" ${NO_TIME_AVG_OPT} \
+      ${ENABLE_HANN_OPT} ${LABEL_OPT} --data-utilization ${DATA_UTILIZE} \
       --num-injections ${INJ_NUM} --inject-spectral-index ${INJ_SPECTINDEX} \
       --inject-power ${INJ_POWER} ${INJ_ONLY_OPT} \
       ${INJ_TIMES_OPT} ${INJ_DMS_OPT} ${INJ_REGULAR_TIMES_OPT} ${INJ_REGULAR_DMS_OPT} \
@@ -631,6 +640,12 @@ resumecmd -l ${LBL_SGBANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbandpass-${CMBPREFIX}-T0.png" \
    --label "SG-${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
+resumecmd -l ${LBL_BANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --standard-dev \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbandpass-${CMBPREFIX}-T0.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+report_resumecmd
 echo "radioreduce.sh: Generating baseline images of coarse combined waterfall for tuning 0..."
 resumecmd -l ${LBL_BASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
@@ -644,6 +659,12 @@ resumecmd -l ${LBL_SGBASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    --savitzky-golay "${SG_PARAMS0[2]},${SG_PARAMS0[3]}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbaseline-${CMBPREFIX}-T0.png" \
    --label "SG-${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+report_resumecmd
+resumecmd -l ${LBL_BASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline --standard-dev \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/baseline-${CMBPREFIX}-T0.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
 
 echo "radioreduce.sh: Generating bandpass images of coarse combined waterfall for tuning 1..."
@@ -660,6 +681,12 @@ resumecmd -l ${LBL_SGBANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbandpass-${CMBPREFIX}-T1.png" \
    --label "SG-${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
+resumecmd -l ${LBL_BANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --standard-dev \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/bandpass-${CMBPREFIX}-T1.png" \
+   --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+report_resumecmd
 echo "radioreduce.sh: Generating baseline images of coarse combined waterfall for tuning 1..."
 resumecmd -l ${LBL_BASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
@@ -673,6 +700,12 @@ resumecmd -l ${LBL_SGBASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    --savitzky-golay "${SG_PARAMS1[2]},${SG_PARAMS1[3]}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbaseline-${CMBPREFIX}-T1.png" \
    --label "SG-${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+report_resumecmd
+resumecmd -l ${LBL_BASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline --standard-dev \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/baseline-${CMBPREFIX}-T1.png" \
+   --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 
 
