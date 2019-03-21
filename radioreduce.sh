@@ -23,8 +23,8 @@
 # Make sure extended regular expressions are supported.
 shopt -s extglob
 
-source "OPT-INSTALL_DIR/test_patterns.sh"
-#source "${HOME}/dev/radiotrans/test_patterns.sh"   # Use only when debugging.
+source "OPT-INSTALL_DIR/text_patterns.sh"
+#source "${HOME}/dev/radiotrans/text_patterns.sh"   # Use only when debugging.
 
 
 USAGE='
@@ -562,6 +562,10 @@ LBL_BANDPASSIMG0="WaterfallBandpassImg_Tune0"
 LBL_BANDPASSIMG1="WaterfallBandpassImg_Tune1"
 LBL_BASELINEIMG0="WaterfallBaselineImg_Tune0"
 LBL_BASELINEIMG1="WaterfallBaselineImg_Tune1"
+LBL_STDBANDPASSIMG0="WaterfallSTDBandpassImg_Tune0"
+LBL_STDBANDPASSIMG1="WaterfallSTDBandpassImg_Tune1"
+LBL_STDBASELINEIMG0="WaterfallSTDBaselineImg_Tune0"
+LBL_STDBASELINEIMG1="WaterfallSTDBaselineImg_Tune1"
 LBL_SGBANDPASSIMG0="WaterfallSGBandpassImg_Tune0"
 LBL_SGBANDPASSIMG1="WaterfallSGBandpassImg_Tune1"
 LBL_SGBASELINEIMG0="WaterfallSGBaselineImg_Tune0"
@@ -640,7 +644,7 @@ resumecmd -l ${LBL_SGBANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbandpass-${CMBPREFIX}-T0.png" \
    --label "SG-${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
-resumecmd -l ${LBL_BANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+resumecmd -l ${LBL_STDBANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --standard-dev \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbandpass-${CMBPREFIX}-T0.png" \
@@ -660,10 +664,10 @@ resumecmd -l ${LBL_SGBASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbaseline-${CMBPREFIX}-T0.png" \
    --label "SG-${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
-resumecmd -l ${LBL_BASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+resumecmd -l ${LBL_STDBASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline --standard-dev \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
-   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/baseline-${CMBPREFIX}-T0.png" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbaseline-${CMBPREFIX}-T0.png" \
    --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
 
@@ -681,10 +685,10 @@ resumecmd -l ${LBL_SGBANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbandpass-${CMBPREFIX}-T1.png" \
    --label "SG-${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
-resumecmd -l ${LBL_BANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+resumecmd -l ${LBL_STDBANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --standard-dev \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
-   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/bandpass-${CMBPREFIX}-T1.png" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbandpass-${CMBPREFIX}-T1.png" \
    --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 echo "radioreduce.sh: Generating baseline images of coarse combined waterfall for tuning 1..."
@@ -701,10 +705,10 @@ resumecmd -l ${LBL_SGBASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbaseline-${CMBPREFIX}-T1.png" \
    --label "SG-${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
-resumecmd -l ${LBL_BASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+resumecmd -l ${LBL_STDBASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline --standard-dev \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
-   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/baseline-${CMBPREFIX}-T1.png" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbaseline-${CMBPREFIX}-T1.png" \
    --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 

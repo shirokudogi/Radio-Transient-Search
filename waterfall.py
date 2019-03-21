@@ -316,7 +316,7 @@ def main(argv):
    lineOffset = numSpectLinesPerProc*procRank
    injOffset = lineOffset*numDFTsPerSpectLine
    normFactor = (4.0*LFFT)
-   if cmdlnParser.noTimeAvg == False:     # Toggle averaging spectral power over integration time.
+   if cmdlnOpts.noTimeAvg == False:     # Toggle averaging spectral power over integration time.
       normFactor *= np.float32(numDFTsPerSpectLine) 
    # endif
    while fileOffset < endFileOffset:

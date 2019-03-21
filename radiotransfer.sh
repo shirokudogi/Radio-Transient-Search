@@ -10,8 +10,8 @@
 shopt -s extglob
 
 
-source "OPT-INSTALL_DIR/test_patterns.sh"
-#source "${HOME}/dev/radiotrans/test_patterns.sh"   # Use only when debugging.
+source "OPT-INSTALL_DIR/text_patterns.sh"
+#source "${HOME}/dev/radiotrans/text_patterns.sh"   # Use only when debugging.
 
 USAGE='
 radiotransfer.sh

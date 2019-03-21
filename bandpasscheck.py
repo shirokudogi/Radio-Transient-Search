@@ -74,7 +74,7 @@ def main(args):
       if not cmdlnOpts.fStdDev:
          plotCurve = spectrogram.mean(0)
          plotTitle = '{label} Mean Bandpass'.format(label=cmdlnOpts.label)
-      else
+      else:
          plotCurve = spectrogram.std(0)
          plotTitle = '{label} StdDev Bandpass'.format(label=cmdlnOpts.label)
       # endif
@@ -86,7 +86,7 @@ def main(args):
       if not cmdlnOpts.fStdDev:
          plotCurve = spectrogram.mean(1)
          plotTitle = '{label} Mean Baseline'.format(label=cmdlnOpts.label)
-      else
+      else:
          plotCurve = spectrogram.std(1)
          plotTitle = '{label} StdDev Baseline'.format(label=cmdlnOpts.label)
       # endif
