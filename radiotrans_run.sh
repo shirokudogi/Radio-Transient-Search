@@ -6,6 +6,23 @@ source "OPT-INSTALL_DIR/text_patterns.sh"
 #source "${HOME}/dev/radiotrans/text_patterns.sh"   # Use only when debugging.
 
 
+
+
+# Pause menu options.
+PAUSE_OPT_PAUSE="Pause"
+PAUSE_OPT_UNPAUSE="Unpause"
+PAUSE_OPT_CLEAN="Clean"
+PAUSE_OPT_CONTINUE="Continue"
+PAUSE_OPT_STOP="Stop"
+
+# RFI-Bandpass menu options.
+LFFT0_STR="Lower FFT Index Tuning 0"
+UFFT0_STR="Upper FFT Index Tuning 0"
+LFFT1_STR="Lower FFT Index Tuning 1"
+UFFT1_STR="Upper FFT Index Tuning 1"
+BPW_STR="Bandpass smoothing window"
+BLW_STR="Baseline smoothing window"
+
 # Configure process parameters.
 NUM_PROCS=$(nproc --all)   # Number of processes to use in the MPI environment.
 MEM_LIMIT=32768            # Memory limit, in MBs, for creating waterfall tiles in memory.
@@ -85,9 +102,9 @@ if [[ ${#} -gt 0 ]]; then
             SG_PARAMS0=(151 2 151 2)
             SG_PARAMS1=(111 2 151 2)
             LOWER_FFT0=0
-            UPPER_FFT0=4094
+            UPPER_FFT0=4095
             LOWER_FFT1=0
-            UPPER_FFT1=4094
+            UPPER_FFT1=4095
             BP_WINDOW=10
             BL_WINDOW=50
             SNR_THRESHOLD=5.0
@@ -109,9 +126,9 @@ if [[ ${#} -gt 0 ]]; then
             SG_PARAMS0=(151 2 151 2)
             SG_PARAMS1=(111 2 151 2)
             LOWER_FFT0=0
-            UPPER_FFT0=4094
+            UPPER_FFT0=4095
             LOWER_FFT1=0
-            UPPER_FFT1=4094
+            UPPER_FFT1=4095
             BP_WINDOW=11
             BL_WINDOW=51
             SNR_THRESHOLD=5.0
@@ -134,9 +151,9 @@ if [[ ${#} -gt 0 ]]; then
             SG_PARAMS1=(111 2 151 2)
             ENABLE_HANN_OPT=
             LOWER_FFT0=0
-            UPPER_FFT0=4094
+            UPPER_FFT0=4095
             LOWER_FFT1=0
-            UPPER_FFT1=4094
+            UPPER_FFT1=4095
             BP_WINDOW=10
             BL_WINDOW=50
             SNR_THRESHOLD=5.0
@@ -288,6 +305,12 @@ if [[ ${#} -gt 0 ]]; then
             DESTROY_RUN="DO IT!"
             shift
             ;;
+         --play-nice) # Specify that the run should play nice with it's execution and use of computing
+                      # resources. This essentially amounts to having points at which the user can save
+                      # work progress and continue it later, even on a different node in the cluster.
+            PLAY_NICE_OPT="DO IT!"
+            shift
+            ;;
          *) # Ignore anything else.
             shift
             ;;
@@ -312,7 +335,7 @@ if [ -z "${INSTALL_DIR}" ]; then
    INSTALL_DIR="OPT-INSTALL_DIR"
 fi
 if [ -d "${INSTALL_DIR}" ]; then
-   package_modules=(radioreduce.sh radiofilter.sh radiotransfer.sh radiosearch.sh)
+   package_modules=(radioreduce.sh radiofilter.sh radiotransfer.sh radiosearch.sh utils.sh)
    for module in ${package_modules[*]}; do
       MODULE_PATH="${INSTALL_DIR}/${module}"
       if [ ! -f "${MODULE_PATH}" ]; then
@@ -326,6 +349,7 @@ else
    echo "     ${INSTALL_DIR}"
    exit 1
 fi
+source "${INSTALL_DIR}/utils.sh"
 
 # Check that the working root directories is specified.
 if [ -z "${WORK_ROOT}" ]; then
@@ -376,20 +400,15 @@ if [ -n "${PARAMS_FILE}" ]; then
       echo "radiotrans_run.sh (WARNING): An error occurred reading parameters file.  Some run"
       echo "                             parameters may not be set to desired values."
       echo
-      MENU_CHOICES=("Continue" "Quit")
-      PS3="Select option: "
-      select USER_SELECT in ${MENU_CHOICES[*]}
-      do
-         if [[ ${USER_SELECT} == ${MENU_CHOICES[0]} ]]; then
-            break
-         elif [[ ${USER_SELECT} == ${MENU_CHOICES[1]} ]]; then
-            echo "radiotrans_run.sh: Quitting run."
-            exit 1
-         else
-            continue
-         fi
-      done
+      menu_select "Continue" "Quit"
+      if [ ${?} -eq 0 ]; then
+         break
+      else
+         echo "radiotrans_run.sh: Quitting run."
+         exit 1
+      fi
    fi
+   echo "radiotrans_run.sh: Parameters file found."
    echo
    echo "     INTEGTIME = ${INTEGTIME}"
    echo "     ENABLE_HANN_OPT = ${ENABLE_HANN_OPT}"
@@ -432,6 +451,8 @@ do
    DATA_PATH="${DATA_DIR}/${DATA_FILENAMES[${INDEX}]}"
    WORK_DIR="${WORK_ROOT}/${LABEL}"
    RESULTS_DIR="${RESULTS_ROOT}/${LABEL}"
+   PAUSE_FILE="${RESULTS_DIR}/${LABEL}_paused_run"
+
    if [ -n "${LABEL}" ]; then
       COMMCONFIG_FILE="${LABEL}.comm"
    else
@@ -450,7 +471,7 @@ do
          rm -rf "${RESULTS_DIR}"
       fi
       echo "radiotrans_run.sh: Run ${LABEL}=> DESTROYED!!!"
-      exit 0
+      continue
    fi
 
    # Ensure the data file exists.
@@ -487,6 +508,45 @@ do
          RUN_STATUS=1
       fi
    else
+      # If we're playing nicely with computing resources, check if this run is marked as 
+      # being paused.
+      if [ -f "${PAUSE_FILE}" ] && [ -n "${PLAY_NICE_OPT}" ]; then
+         echo "radiotrans_run.sh: Run \"${LABEL}\" currently paused.  You have the option to leave" 
+         echo "                   the run paused (option \"Pause\"), unpause the run "
+         echo "                   (option \"Unpause\"), restart with a clean run (option \"Clean\")"
+         echo "                   or stop the current run (option\"Clean\"; remaining runs continue"
+         echo "                   as normal)"
+         menu_select -m "How would you like to proceed?" "${PAUSE_OPT_PAUSE}" "${PAUSE_OPT_UNPAUSE}" \
+                     "${PAUSE_OPT_CLEAN}" "${PAUSE_OPT_STOP}"
+         case ${?} in
+            0) # Continue to pause the run and go to the next one.
+               echo "radiotrans_run.sh: Run ${LABEL} will remain paused."
+               continue
+               ;;
+            1) # Unpause the run.
+               echo "radiotrans_run.sh: Run ${LABEL} unpausing."
+               RELOAD_WORK=1
+               FORCE_TRANSFER_OPT="--force-repeat"
+               CLEAN_RUN=
+               rm -f "${PAUSE_FILE}"
+               ;;
+            2) # Restart the run as a clean run.
+               echo "radiotrans_run.sh: Restarting run ${LABEL} as a clean run."
+               rm -f "${PAUSE_FILE}"
+               CLEAN_RUN=1
+               ;;
+            3) # Unpause the run but don't continue running it.
+               echo "radiotrans_run.sh: Stopping run ${LABEL}."
+               rm -f "${PAUSE_FILE}"
+               continue
+               ;;
+            -1 )
+               echo "radiotrans_run.sh: Script needs more debugging :("
+               exit 1
+               ;;
+         esac
+      fi
+
       # If this is to be a clean run, then clear the results directory.
       if [ ! -z "${CLEAN_RUN}" ] && [ ${CLEAN_RUN} -eq 1 ]; then
          echo "radiotrans_run.sh: Cleaning results directory."
@@ -507,7 +567,7 @@ do
       CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
       CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
             --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}"  \
-            --reload-work ${SUPERCLUSTER_OPT})
+            --reload-work ${FORCE_TRANSFER_OPT} ${SUPERCLUSTER_OPT})
       # Perform transfer of file to working directory from results directory.
       ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
       RUN_STATUS=${?}
@@ -550,174 +610,160 @@ do
 
    # Stage to perform RFI-bandpass filtration.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 0 ]; then
+      if [ -n "${PLAY_NICE_OPT}" ] && [ ! -f "${PAUSE_FILE}" ]; then
+         echo "radiotrans_run.sh: Run \"${LABEL}\" has hit a convenient pause point."
+         echo "                   The run can be saved at this point and resumed later"
+         echo "                   on the same machine/node or a different one."
+         menu_select -m "How would you like the run to proceed?" "${PAUSE_OPT_PAUSE}" \
+                     "${PAUSE_OPT_CONTINUE}" "${PAUSE_OPT_STOP}"
+         case ${?} in
+            0) # Pause the current run.
+               echo "radiotrans_run.sh: Pausing run \"${LABEL}\"."
+               # Delete any temporary files and then transfer results so far to results directory.. 
+               echo "                   Removing temporary files from working directory..."
+               delete_files "${WORK_DIR}/*.dtmp"
+               echo "                   Saving current results to results directory..."
+               transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
+                               "*.npy" "*.png" "*.comm" "*.txt"
+               # Mark the run as paused; then proceed to the next run.
+               touch "${PAUSE_FILE}"
+               echo "radiotrans_run.sh: Run \"${LABEL}\" paused."
+               continue
+               ;;
+            2) # Stop the current run without saving.
+               echo "radiotrans_run.sh: Stopping run ${LABEL}."
+               continue
+               ;;
+            1) # Continue with the current run.
+               echo "radiotrans_run.sh: Continuing with run ${LABEL}."
+               ;;
+            *) # Something went wrong.  Needs more debugging.
+               echo "radiotrans_run.sh: Script needs more debugging :("
+               exit 1
+               ;;
+         esac
+      fi
+
       echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
       echo "                to determine appropriate FFT index bounds and smoothing window "
       echo "                parameters before performing RFI-bandpass filtration."
       echo
       sleep 3
 
-      # Obtain FFT indices and smoothing window parameters from the user.
-      LFFT0_STR="Lower_FFT_Index_Tuning_0"
-      UFFT0_STR="Upper_FFT_Index_Tuning_0"
-      LFFT1_STR="Lower_FFT_Index_Tuning_1"
-      UFFT1_STR="Upper_FFT_Index_Tuning_1"
-      BPW_STR="Bandpass_smoothing_window"
-      BLW_STR="Baseline_smoothing_window"
-      MENU_BREAK=0
       echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
-      while [ ${MENU_BREAK} -eq 0 ]
+      echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
+      echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
+      echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
+      echo "   Upper FFT Index Tuning 1 = ${UPPER_FFT1}"
+      echo "   Bandpass smoothing window = ${BP_WINDOW}"
+      echo "   Baseline smoothing window = ${BL_WINDOW}"
+
+      while [ -z "${NO_RFIBP_INTERACT_OPT}" ]
       do
-         MENU_CHOICES=("proceed" "change" "quit")
+         menu_select -m "radiofilter.sh: Proceed with the current parameters?" \
+                 "Proceed" "Change" "Quit" 
+         CHOICE=${?}
+         if [ ${CHOICE} -eq 0 ]; then
+            NO_RFIBP_INTERACT_OPT="--no-interact"
+            break
+         elif [ ${CHOICE} -eq 2 ]; then
+            # Quit from RFI-bandpass filtration.
+            echo "radiotrans_run.sh: Quitting from RFI-bandpass filtration."
+            RUN_STATUS=1
+            break
+         elif [ ${CHOICE} -eq 1 ]; then
+            while [ 1 ]
+            do
+               # Get new parameters for RFI-bandpass filtration from user.
+               menu_select -m "Select parameter to change:" "${LFFT0_STR}" "${UFFT0_STR}" \
+                           "${LFFT1_STR}" "${UFFT1_STR}" "${BPW_STR}" "${BLW_STR}" "Done"
+               CHOICE=${?}
+               case ${CHOICE} in
+                  0 | 1 | 2 | 3 | 4 | 5) # Change a parameter.
+                     while [ 1 ] 
+                     do
+                        echo "Enter integer value for parameter: "
+                        read USER_VAL
+                        if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
+                           case ${CHOICE} in
+                              0 | 1 | 2 | 3 ) # Change FFT index bounds.
+                                 if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
+                                    case ${CHOICE} in
+                                       0)
+                                          LOWER_FFT0=${USER_VAL}
+                                          ;;
+                                       1)
+                                          UPPER_FFT0=${USER_VAL}
+                                          ;;
+                                       2)
+                                          LOWER_FFT1=${USER_VAL}
+                                          ;;
+                                       3)
+                                          UPPER_FFT1=${USER_VAL}
+                                          ;;
+                                    esac
+                                    break
+                                 else
+                                    echo "Entered value must be an integer from 0 to 4094"
+                                 fi
+                                 ;;
+                              4 | 5 ) # Change smoothing parameters.
+                                 if [ ${USER_VAL} -gt 0 ]; then
+                                    case ${CHOICE} in
+                                       4)
+                                          BP_WINDOW=${USER_VAL}
+                                          ;;
+                                       5)
+                                          BL_WINDOW=${USER_VAL}
+                                          ;;
+                                    esac
+                                    break
+                                 else
+                                    echo "Entered value must be an integer greater than 0"
+                                 fi
+                                 ;;
+                           esac
+                        else
+                           echo "Entered value must be an integer. "
+                        fi
+                     done
+                     continue
+                     ;;
+                  6 ) # Done changing parameters.
+                     break
+                     ;;
+                  * ) # Invalid choice.
+                     continue
+                     ;;
+               esac
+            done
+         else
+            continue
+         fi
+
          echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
          echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
          echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
          echo "   Upper FFT Index Tuning 1 = ${UPPER_FFT1}"
          echo "   Bandpass smoothing window = ${BP_WINDOW}"
          echo "   Baseline smoothing window = ${BL_WINDOW}"
-
-         # Skip interaction if requested by user...
-         if [ -n "${NO_RFIBP_INTERACT_OPT}" ]; then
-            # Build the command-line to perform the RFI-bandpass filtration.
-            CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
-            CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
-                  --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} --no-interact \
-                  --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-                  --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SUPERCLUSTER_OPT} \
-                  --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
-                  --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
-                  --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
-            # Perform the RFI-bandpass filtration.
-            ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
-            RUN_STATUS=${?}
-            
-            MENU_BREAK=1
-            break
-         fi
-
-         # ...otherwise, proceed with interaction.
-         echo "radiofilter.sh: Proceed with the above parameters?"
-         PS3="Select option: "
-         select USER_SELECT in ${MENU_CHOICES[*]}
-         do
-            if [[ "${USER_SELECT}" == ${MENU_CHOICES[0]} ]]; then
-               # Run the RFI-bandpass filtration.
-               echo "radiofilter.sh: Proceding with RFI-bandpass filtration workflow..."
-               echo
-               # Build the command-line to perform the RFI-bandpass filtration.
-               CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
-               CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
-                     --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} --no-interact \
-                     --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
-                     --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SUPERCLUSTER_OPT} \
-                     --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
-                     --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
-                     --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
-               # Perform the RFI-bandpass filtration.
-               ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
-               RUN_STATUS=${?}
-
-               MENU_BREAK=1
-               break
-            elif [[ "${USER_SELECT}" == ${MENU_CHOICES[2]} ]]; then
-               # Quit from RFI-bandpass filtration.
-               echo "radiotrans_run.sh: Quitting from RFI-bandpass filtration."
-               RUN_STATUS=1
-               MENU_BREAK=1
-               break
-            elif [[ "${USER_SELECT}" == ${MENU_CHOICES[1]} ]]; then
-               # Get new parameters for RFI-bandpass filtration from user.
-               MENU_CHOICES=("${LFFT0_STR}" "${UFFT0_STR}" \
-                              "${LFFT1_STR}" "${UFFT1_STR}" \
-                              "${BPW_STR}" "${BLW_STR}" "Done")
-               PS3="Select parameter to change: "
-               SUBMENU_BREAK=0
-               while [ ${SUBMENU_BREAK} -eq 0 ]
-               do
-                  select USER_SELECT in ${MENU_CHOICES[*]}
-                  do
-                     case "${USER_SELECT}" in
-                        "${LFFT0_STR}" | \
-                        "${UFFT0_STR}" | \
-                        "${LFFT1_STR}" | \
-                        "${UFFT1_STR}" | \
-                        "${BPW_STR}" | \
-                        "${BLW_STR}" )
-                           while [ 1 ] 
-                           do
-                              echo "Enter integer value: "
-                              read USER_VAL
-                              if [[ "${USER_VAL}" =~ ${INTEGER_NUM} ]]; then
-                                 case "${USER_SELECT}" in
-                                    "${LFFT0_STR}" )
-                                       if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                          LOWER_FFT0=${USER_VAL}
-                                          break
-                                       else
-                                          echo "Entered value must be an integer from 0 to 4094"
-                                       fi
-                                       ;;
-                                    "${UFFT0_STR}" )
-                                       if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                          UPPER_FFT0=${USER_VAL}
-                                          break
-                                       else
-                                          echo "Entered value must be an integer from 0 to 4094"
-                                       fi
-                                       ;;
-                                    "${LFFT1_STR}" )
-                                       if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                          LOWER_FFT1=${USER_VAL}
-                                          break
-                                       else
-                                          echo "Entered value must be an integer from 0 to 4094"
-                                       fi
-                                       ;;
-                                    "${UFFT1_STR}" )
-                                       if [ ${USER_VAL} -gt -1 ] && [ ${USER_VAL} -lt 4095 ]; then
-                                          UPPER_FFT1=${USER_VAL}
-                                          break
-                                       else
-                                          echo "Entered value must be an integer from 0 to 4094"
-                                       fi
-                                       ;;
-                                    "${BPW_STR}" )
-                                       if [ ${USER_VAL} -gt 0 ]; then
-                                          BP_WINDOW=${USER_VAL}
-                                          break
-                                       else
-                                          echo "Entered value must be an integer greater than 0"
-                                       fi
-                                       ;;
-                                    "${BLW_STR}" )
-                                       if [ ${USER_VAL} -gt 0 ]; then
-                                          BL_WINDOW=${USER_VAL}
-                                          break
-                                       else
-                                          echo "Entered value must be an integer greater than 0"
-                                       fi
-                                 esac
-                              else
-                                 echo "Entered value must be an integer. "
-                              fi
-                           done # endwhile
-                           break
-                           ;;
-                        Done)
-                           SUBMENU_BREAK=1
-                           break
-                           ;;
-                        *)
-                           continue
-                           ;;
-                     esac
-                  done # endselect 
-               done # endwhile
-               break
-            else
-               continue
-            fi
-         done # endselect
       done # endwhile
+
+      # If we're done interacting, then do the RFI-bandpass filtration.
+      if [ -n "${NO_RFIBP_INTERACT_OPT}" ]; then
+         # Build the command-line to perform the RFI-bandpass filtration.
+         CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
+         CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
+               --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} --no-interact \
+               --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
+               --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SUPERCLUSTER_OPT} \
+               --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
+               --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
+               --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
+         # Perform the RFI-bandpass filtration.
+         ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
+         RUN_STATUS=${?}
+      fi 
    else
       if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 1 ]; then
          echo "radiotrans_run.sh: Skipping RFI-bandpass filtration per user request."
@@ -727,6 +773,40 @@ do
 
    # Stage to perform de-dispered search.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${DO_DDISP_SEARCH} -eq 1 ]; then
+      if [ -n "${PLAY_NICE_OPT}" ] && [ ! -f "${PAUSE_FILE}" ]; then
+         echo "radiotrans_run.sh: Run \"${LABEL}\" has hit a convenient pause point."
+         echo "                   The run can be saved at this point and resumed later"
+         echo "                   on the same machine/node or a different one."
+         menu_select -m "How would you like the run to proceed?" "${PAUSE_OPT_PAUSE}" \
+                     "${PAUSE_OPT_CONTINUE}" "${PAUSE_OPT_STOP}"
+         case ${?} in
+            0) # Pause the current run.
+               echo "radiotrans_run.sh: Pausing run \"${LABEL}\"."
+               source "${INSTALL_DIR}/utils.sh"
+               # Delete any temporary files and then transfer results so far to results directory.. 
+               echo "                   Removing temporary files from working directory..."
+               delete_files "${WORK_DIR}/*.dtmp"
+               echo "                   Saving current results to results directory..."
+               transfer_files --src-dir "${WORK_DIR}" --dest-dir "${RESULTS_DIR}" \
+                               "*.npy" "*.png" "*.comm" "*.txt"
+               # Mark the run as paused; then proceed to the next run.
+               touch "${PAUSE_FILE}"
+               echo "radiotrans_run.sh: Run \"${LABEL}\" paused."
+               continue
+               ;;
+            2) # Stop the current run without saving.
+               echo "radiotrans_run.sh: Stopping run ${LABEL}."
+               continue
+               ;;
+            1) # Continue with the current run.
+               echo "radiotrans_run.sh: Continuing with run ${LABEL}."
+               ;;
+            *) # Something went wrong.  Needs more debugging.
+               echo "radiotrans_run.sh: Script needs more debugging :("
+               exit 1
+               ;;
+         esac
+      fi
       CMBPREFIX="spectrogram"
       if [ -n "${LABEL}" ]; then
          CMBPREFIX="${CMBPREFIX}_${LABEL}"
@@ -786,13 +866,27 @@ do
       echo
       ALL_STATUS=1
    fi
+
+   if [ -n "${PLAY_NICE_OPT}" ]; then
+      RUNS_REMAIN=`expr ${#RUN_INDICES[@]} - ${INDEX}`
+      if [ ${RUNS_REMAIN} -gt 1 ]; then
+         menu_select -m "radiotrans_run.sh: More runs remain to do.  Continue with remaining runs?" \
+                     "Yes" "No"
+         if [ ${1} -eq 1 ]; then
+            echo "radiotrans_run.sh: Stopping here.  Execute radiotrans_run.sh again, with "
+            echo "                   appropriate parameters to resume with remaining runs."
+            ALL_STATUS=1
+            break
+         fi
+      fi
+   fi
 done
 
 if [ ${ALL_STATUS} -eq 0 ]; then
-   echo "radiotrans_run.sh: All iterations of the workflow executed successfully!"
+   echo "radiotrans_run.sh: All runs of the workflow executed successfully!"
    echo
 else
-   echo "radiotrans_run.sh: Some iterations of the workflow failed"
+   echo "radiotrans_run.sh: Some runs of the workflow failed or were not executed."
    echo
 fi
 exit ${ALL_STATUS}

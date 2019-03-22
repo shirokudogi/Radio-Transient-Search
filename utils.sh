@@ -96,6 +96,66 @@ function transfer_files()
 }
 # end transfer_files()
 
+# Menu selection function.
+function menu_select ()
+{
+   local MENU_MESSAGE=
+   local MENU_CHOICES=
+   local CHOICE=-1   # By default, no choice has been made.
+   local ARG_OPTS='^(--menu-message|-m)$'
+   
+
+   if [ ${#} -gt 0 ]; then
+      # Parse arguments for the menu message and menu options.
+      while [ -n "${1}" ]
+      do
+         if [[ "${1}" =~ ${ARG_OPTS} ]]; then
+            MENU_MESSAGE="${2}"
+            shift; shift
+         else
+            if [ ${#MENU_CHOICES[@]} -eq 1 ] && [ -z "${MENU_CHOICES}" ]; then
+               MENU_CHOICES="${1}"
+            else
+               MENU_CHOICES=("${MENU_CHOICES[@]}" "${1}")
+            fi
+            shift
+         fi
+      done
+      
+      # Check that we have menu options.
+      if [ ${#MENU_CHOICES[@]} -gt 0 ]; then
+         # Display the menu message.
+         echo "${MENU_MESSAGE}"
+
+         # Display the menu and get the user's choice.
+         OLD_IFS=${IFS}
+         OLD_PS3="${PS3}"
+         IFS=""
+         PS3="Enter choice number: "
+         select OPTION in ${MENU_CHOICES[@]}
+         do
+            # Determine user's selection.
+            for i in ${!MENU_CHOICES[@]}
+            do
+               CURR="${MENU_CHOICES[${i}]}"
+               if [ "${OPTION}" = "${CURR}" ]; then
+                  CHOICE=${i}
+               fi
+            done
+            if [ ${CHOICE} -ne -1 ]; then
+               break
+            fi
+         done
+         PS3="${OLD_PS3}"
+         IFS=${OLD_IFS}
+      fi
+   fi
+
+   return ${CHOICE}
+}
+# End function menu_select()
+#
+#
 # CCY - This function is to be removed.  It's actually unnecessary and doesn't completely work the way I
 # would like.  It will be retained in archive for future study.
 #function parse_config()

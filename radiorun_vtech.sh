@@ -13,6 +13,9 @@ do
    if [[ "${1}" == "--destroy" ]]; then
       DESTROY_OPT="--destroy"
    fi
+   if [[ "${1}" == "--play-nice" ]]; then
+      PLAY_NICE_OPT="--play-nice"
+   fi
    shift
 done
 
@@ -30,6 +33,6 @@ PARAM_FILE="./run_params.comm"
 
 ${INSTALL_DIR}/radiotrans_run.sh -I "${INSTALL_DIR}" -W "${WORK_ROOT}" -R "${RESULTS_ROOT}" \
                                  -P "${PARAM_FILE}" ${CLEAN_RUN_OPT} ${DESTROY_OPT} \
-                                 --reload-work ${SUPERCLUSTER_OPT} \
+                                 --reload-work ${SUPERCLUSTER_OPT} ${PLAY_NICE_OPT} \
                                  --GW170809 --skip-reduce --do-dedispersed-search \
                                  -A "${LABELS[0]}" "${DATA_FILENAMES[0]}"

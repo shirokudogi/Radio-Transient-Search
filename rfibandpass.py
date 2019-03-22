@@ -65,7 +65,7 @@ def main_routine(args):
    cmdlnParser.add_option('-l', '--lower-fft-index', dest='lowerFFTIndex', type='int', default=0,
                            help='Lower FFT index (between 0 and 4094) for bandpass filtering.', 
                            metavar='INDEX')
-   cmdlnParser.add_option('-u', '--upper-fft-index', dest='upperFFTIndex', type='int', default=4094,
+   cmdlnParser.add_option('-u', '--upper-fft-index', dest='upperFFTIndex', type='int', default=4095,
                            help='Upper FFT index (between 0 and 4094) for bandpass filtering.', 
                            metavar='INDEX')
    cmdlnParser.add_option('-w', '--work-dir', dest='workDir', type='string', default='.',
@@ -87,8 +87,8 @@ def main_routine(args):
                            help='Flag denoting tuning 1.')
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
 
-   lowerFFTIndex = apputils.forceIntValue(cmdlnOpts.lowerFFTIndex, 0, 4094)
-   upperFFTIndex = apputils.forceIntValue(cmdlnOpts.upperFFTIndex, 0, 4094)
+   lowerFFTIndex = apputils.forceIntValue(cmdlnOpts.lowerFFTIndex, 0, 4095)
+   upperFFTIndex = apputils.forceIntValue(cmdlnOpts.upperFFTIndex, 0, 4095)
    bpWindow = apputils.forceIntValueOdd(cmdlnOpts.bpWindow, 1, 9999, align=1)
    blWindow = apputils.forceIntValueOdd(cmdlnOpts.blWindow, 1, 9999, align=1)
 
