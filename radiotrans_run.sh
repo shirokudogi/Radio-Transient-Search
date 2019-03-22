@@ -14,6 +14,9 @@ PAUSE_OPT_UNPAUSE="Unpause"
 PAUSE_OPT_CLEAN="Clean"
 PAUSE_OPT_CONTINUE="Continue"
 PAUSE_OPT_STOP="Stop"
+PAUSE_OPT_PAUSEALL="Pause All"
+PAUSE_OPT_STOPALL="Stop All"
+PAUSE_OPT_CONTINUEALL="Continue All"
 
 # RFI-Bandpass menu options.
 LFFT0_STR="Lower FFT Index Tuning 0"
@@ -512,15 +515,25 @@ do
       # being paused.
       if [ -f "${PAUSE_FILE}" ] && [ -n "${PLAY_NICE_OPT}" ]; then
          echo "radiotrans_run.sh: Run \"${LABEL}\" currently paused.  You have the option to leave" 
-         echo "                   the run paused (option \"Pause\"), unpause the run "
-         echo "                   (option \"Unpause\"), restart with a clean run (option \"Clean\")"
-         echo "                   or stop the current run (option\"Clean\"; remaining runs continue"
-         echo "                   as normal)"
+         echo "                   the run paused (option \"${PAUSE_OPT_PAUSE}\"), unpause the run "
+         echo "                   (option \"${PAUSE_OPT_UPAUSE}\"), restart with a clean run "
+         echo "                   (option \"${PAUSE_OPT_CLEAN}\") or stop the current run (option"
+         echo "                   \"${PAUSE_OPT_STOP}\") while remaining runs continue as normal."
+         echo "                   Alternatively, you can also pause or stop this and all subsequent "
+         echo "                   runs (option \"${PAUSE_OPT_PAUSEALL}\" and \"${PAUSE_OPT_STOPALL}\","
+         echo "                   respectively)."
          menu_select -m "How would you like to proceed?" "${PAUSE_OPT_PAUSE}" "${PAUSE_OPT_UNPAUSE}" \
-                     "${PAUSE_OPT_CLEAN}" "${PAUSE_OPT_STOP}"
-         case ${?} in
-            0) # Continue to pause the run and go to the next one.
+                     "${PAUSE_OPT_CLEAN}" "${PAUSE_OPT_STOP}" "${PAUSE_OPT_PAUSEALL}" \
+                     "${PAUSE_OPT_STOPALL}"
+         CHOICE=${?}
+         case ${CHOICE} in
+            0 | 4) # Continue to pause the run and go to the next one. Also, pausing all runs, if
+                   # selected.
                echo "radiotrans_run.sh: Run ${LABEL} will remain paused."
+               if [ ${CHOICE} -eq 4 ]; then
+                  echo "radiotrans_run.sh: Subsequent runs have also been paused."
+                  break
+               fi
                continue
                ;;
             1) # Unpause the run.
@@ -535,9 +548,13 @@ do
                rm -f "${PAUSE_FILE}"
                CLEAN_RUN=1
                ;;
-            3) # Unpause the run but don't continue running it.
+            3 | 5) # Unpause and stop the current run.  Also, stop all subsequent runs, if selected.
                echo "radiotrans_run.sh: Stopping run ${LABEL}."
                rm -f "${PAUSE_FILE}"
+               if [ ${CHOICE} -eq 5]; then
+                  echo "radiotrans_run.sh: Stopping all subsequent runs."
+                  break
+               fi
                continue
                ;;
             -1 )
@@ -612,12 +629,18 @@ do
    if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 0 ]; then
       if [ -n "${PLAY_NICE_OPT}" ] && [ ! -f "${PAUSE_FILE}" ]; then
          echo "radiotrans_run.sh: Run \"${LABEL}\" has hit a convenient pause point."
-         echo "                   The run can be saved at this point and resumed later"
-         echo "                   on the same machine/node or a different one."
+         echo "                   The run can be saved at this point and resumed later (option "
+         echo "                   \"${PAUSE_OPT_PAUSE}\"), continued (option \"${PAUSE_OPT_CONTINUE}\"),"
+         echo "                   or stopped (option \"${PAUSE_OPT_STOP}\"). "
+         echo
+         echo "                   Alternatively, this and subsequent runs can be paused (option "
+         echo "                   \"${PAUSE_OPT_PAUSEALL}\") or stopped (option \"${PAUSE_OPT_STOPALL}\")."
          menu_select -m "How would you like the run to proceed?" "${PAUSE_OPT_PAUSE}" \
-                     "${PAUSE_OPT_CONTINUE}" "${PAUSE_OPT_STOP}"
-         case ${?} in
-            0) # Pause the current run.
+                     "${PAUSE_OPT_CONTINUE}" "${PAUSE_OPT_STOP}" "${PAUSE_OPT_PAUSEALL}" \
+                     "${PAUSE_OPT_STOPALL}"
+         CHOICE=${?}
+         case ${CHOICE} in
+            0 | 3) # Pause the current run. Also pause all subsequent runs, if selected.
                echo "radiotrans_run.sh: Pausing run \"${LABEL}\"."
                # Delete any temporary files and then transfer results so far to results directory.. 
                echo "                   Removing temporary files from working directory..."
@@ -628,10 +651,90 @@ do
                # Mark the run as paused; then proceed to the next run.
                touch "${PAUSE_FILE}"
                echo "radiotrans_run.sh: Run \"${LABEL}\" paused."
+               if [ ${CHOICE} -eq 3 ]; then
+                  echo "radiotrans_run.sh: All subsequent runs paused."
+                  break
+               fi
+               RUNS_REMAIN=`expr ${#RUN_INDICES[@]} - ${INDEX}`
+               if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
+                  echo "radiotrans_run.sh: More runs remain to do."
+                  while [1]
+                  do
+                     menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
+                                    "${PAUSE_OPT_CONTINUEALL}" "${PAUSE_OPT_STOPALL}"
+                     CHOICE=${?}
+                     case ${CHOICE} in
+                        0) # Continue to next run.
+                           echo "radiotrans_run.sh: Continuing to next run."
+                           break
+                           ;;
+                        1) # Continue with all subsequent runs.
+                           echo "radiotrans_run.sh: All runs will continue without asking this question "
+                           echo "                   again."
+                           menu_select -m "Are you sure?" "No" "Yes"
+                           CHOICE=${?}
+                           if [ ${CHOICE} -eq 1]; then
+                              CONTINUE_ALL="DO IT!"
+                              break
+                           fi
+                           ;;
+                        2) # Stop everything here.
+                           echo "radiotrans_run.sh: Stopping here.  Execute radiotrans_run.sh again, with "
+                           echo "                   appropriate parameters to resume with remaining runs."
+                           ALL_STATUS=1
+                           STOP_ALL="DO IT!"
+                           break
+                           ;;
+                     esac
+                  done
+                  if [ -n "${STOP_ALL}" ]; then
+                     break
+                  fi
+               fi
                continue
                ;;
-            2) # Stop the current run without saving.
+            2 | 4) # Stop the current run without saving. Also, stop all subsequent runs, if selected.
                echo "radiotrans_run.sh: Stopping run ${LABEL}."
+               if [ ${CHOICE} -eq 4]; then
+                  echo "radiotrans_run.sh: Stopping all subsequent runs."
+                  break
+               fi
+               RUNS_REMAIN=`expr ${#RUN_INDICES[@]} - ${INDEX}`
+               if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
+                  echo "radiotrans_run.sh: More runs remain to do."
+                  while [1]
+                  do
+                     menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
+                                    "${PAUSE_OPT_CONTINUEALL}" "${PAUSE_OPT_STOPALL}"
+                     CHOICE=${?}
+                     case ${CHOICE} in
+                        0) # Continue to next run.
+                           echo "radiotrans_run.sh: Continuing to next run."
+                           break
+                           ;;
+                        1) # Continue with all subsequent runs.
+                           echo "radiotrans_run.sh: All runs will continue without asking this question "
+                           echo "                   again."
+                           menu_select -m "Are you sure?" "No" "Yes"
+                           CHOICE=${?}
+                           if [ ${CHOICE} -eq 1]; then
+                              CONTINUE_ALL="DO IT!"
+                              break
+                           fi
+                           ;;
+                        2) # Stop everything here.
+                           echo "radiotrans_run.sh: Stopping here.  Execute radiotrans_run.sh again, with "
+                           echo "                   appropriate parameters to resume with remaining runs."
+                           ALL_STATUS=1
+                           STOP_ALL="DO IT!"
+                           break
+                           ;;
+                     esac
+                  done
+                  if [ -n "${STOP_ALL}" ]; then
+                     break
+                  fi
+               fi
                continue
                ;;
             1) # Continue with the current run.
@@ -775,14 +878,19 @@ do
    if [ ${RUN_STATUS} -eq 0 ] && [ ${DO_DDISP_SEARCH} -eq 1 ]; then
       if [ -n "${PLAY_NICE_OPT}" ] && [ ! -f "${PAUSE_FILE}" ]; then
          echo "radiotrans_run.sh: Run \"${LABEL}\" has hit a convenient pause point."
-         echo "                   The run can be saved at this point and resumed later"
-         echo "                   on the same machine/node or a different one."
+         echo "                   The run can be saved at this point and resumed later (option "
+         echo "                   \"${PAUSE_OPT_PAUSE}\"), continued (option \"${PAUSE_OPT_CONTINUE}\"),"
+         echo "                   or stopped (option \"${PAUSE_OPT_STOP}\"). "
+         echo
+         echo "                   Alternatively, this and subsequent runs can be paused (option "
+         echo "                   \"${PAUSE_OPT_PAUSEALL}\") or stopped (option \"${PAUSE_OPT_STOPALL}\")."
          menu_select -m "How would you like the run to proceed?" "${PAUSE_OPT_PAUSE}" \
-                     "${PAUSE_OPT_CONTINUE}" "${PAUSE_OPT_STOP}"
-         case ${?} in
-            0) # Pause the current run.
+                     "${PAUSE_OPT_CONTINUE}" "${PAUSE_OPT_STOP}" "${PAUSE_OPT_PAUSEALL}" \
+                     "${PAUSE_OPT_STOPALL}"
+         CHOICE=${?}
+         case ${CHOICE} in
+            0 | 3) # Pause the current run. Also pause all subsequent runs, if selected.
                echo "radiotrans_run.sh: Pausing run \"${LABEL}\"."
-               source "${INSTALL_DIR}/utils.sh"
                # Delete any temporary files and then transfer results so far to results directory.. 
                echo "                   Removing temporary files from working directory..."
                delete_files "${WORK_DIR}/*.dtmp"
@@ -792,10 +900,90 @@ do
                # Mark the run as paused; then proceed to the next run.
                touch "${PAUSE_FILE}"
                echo "radiotrans_run.sh: Run \"${LABEL}\" paused."
+               if [ ${CHOICE} -eq 3 ]; then
+                  echo "radiotrans_run.sh: All subsequent runs paused."
+                  break
+               fi
+               RUNS_REMAIN=`expr ${#RUN_INDICES[@]} - ${INDEX}`
+               if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
+                  echo "radiotrans_run.sh: More runs remain to do."
+                  while [1]
+                  do
+                     menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
+                                    "${PAUSE_OPT_CONTINUEALL}" "${PAUSE_OPT_STOPALL}"
+                     CHOICE=${?}
+                     case ${CHOICE} in
+                        0) # Continue to next run.
+                           echo "radiotrans_run.sh: Continuing to next run."
+                           break
+                           ;;
+                        1) # Continue with all subsequent runs.
+                           echo "radiotrans_run.sh: All runs will continue without asking this question "
+                           echo "                   again."
+                           menu_select -m "Are you sure?" "No" "Yes"
+                           CHOICE=${?}
+                           if [ ${CHOICE} -eq 1]; then
+                              CONTINUE_ALL="DO IT!"
+                              break
+                           fi
+                           ;;
+                        2) # Stop everything here.
+                           echo "radiotrans_run.sh: Stopping here.  Execute radiotrans_run.sh again, with "
+                           echo "                   appropriate parameters to resume with remaining runs."
+                           ALL_STATUS=1
+                           STOP_ALL="DO IT!"
+                           break
+                           ;;
+                     esac
+                  done
+                  if [ -n "${STOP_ALL}" ]; then
+                     break
+                  fi
+               fi
                continue
                ;;
-            2) # Stop the current run without saving.
+            2 | 4) # Stop the current run without saving. Also, stop all subsequent runs, if selected.
                echo "radiotrans_run.sh: Stopping run ${LABEL}."
+               if [ ${CHOICE} -eq 4]; then
+                  echo "radiotrans_run.sh: Stopping all subsequent runs."
+                  break
+               fi
+               RUNS_REMAIN=`expr ${#RUN_INDICES[@]} - ${INDEX}`
+               if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
+                  echo "radiotrans_run.sh: More runs remain to do."
+                  while [1]
+                  do
+                     menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
+                                    "${PAUSE_OPT_CONTINUEALL}" "${PAUSE_OPT_STOPALL}"
+                     CHOICE=${?}
+                     case ${CHOICE} in
+                        0) # Continue to next run.
+                           echo "radiotrans_run.sh: Continuing to next run."
+                           break
+                           ;;
+                        1) # Continue with all subsequent runs.
+                           echo "radiotrans_run.sh: All runs will continue without asking this question "
+                           echo "                   again."
+                           menu_select -m "Are you sure?" "No" "Yes"
+                           CHOICE=${?}
+                           if [ ${CHOICE} -eq 1]; then
+                              CONTINUE_ALL="DO IT!"
+                              break
+                           fi
+                           ;;
+                        2) # Stop everything here.
+                           echo "radiotrans_run.sh: Stopping here.  Execute radiotrans_run.sh again, with "
+                           echo "                   appropriate parameters to resume with remaining runs."
+                           ALL_STATUS=1
+                           STOP_ALL="DO IT!"
+                           break
+                           ;;
+                     esac
+                  done
+                  if [ -n "${STOP_ALL}" ]; then
+                     break
+                  fi
+               fi
                continue
                ;;
             1) # Continue with the current run.
@@ -869,13 +1057,37 @@ do
 
    if [ -n "${PLAY_NICE_OPT}" ]; then
       RUNS_REMAIN=`expr ${#RUN_INDICES[@]} - ${INDEX}`
-      if [ ${RUNS_REMAIN} -gt 1 ]; then
-         menu_select -m "radiotrans_run.sh: More runs remain to do.  Continue with remaining runs?" \
-                     "Yes" "No"
-         if [ ${1} -eq 1 ]; then
-            echo "radiotrans_run.sh: Stopping here.  Execute radiotrans_run.sh again, with "
-            echo "                   appropriate parameters to resume with remaining runs."
-            ALL_STATUS=1
+      if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
+         echo "radiotrans_run.sh: More runs remain to do."
+         while [1]
+         do
+            menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
+                           "${PAUSE_OPT_CONTINUEALL}" "${PAUSE_OPT_STOPALL}"
+            CHOICE=${?}
+            case ${CHOICE} in
+               0) # Continue to next run.
+                  echo "radiotrans_run.sh: Continuing to next run."
+                  break
+                  ;;
+               1) # Continue with all subsequent runs.
+                  echo "radiotrans_run.sh: All runs will continue without asking this question again."
+                  menu_select -m "Are you sure?" "No" "Yes"
+                  CHOICE=${?}
+                  if [ ${CHOICE} -eq 1]; then
+                     CONTINUE_ALL="DO IT!"
+                     break
+                  fi
+                  ;;
+               2) # Stop everything here.
+                  echo "radiotrans_run.sh: Stopping here.  Execute radiotrans_run.sh again, with "
+                  echo "                   appropriate parameters to resume with remaining runs."
+                  ALL_STATUS=1
+                  STOP_ALL="DO IT!"
+                  break
+                  ;;
+            esac
+         done
+         if [ -n "${STOP_ALL}" ]; then
             break
          fi
       fi
