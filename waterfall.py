@@ -317,7 +317,7 @@ def main(argv):
    injOffset = lineOffset*numDFTsPerSpectLine
    normFactor = (4.0*LFFT)
    if cmdlnOpts.noTimeAvg == False:     # Toggle averaging spectral power over integration time.
-      normFactor *= np.float32(numDFTsPerSpectLine) 
+      normFactor *= numpy.float32(numDFTsPerSpectLine) 
    # endif
    while fileOffset < endFileOffset:
       rawDataFile.seek(fileOffset, os.SEEK_CUR)
