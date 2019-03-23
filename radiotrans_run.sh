@@ -16,7 +16,7 @@ source "OPT-INSTALL_DIR/text_patterns.sh"
 
 # Pause menu options.
 PAUSE_OPT_PAUSE="Pause"
-PAUSE_OPT_UNPAUSE="Unpause"
+PAUSE_OPT_RESUME="Resume"
 PAUSE_OPT_CLEAN="Clean"
 PAUSE_OPT_CONTINUE="Continue"
 PAUSE_OPT_STOP="Stop"
@@ -32,7 +32,7 @@ UFFT1_STR="Upper FFT Index Tuning 1"
 BPW_STR="Bandpass smoothing window"
 BLW_STR="Baseline smoothing window"
 
-# Configure process parameters.
+# Process parameters.
 NUM_PROCS=$(nproc --all)   # Number of processes to use in the MPI environment.
 MEM_LIMIT=32768            # Memory limit, in MBs, for creating waterfall tiles in memory.
 RUN_STATUS=0
@@ -40,22 +40,21 @@ SKIP_RFIBP=0
 SKIP_REDUCE=0
 DO_DDISP_SEARCH=0
 INDEX=0
+DEFAULT_PARAMS=0
 SUPERCLUSTER_OPT=
 NO_SEARCH_INTERACT_OPT=
 NO_RFIBP_INTERACT_OPT=
 NO_REDUCE_INTERACT_OPT=
-ENABLE_HANN_OPT=
 DATA_UTILIZE=
 
-# Configure file management parameters.
+# File management parameters.
 SKIP_TRANSFER_OPT=
 DELWATERFALLS_OPT=
 SKIP_TAR_OPT=
 RELOAD_WORK=0
 FORCE_TRANSFER_OPT=
 
-
-# Configure main directories.
+# Main directories.
 INSTALL_DIR=
 WORK_ROOT=
 RESULTS_ROOT=
@@ -65,31 +64,6 @@ DATA_DIR=
 COMMCONFIG_FILE=
 PARAMS_FILE=
 
-# Configure default run parameters to apply to all runs. These should be changed by either specifying a
-# pre-made set from the command-line or specifying a run parameters file from which will be loaded the
-# run parameters.
-INTEGTIME=125        # In milliseconds.  Do not set this below 24.03265 ms to avoid corruption during 
-                     # RFI filtering and data smoothing.
-DECIMATION=10000
-RFI_STD=5.0
-SNR_CUTOFF=3.0
-SG_PARAMS0=(151 2 151 2)
-SG_PARAMS1=(111 2 151 2)
-LOWER_FFT0=0
-UPPER_FFT0=4094
-LOWER_FFT1=0
-UPPER_FFT1=4094
-BP_WINDOW=10
-BL_WINDOW=50
-                        # raw data, while negative values align to the end.
-SNR_THRESHOLD=5.0
-DM_START=30.0
-DM_END=3600.0
-DM_STEP=1.0
-MAX_PULSE_WIDTH=2.0
-
-
-
 
 # Select whether we are using the release install of radiotrans or still using the developer version to
 # debug issues.
@@ -98,76 +72,21 @@ if [[ ${#} -gt 0 ]]; then
    do
       case "${1}" in
          --GW170809) # Perform pre-made run for GW170809.
-            echo "radiotrans_run.sh: Using GW170809 run parameter set."
-
-            # Configure common radio run parameters.
-            INTEGTIME=100
-            DECIMATION=10000
-            RFI_STD=5.0
-            SNR_CUTOFF=3.0
-            SG_PARAMS0=(151 2 151 2)
-            SG_PARAMS1=(111 2 151 2)
-            LOWER_FFT0=0
-            UPPER_FFT0=4095
-            LOWER_FFT1=0
-            UPPER_FFT1=4095
-            BP_WINDOW=10
-            BL_WINDOW=50
-            SNR_THRESHOLD=5.0
-            DM_START=30.0
-            DM_END=5000.0
-            DM_STEP=1.0
-            MAX_PULSE_WIDTH=2.0
-
+            if [ ${DEFAULT_PARAMS} -eq 0 ]; then
+               DEFAULT_PARAMS=1
+            fi
             shift
             ;;
          --CLEAGUE ) # Perform pre-made run for Cleague.
-            echo "radiotrans_run.sh: Using CLEAGUE run parameter set."
-
-            # Configure common radio run parameters.
-            INTEGTIME=2089.80
-            DECIMATION=4000
-            RFI_STD=5.0
-            SNR_CUTOFF=3.0
-            SG_PARAMS0=(151 2 151 2)
-            SG_PARAMS1=(111 2 151 2)
-            LOWER_FFT0=0
-            UPPER_FFT0=4095
-            LOWER_FFT1=0
-            UPPER_FFT1=4095
-            BP_WINDOW=11
-            BL_WINDOW=51
-            SNR_THRESHOLD=5.0
-            DM_START=30.0
-            DM_END=2000.0
-            DM_STEP=1.0
-            MAX_PULSE_WIDTH=2.0
-
+            if [ ${DEFAULT_PARAMS} -eq 0 ]; then
+               DEFAULT_PARAMS=2
+            fi
             shift
             ;;
          --DEBUG) # Run with debug search parameters.
-            echo "radiotrans_run.sh: Using DEBUG run parameter set."
-
-            # Configure common radio run parameters.
-            INTEGTIME=500.0
-            DECIMATION=4000
-            RFI_STD=5.0
-            SNR_CUTOFF=3.0
-            SG_PARAMS0=(151 2 151 2)
-            SG_PARAMS1=(111 2 151 2)
-            ENABLE_HANN_OPT=
-            LOWER_FFT0=0
-            UPPER_FFT0=4095
-            LOWER_FFT1=0
-            UPPER_FFT1=4095
-            BP_WINDOW=10
-            BL_WINDOW=50
-            SNR_THRESHOLD=5.0
-            DM_START=30.0
-            DM_END=1000.0
-            DM_STEP=1.0
-            MAX_PULSE_WIDTH=2.0
-
+            if [ ${DEFAULT_PARAMS} -eq 0 ]; then
+               DEFAULT_PARAMS=3
+            fi
             shift
             ;;
          -I | --install-dir) # Set the install directory to the specified location.
@@ -209,15 +128,17 @@ if [[ ${#} -gt 0 ]]; then
             shift; shift
             ;;
          -A | --add-run) # Adds a run to the current set using the parameters that have been setup.
-            if [ -n "${2}" ] && [ -n "${3}" ]; then
-               if [ ${#LABELS[@]} -eq 0]; then
+            if [ -n "${2}" ] && [ -n "${3}" ] && [ -n "${4}" ]; then
+               if [ ${#LABELS[@]} -eq 0 ]; then
                   LABELS="${2}"
                   DATA_FILENAMES="${3}"
+                  PARAMS_FILES="${4}"
                else
                   LABELS=("${LABELS[@]}" "${2}")
                   DATA_FILENAMES=("${DATA_FILENAMES[@]}" "${3}")
+                  PARAMS_FILES=("${PARAMS_FILES[@]}" "${4}")
                fi
-               shift; shift; shift
+               shift; shift; shift; shift
             else
                echo "radiotrans_run.sh: Runs need to be specified with a label and associated data file"
                echo "                   within the data directory."
@@ -398,56 +319,6 @@ fi
 
 source "${INSTALL_DIR}/utils.sh"
 
-# Parse the parameters file, if one given.
-if [ -n "${PARAMS_FILE}" ]; then
-   #parse_config "${PARAMS_FILE}"
-   source "${PARAMS_FILE}"
-   if [ ${?} -eq 0 ]; then
-      echo "radiotrans_run.sh: Run parameters loaded from ${PARAMS_FILE}"
-      echo "                   (overrides pre-made values)."
-   else
-      echo "radiotrans_run.sh (WARNING): An error occurred reading parameters file.  Some run"
-      echo "                             parameters may not be set to desired values."
-      echo
-      menu_select "Continue" "Quit"
-      if [ ${?} -eq 0 ]; then
-         break
-      else
-         echo "radiotrans_run.sh: Quitting run."
-         exit 1
-      fi
-   fi
-   echo "radiotrans_run.sh: Parameters file found."
-   echo
-   echo "     INTEGTIME = ${INTEGTIME}"
-   echo "     ENABLE_HANN_OPT = ${ENABLE_HANN_OPT}"
-   echo "     TIME_AVERAGE_TOGGLE = ${NO_TIME_AVG_OPT}"
-   echo "     DECIMATION = ${DECIMATION}"
-   echo "     RFI_STD = ${RFI_STD}"
-   echo "     SNR_CUTOFF = ${SNR_CUTOFF}"
-   echo "     SG_PARAMS0 = ${SG_PARAMS0[*]}"
-   echo "     SG_PARAMS1 = ${SG_PARAMS1[*]}"
-   echo "     LOWER_FFT0 = ${LOWER_FFT0}"
-   echo "     UPPER_FFT0 = ${UPPER_FFT0}"
-   echo "     LOWER_FFT1 = ${LOWER_FFT1}"
-   echo "     UPPER_FFT1 = ${UPPER_FFT1}"
-   echo "     BP_WINDOW = ${BP_WINDOW}"
-   echo "     BL_WINDOW = ${BL_WINDOW}"
-   echo "     SNR_THRESHOLD = ${SNR_THRESHOLD}"
-   echo "     DM_START = ${DM_START}"
-   echo "     DM_END = ${DM_END}"
-   echo "     DM_STEP = ${DM_STEP}"
-   echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
-   echo "     INJ_NUM = ${INJ_NUM}"
-   echo "     INJ_POWER = ${INJ_POWER}"
-   echo "     INJ_SPECTINDEX = ${INJ_SPECTINDEX}"
-   echo "     INJ_TIMES = ${INJ_TIMES[*]}"
-   echo "     INJ_DMS = ${INJ_DMS[*]}"
-   echo "     INJ_REGULAR_TIMES_OPT = ${INJ_REGULAR_TIMES_OPT}"
-   echo "     INJ_REGULAR_DMS_OPT = ${INJ_REGULAR_DMS_OPT}"
-   echo "     INJ_ONLY_OPT = ${INJ_ONLY_OPT}"
-   echo
-fi
 
 ALL_STATUS=0
 for RUN_INDEX in ${!LABELS[@]}
@@ -460,8 +331,10 @@ do
    DATA_PATH="${DATA_DIR}/${DATA_FILENAMES[${RUN_INDEX}]}"
    WORK_DIR="${WORK_ROOT}/${LABEL}"
    RESULTS_DIR="${RESULTS_ROOT}/${LABEL}"
+   PARAMS_FILE="${PARAMS_FILES[${RUN_INDEX}]}"
    PAUSE_FILE="${RESULTS_DIR}/${LABEL}_paused_run"
 
+   echo "radiotrans_run.sh: Executing run ${LABEL}=>"
    if [ -n "${LABEL}" ]; then
       COMMCONFIG_FILE="${LABEL}.comm"
    else
@@ -517,18 +390,19 @@ do
          RUN_STATUS=1
       fi
    else
+      FORCE_TRANSFER_OPT=
       # If we're playing nicely with computing resources, check if this run is marked as 
       # being paused.
       if [ -f "${PAUSE_FILE}" ] && [ -n "${PLAY_NICE_OPT}" ]; then
          echo "radiotrans_run.sh: Run \"${LABEL}\" currently paused.  You have the option to leave" 
-         echo "                   the run paused (option \"${PAUSE_OPT_PAUSE}\"), unpause the run "
-         echo "                   (option \"${PAUSE_OPT_UNPAUSE}\"), restart with a clean run "
+         echo "                   the run paused (option \"${PAUSE_OPT_PAUSE}\"), resume the run "
+         echo "                   (option \"${PAUSE_OPT_RESUME}\"), restart with a clean run "
          echo "                   (option \"${PAUSE_OPT_CLEAN}\") or stop the current run (option"
          echo "                   \"${PAUSE_OPT_STOP}\") while remaining runs continue as normal."
          echo "                   Alternatively, you can also pause or stop this and all subsequent "
          echo "                   runs (option \"${PAUSE_OPT_PAUSEALL}\" and \"${PAUSE_OPT_STOPALL}\","
          echo "                   respectively)."
-         menu_select -m "How would you like to proceed?" "${PAUSE_OPT_PAUSE}" "${PAUSE_OPT_UNPAUSE}" \
+         menu_select -m "How would you like to proceed?" "${PAUSE_OPT_PAUSE}" "${PAUSE_OPT_RESUME}" \
                      "${PAUSE_OPT_CLEAN}" "${PAUSE_OPT_STOP}" "${PAUSE_OPT_PAUSEALL}" \
                      "${PAUSE_OPT_STOPALL}"
          CHOICE=${?}
@@ -542,8 +416,8 @@ do
                fi
                continue
                ;;
-            1) # Unpause the run.
-               echo "radiotrans_run.sh: Run ${LABEL} unpausing."
+            1) # Resume the run.
+               echo "radiotrans_run.sh: Run ${LABEL} resuming."
                RELOAD_WORK=1
                FORCE_TRANSFER_OPT="--force-repeat"
                CLEAN_RUN=
@@ -585,16 +459,168 @@ do
 
    # Reload work if requested by user and this is not a clean run.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${RELOAD_WORK} -eq 1 ] && [ -z "${CLEAN_RUN}" ]; then
+      echo "radiotrans_run.sh: Reloading files for run ${LABEL} into working directory."
       # Build the command-line to perform the file transfer to the working directory from results
       # directory.
       CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
       CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
             --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}"  \
-            --reload-work ${FORCE_TRANSFER_OPT} ${SUPERCLUSTER_OPT})
+            --reload-work --force-repeat ${SUPERCLUSTER_OPT})
       # Perform transfer of file to working directory from results directory.
       ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
       RUN_STATUS=${?}
+      if [ ${RUN_STATUS} -ne 0 ]; then
+         echo "radiotrans_run.sh: An error occurred reloading files.  Skipping run ${LABEL}"
+         echo "                   It may be necessary to delete the run and restart it."
+         continue
+      fi
    fi
+
+   # Set the default parameters for the current run.
+   case ${DEFAULT_PARAMS} in
+      1) # Configure parameters for GW170809.
+         echo "radiotrans_run.sh: Using GW170809 run parameter set."
+         INTEGTIME=100
+         DECIMATION=10000
+         RFI_STD=5.0
+         SNR_CUTOFF=3.0
+         SG_PARAMS0=(151 2 151 2)
+         SG_PARAMS1=(111 2 151 2)
+         LOWER_FFT0=0
+         UPPER_FFT0=4095
+         LOWER_FFT1=0
+         UPPER_FFT1=4095
+         BP_WINDOW=10
+         BL_WINDOW=50
+         SNR_THRESHOLD=5.0
+         DM_START=30.0
+         DM_END=5000.0
+         DM_STEP=1.0
+         MAX_PULSE_WIDTH=2.0
+         ;;
+      2) # Configure parameters for Cleague.
+         echo "radiotrans_run.sh: Using CLEAGUE run parameter set."
+         INTEGTIME=2089.80
+         DECIMATION=4000
+         RFI_STD=5.0
+         SNR_CUTOFF=3.0
+         SG_PARAMS0=(151 2 151 2)
+         SG_PARAMS1=(111 2 151 2)
+         LOWER_FFT0=0
+         UPPER_FFT0=4095
+         LOWER_FFT1=0
+         UPPER_FFT1=4095
+         BP_WINDOW=11
+         BL_WINDOW=51
+         SNR_THRESHOLD=5.0
+         DM_START=30.0
+         DM_END=2000.0
+         DM_STEP=1.0
+         MAX_PULSE_WIDTH=2.0
+         ;;
+      3) # Configure parameters for DEBUGGING.
+         echo "radiotrans_run.sh: Using DEBUG run parameter set."
+         INTEGTIME=500.0
+         DECIMATION=4000
+         RFI_STD=5.0
+         SNR_CUTOFF=3.0
+         SG_PARAMS0=(151 2 151 2)
+         SG_PARAMS1=(111 2 151 2)
+         ENABLE_HANN_OPT=
+         LOWER_FFT0=0
+         UPPER_FFT0=4095
+         LOWER_FFT1=0
+         UPPER_FFT1=4095
+         BP_WINDOW=10
+         BL_WINDOW=50
+         SNR_THRESHOLD=5.0
+         DM_START=30.0
+         DM_END=1000.0
+         DM_STEP=1.0
+         MAX_PULSE_WIDTH=2.0
+         ;;
+      *) # Configure basic, default parameters.
+         INTEGTIME=125
+         DECIMATION=10000
+         RFI_STD=5.0
+         SNR_CUTOFF=3.0
+         SG_PARAMS0=(151 2 151 2)
+         SG_PARAMS1=(111 2 151 2)
+         LOWER_FFT0=0
+         UPPER_FFT0=4094
+         LOWER_FFT1=0
+         UPPER_FFT1=4094
+         BP_WINDOW=10
+         BL_WINDOW=50
+         SNR_THRESHOLD=5.0
+         DM_START=30.0
+         DM_END=3600.0
+         DM_STEP=1.0
+         MAX_PULSE_WIDTH=2.0
+         ;;
+   esac
+
+   # Import the parameters file, if one given.  This will override some or all of the default parameters
+   # for the current run.
+   if [ -n "${PARAMS_FILE}" ]; then
+      # CCY - This works, simply, but is very unsafe.  I need to fix parse_config(), which is much
+      # safer.
+      source "${PARAMS_FILE}"
+      if [ ${?} -eq 0 ]; then
+         echo "radiotrans_run.sh: Run ${LABEL} parameters imported from ${PARAMS_FILE}"
+         echo "                   (overrides pre-made values)."
+      else
+         echo "radiotrans_run.sh (WARNING): An error occurred importing parameters file.  Some run"
+         echo "                             parameters may not be set to desired values."
+         echo
+         menu_select -m "How do you want to proceed?" "${PAUSE_OPT_CONTINUE}" "${PAUSE_OPT_STOP}" \
+                     "${PAUSE_OPT_STOPALL}"
+         CHOICE=${?}
+         case ${CHOICE} in
+            0) # Continue current run.
+               echo "radiotrans_run.sh: Continuing with run ${LABEL}."
+               ;;
+            1) # Stop the current run.
+               echo "radiotrans_run.sh: Stopping run ${LABEL}"
+               continue
+               ;;
+            2) # Stop all runs.
+               echo "radiotrans_run.sh: Stopping run ${LABEL}"
+               echo "radiotrans_run.sh: Stopping all runs."
+               break
+               ;;
+         esac
+      fi
+   fi
+   echo "radiotrans_run.sh: Current run parameters."
+   echo "     INTEGTIME = ${INTEGTIME}"
+   echo "     ENABLE_HANN_OPT = ${ENABLE_HANN_OPT}"
+   echo "     TIME_AVERAGE_TOGGLE = ${NO_TIME_AVG_OPT}"
+   echo "     DECIMATION = ${DECIMATION}"
+   echo "     RFI_STD = ${RFI_STD}"
+   echo "     SNR_CUTOFF = ${SNR_CUTOFF}"
+   echo "     SG_PARAMS0 = ${SG_PARAMS0[*]}"
+   echo "     SG_PARAMS1 = ${SG_PARAMS1[*]}"
+   echo "     LOWER_FFT0 = ${LOWER_FFT0}"
+   echo "     UPPER_FFT0 = ${UPPER_FFT0}"
+   echo "     LOWER_FFT1 = ${LOWER_FFT1}"
+   echo "     UPPER_FFT1 = ${UPPER_FFT1}"
+   echo "     BP_WINDOW = ${BP_WINDOW}"
+   echo "     BL_WINDOW = ${BL_WINDOW}"
+   echo "     SNR_THRESHOLD = ${SNR_THRESHOLD}"
+   echo "     DM_START = ${DM_START}"
+   echo "     DM_END = ${DM_END}"
+   echo "     DM_STEP = ${DM_STEP}"
+   echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
+   echo "     INJ_NUM = ${INJ_NUM}"
+   echo "     INJ_POWER = ${INJ_POWER}"
+   echo "     INJ_SPECTINDEX = ${INJ_SPECTINDEX}"
+   echo "     INJ_TIMES = ${INJ_TIMES[*]}"
+   echo "     INJ_DMS = ${INJ_DMS[*]}"
+   echo "     INJ_REGULAR_TIMES_OPT = ${INJ_REGULAR_TIMES_OPT}"
+   echo "     INJ_REGULAR_DMS_OPT = ${INJ_REGULAR_DMS_OPT}"
+   echo "     INJ_ONLY_OPT = ${INJ_ONLY_OPT}"
+   echo
 
    # Stage to reduce radio data.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_REDUCE} -eq 0 ]; then
@@ -633,6 +659,7 @@ do
 
    # Stage to perform RFI-bandpass filtration.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${SKIP_RFIBP} -eq 0 ]; then
+      # Handle pause point before RFI-bandpass.
       if [ -n "${PLAY_NICE_OPT}" ] && [ ! -f "${PAUSE_FILE}" ]; then
          echo "radiotrans_run.sh: Run \"${LABEL}\" has hit a convenient pause point."
          echo "                   The run can be saved at this point and resumed later (option "
@@ -658,12 +685,17 @@ do
                touch "${PAUSE_FILE}"
                echo "radiotrans_run.sh: Run \"${LABEL}\" paused."
                if [ ${CHOICE} -eq 3 ]; then
+                  # Stop all subsequent runs.
                   echo "radiotrans_run.sh: All subsequent runs paused."
                   break
                fi
                RUNS_REMAIN=`expr ${#LABELS[@]} - ${RUN_INDEX} - 1`
                if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
-                  echo "radiotrans_run.sh: More runs remain to do."
+                  if [ ${RUNS_REMAIN} -gt 1 ]; then
+                     echo "radiotrans_run.sh: ${RUNS_REMAIN} more runs remain to do."
+                  else
+                     echo "radiotrans_run.sh: ${RUNS_REMAIN} more run remains to do."
+                  fi
                   while [ 1 ]
                   do
                      menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
@@ -703,12 +735,17 @@ do
                echo "radiotrans_run.sh: Stopping run ${LABEL}."
                rm -f "${PAUSE_FILE}"
                if [ ${CHOICE} -eq 4]; then
+                  # Stop all subsequent runs.
                   echo "radiotrans_run.sh: Stopping all subsequent runs."
                   break
                fi
                RUNS_REMAIN=`expr ${#LABELS[@]} - ${RUN_INDEX} - 1`
                if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
-                  echo "radiotrans_run.sh: More runs remain to do."
+                  if [ ${RUNS_REMAIN} -gt 1 ]; then
+                     echo "radiotrans_run.sh: ${RUNS_REMAIN} more runs remain to do."
+                  else
+                     echo "radiotrans_run.sh: ${RUNS_REMAIN} more run remains to do."
+                  fi
                   while [ 1 ]
                   do
                      menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
@@ -754,13 +791,14 @@ do
          esac
       fi
 
-      echo "radiofilter.sh: User is advised to examine bandpass, baseline, and spectrogram plots "
-      echo "                to determine appropriate FFT index bounds and smoothing window "
+      echo
+      echo "radiofilter.sh: ALERT!=> User is advised to examine bandpass, baseline, and spectrogram "
+      echo "                plots to determine appropriate FFT index bounds and smoothing window "
       echo "                parameters before performing RFI-bandpass filtration."
       echo
-      sleep 3
+      sleep 2
 
-      echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
+      echo "radiotrans_run.sh: Current RFI-bandpass parameters =>"
       echo "   Lower FFT Index Tuning 0 = ${LOWER_FFT0}"
       echo "   Upper FFT Index Tuning 0 = ${UPPER_FFT0}"
       echo "   Lower FFT Index Tuning 1 = ${LOWER_FFT1}"
@@ -768,13 +806,14 @@ do
       echo "   Bandpass smoothing window = ${BP_WINDOW}"
       echo "   Baseline smoothing window = ${BL_WINDOW}"
 
-      while [ -z "${NO_RFIBP_INTERACT_OPT}" ]
+      while [ 1 ]
       do
          menu_select -m "radiofilter.sh: Proceed with the current parameters?" \
                  "Proceed" "Change" "Quit" 
          CHOICE=${?}
          if [ ${CHOICE} -eq 0 ]; then
-            NO_RFIBP_INTERACT_OPT="--no-interact"
+            # Proceed to the RFI-bandpass filtration.
+            echo "radiofilter.sh: Proceeding to RFI-bandpass filtration."
             break
          elif [ ${CHOICE} -eq 2 ]; then
             # Quit from RFI-bandpass filtration.
@@ -859,8 +898,8 @@ do
          echo "   Baseline smoothing window = ${BL_WINDOW}"
       done # endwhile
 
-      # If we're done interacting, then do the RFI-bandpass filtration.
-      if [ -n "${NO_RFIBP_INTERACT_OPT}" ]; then
+      # If we're done interacting and not selected to quit, then do the RFI-bandpass filtration.
+      if [ ${RUN_STATUS} -eq 0 ]; then
          # Build the command-line to perform the RFI-bandpass filtration.
          CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
          CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
@@ -883,6 +922,7 @@ do
 
    # Stage to perform de-dispered search.
    if [ ${RUN_STATUS} -eq 0 ] && [ ${DO_DDISP_SEARCH} -eq 1 ]; then
+      # Handle pause point before de-dispersed search.
       if [ -n "${PLAY_NICE_OPT}" ] && [ ! -f "${PAUSE_FILE}" ]; then
          echo "radiotrans_run.sh: Run \"${LABEL}\" has hit a convenient pause point."
          echo "                   The run can be saved at this point and resumed later (option "
@@ -908,12 +948,17 @@ do
                touch "${PAUSE_FILE}"
                echo "radiotrans_run.sh: Run \"${LABEL}\" paused."
                if [ ${CHOICE} -eq 3 ]; then
+                  # Stop all subsequent runs.
                   echo "radiotrans_run.sh: All subsequent runs paused."
                   break
                fi
                RUNS_REMAIN=`expr ${#LABELS[@]} - ${RUN_INDEX} - 1`
                if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
-                  echo "radiotrans_run.sh: More runs remain to do."
+                  if [ ${RUNS_REMAIN} -gt 1 ]; then
+                     echo "radiotrans_run.sh: ${RUNS_REMAIN} more runs remain to do."
+                  else
+                     echo "radiotrans_run.sh: ${RUNS_REMAIN} more run remains to do."
+                  fi
                   while [ 1 ]
                   do
                      menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
@@ -958,7 +1003,11 @@ do
                fi
                RUNS_REMAIN=`expr ${#LABELS[@]} - ${RUN_INDEX} - 1`
                if [ ${RUNS_REMAIN} -gt 1 ] && [ -z "${CONTINUE_ALL}" ]; then
-                  echo "radiotrans_run.sh: More runs remain to do."
+                  if [ ${RUNS_REMAIN} -gt 1 ]; then
+                     echo "radiotrans_run.sh: ${RUNS_REMAIN} more runs remain to do."
+                  else
+                     echo "radiotrans_run.sh: ${RUNS_REMAIN} more run remains to do."
+                  fi
                   while [ 1 ]
                   do
                      menu_select -m "How would you like to proceed?" "${PAUSE_OPT_CONTINUE}" \
@@ -1041,7 +1090,7 @@ do
       # Build the command-line to perform the file transfer to the results directory and build tar file.
       CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
       CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" ${SUPERCLUSTER_OPT} \
-            --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}" 
+            --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
             ${SKIP_TRANSFER_OPT} ${SKIP_TAR_OPT} ${FORCE_TRANSFER_OPT} )
       # Perform transfer of results to results directory and build tar of results.
       ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
@@ -1053,12 +1102,13 @@ do
       echo "radiotrans_run.sh: All workflow phases executed successfully!"
       echo
    else
-      echo "radiotrans_run.sh: Some phases of the workflow failed or could not be executed due to"
-      echo "                 prior failures.  Additional debug/investigation may be needed :("
+      echo "radiotrans_run.sh: Some phases of the workflow failed or were not executed."
+      echo "                   Additional debug/investigation may be needed :("
       echo "   LABEL = ${LABEL}"
       echo "   DATA_FILE = ${DATA_PATH}"
       echo "   WORK_DIR = ${WORK_DIR}"
       echo "   RESULTS_DIR = ${RESULTS_DIR}"
+      echo "   PARAMS_FILE = ${PARAMS_FILE}"
       echo
       ALL_STATUS=1
    fi
