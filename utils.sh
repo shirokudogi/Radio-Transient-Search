@@ -36,6 +36,7 @@ function transfer_files()
    local SRC_DIR="."
    local DEST_DIR="."
    local FILES=
+   local RETVAL=0
 
    # Parse commandline.
    if [ ${#} -gt 0 ]; then
@@ -80,6 +81,10 @@ function transfer_files()
          do
             echo "Moving ${curr}"
             mv ${SRC_DIR}/${curr} ${DEST_DIR}/${curr} 2>/dev/null
+            if [ ${?} -ne 0 ]; then
+               echo "Issue occurred moving ${SRC_DIR}/${curr} to ${DEST_DIR}/"
+               RETVAL=1
+            fi
          done
       fi
    else
@@ -89,10 +94,10 @@ function transfer_files()
       if [ ! -d ${DEST_DIR} ]; then
          echo "Destination directory ${DEST_DIR} does not exist or is not a directory."
       fi
-      return 1
+      RETVAL=1
    fi
    
-   return 0
+   return ${RETVAL}
 }
 # end transfer_files()
 

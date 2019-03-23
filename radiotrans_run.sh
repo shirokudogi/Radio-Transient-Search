@@ -382,6 +382,7 @@ do
       fi
    fi
 
+   RESUMING_FROM_PAUSE=0
    # Create the results directory, if it doesn't exist.
    if [ ! -d "${RESULTS_DIR}" ]; then
       mkdir -p "${RESULTS_DIR}"
@@ -390,7 +391,6 @@ do
          RUN_STATUS=1
       fi
    else
-      FORCE_TRANSFER_OPT=
       # If we're playing nicely with computing resources, check if this run is marked as 
       # being paused.
       if [ -f "${PAUSE_FILE}" ] && [ -n "${PLAY_NICE_OPT}" ]; then
@@ -418,10 +418,16 @@ do
                ;;
             1) # Resume the run.
                echo "radiotrans_run.sh: Run ${LABEL} resuming."
-               RELOAD_WORK=1
-               FORCE_TRANSFER_OPT="--force-repeat"
-               CLEAN_RUN=
+               RESUMING_FROM_PAUSE=1
                rm -f "${PAUSE_FILE}"
+               delete_files "${WORK_DIR}/*.dtmp"
+               transfer_files --dest-dir "${WORK_DIR}" --src-dir "${RESULTS_DIR}" \
+                               "*.npy" "*.png" "*.comm" "*.txt"
+               if [ ${?} -ne 0 ]; then
+                  echo "radiotrans_run.sh: Could not resume run ${LABEL}.  It may be necessary"
+                  echo "                   to delete the run and restart it from scratch."
+                  continue
+               fi
                ;;
             2) # Restart the run as a clean run.
                echo "radiotrans_run.sh: Restarting run ${LABEL} as a clean run."
@@ -445,7 +451,7 @@ do
       fi
 
       # If this is to be a clean run, then clear the results directory.
-      if [ ! -z "${CLEAN_RUN}" ] && [ ${CLEAN_RUN} -eq 1 ]; then
+      if [ -n "${CLEAN_RUN}" ] && [ ${CLEAN_RUN} -eq 1 ] && [ ${RESUMING_FROM_PAUSE} -eq 0 ]; then
          echo "radiotrans_run.sh: Cleaning results directory."
          rm -rf "${RESULTS_DIR}"
          mkdir -p "${RESULTS_DIR}"
@@ -458,14 +464,15 @@ do
 
 
    # Reload work if requested by user and this is not a clean run.
-   if [ ${RUN_STATUS} -eq 0 ] && [ ${RELOAD_WORK} -eq 1 ] && [ -z "${CLEAN_RUN}" ]; then
+   if [ ${RUN_STATUS} -eq 0 ] && [ ${RELOAD_WORK} -eq 1 ] && [ -z "${CLEAN_RUN}" ] \
+      && [ ${RESUMING_FROM_PAUSE} -eq 0 ]; then
       echo "radiotrans_run.sh: Reloading files for run ${LABEL} into working directory."
       # Build the command-line to perform the file transfer to the working directory from results
       # directory.
       CMD_TRANSFER="${INSTALL_DIR}/radiotransfer.sh"
       CMD_TRANSFER_OPTS=(--install-dir "${INSTALL_DIR}" \
             --work-dir "${WORK_DIR}" --label "${LABEL}" --results-dir "${RESULTS_DIR}"  \
-            --reload-work --force-repeat ${SUPERCLUSTER_OPT})
+            --reload-work ${FORCE_TRANSFER_OPT} ${SUPERCLUSTER_OPT})
       # Perform transfer of file to working directory from results directory.
       ${CMD_TRANSFER} ${CMD_TRANSFER_OPTS[*]}
       RUN_STATUS=${?}
