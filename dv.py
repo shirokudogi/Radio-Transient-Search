@@ -125,7 +125,7 @@ def main_routine(args):
                            help="Ending dispersion measure value.",
                            metavar="DM")
    cmdlnParser.add_option("--dm-step", dest="DMStep", type=float, default=1.0, action="store",
-                           help="Interval step-size for dispersion measure search."
+                           help="Interval step-size for dispersion measure search.",
                            metavar="STEP")
    # Parse the commandline.                           
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
