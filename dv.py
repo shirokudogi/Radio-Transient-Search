@@ -241,7 +241,7 @@ def main_routine(args):
    freqs[0:numChannels] = freqs[0:numChannels] + 0.5*channelWidth
    freqs[-1] = topFreqBP
    # Create list of indices for the dispersed channels.
-   freqIndices = np.arange(numFreqs, dtype=np.int32)
+   chIndices = np.arange(numChannels, dtype=np.int32)
 
    # Setup pulse search parameters and add the maximum pulse-width to the common parameters file..
    log2MaxPulseWidth = np.round( np.log2(cmdlnOpts.maxPulseWidth/tInt) ).astype(np.int32) + 1 
@@ -294,10 +294,10 @@ def main_routine(args):
       tShifts = np.floor(DM*scaledDelays).astype(np.int32)
       fShifts = tShifts[0] - tShifts
       # De-disperse the frequencies assigned to this process.
-      for fIndex in freqIndices: 
-         beginIndex = segmentOffset[rank] + fShifts[fIndex]
+      for chIndex in chIndices: 
+         beginIndex = segmentOffset[rank] + fShifts[chIndex]
          endIndex = beginIndex + segmentSize[rank]
-         ts[beginIndex : endIndex] += segment[ : , fIndex]
+         ts[beginIndex : endIndex] += segment[ : , chIndex]
       # endfor
 
       # Merge the de-dispersed time-series from all processes.
