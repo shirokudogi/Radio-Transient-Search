@@ -813,7 +813,7 @@ do
       echo "   Bandpass smoothing window = ${BP_WINDOW}"
       echo "   Baseline smoothing window = ${BL_WINDOW}"
 
-      while [ 1 ]
+      while [ 1 ] && [ -z "${NO_RFIBP_INTERACT_OPT}" ]
       do
          menu_select -m "radiofilter.sh: Proceed with the current parameters?" \
                  "Proceed" "Change" "Quit" 
