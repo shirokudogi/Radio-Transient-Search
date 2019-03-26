@@ -222,12 +222,6 @@ def main_routine(args):
                            file=cmdlnOpts.outFilepath), msg_type="ERROR")
    # endtry
 
-   # Extract commandline parameters.
-   thresh= cmdlnOpts.SNRThreshold
-   DMstart = cmdlnOpts.DMStart
-   DMend = cmdlnOpts.DMEnd
-   DMstep = cmdlnOpts.DMStep
-
    # Compute the set of frequencies in the bandpass to de-disperse.  The topmost frequency is the top
    # frequency of the bandpass, which is pinned in placed for the de-dispersion.  The frequencies below
    # that are the frequencies at the center of each frequency channel.
@@ -248,7 +242,7 @@ def main_routine(args):
    pulseID = 0
 
    # Determine dispersion measure trials and scaled dispersion delays.
-   DMtrials = np.arange(cmdlnParser.DMStart, cmdlnParser.DMEnd, cmdlnParser.DMStep, dtype=np.float32)
+   DMtrials = np.arange(cmdlnOpts.DMStart, cmdlnOpts.DMEnd, cmdlnOpts.DMStep, dtype=np.float32)
    scaledDelays = apputils.scaleDelays(freqs)/tInt
 
    # Allocate the de-dispersed time series. Yes, this is allocating the worst case, which results in
@@ -268,6 +262,7 @@ def main_routine(args):
          if not commConfigObj.has_section("De-disperse Search"):
             commConfigObj.add_section("De-disperse Search")
          # endif
+         commConfigObj.set("De-disperse Search", "snrthreshold", cmdlnOpts.SNRThreshold)
          commConfigObj.set("De-disperse Search", "dmstart", cmdlnOpts.DMStart)
          commConfigObj.set("De-disperse Search", "dmend", cmdlnOpts.DMEnd)
          commConfigObj.set("De-disperse Search", "dmstep", cmdlnOpts.DMStep)
@@ -311,7 +306,7 @@ def main_routine(args):
          ndown = 2**rank #decimate the time series
          dedispTS = apputils.DecimateNPY(tstotal[tShifts[0] : numSpectLines], ndown)
          if len(dedispTS) != 0:
-            (snr, mean, rms) =  Threshold(dedispTS, thresh, niter=0)
+            (snr, mean, rms) =  Threshold(dedispTS, cmdlnOpts.SNRThreshold, niter=0)
             pulseIndices = np.where(snr != -1)[0]
             if len(pulseIndices) > 0:
                apputils.procMessage( "dv.py: {num} pulses found.  Writing to file.".format(
