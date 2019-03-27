@@ -249,8 +249,6 @@ def main_routine(args):
    # some wasted space, but it should run much faster without having to perform an allocation for each
    # DM trial.  Also, the time series occupy far, far less space than the spectrogram.
    tbMax = np.floor(cmdlnOpts.DMEnd*scaledDelays[0]).astype(np.int32)
-   apputils.procMessage("tbMax = {0}   numSpectLines = {1}".format(tbMax, numSpectLines), msg_type='DEBUG')
-   sys.exit(1)
    ts = np.zeros(tbMax + numSpectLines, dtype=np.float32)
    tstotal = np.zeros(ts.shape[0], dtype=np.float32)
 
