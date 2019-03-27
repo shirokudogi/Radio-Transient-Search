@@ -232,7 +232,7 @@ def main_routine(args):
    numChannels = len(chFreqs)
    # Compute dispersed frequencies.
    freqs = np.zeros(numChannels + 1, dtype=np.float32)
-   freqs[0:numChannels] = freqs[0:numChannels] + 0.5*channelWidth
+   freqs[0:numChannels] = chFreqs[0:numChannels] + 0.5*channelWidth
    freqs[-1] = topFreqBP
    # Create list of indices for the dispersed channels.
    chIndices = np.arange(numChannels, dtype=np.int32)
@@ -249,6 +249,8 @@ def main_routine(args):
    # some wasted space, but it should run much faster without having to perform an allocation for each
    # DM trial.  Also, the time series occupy far, far less space than the spectrogram.
    tbMax = np.floor(cmdlnOpts.DMEnd*scaledDelays[0]).astype(np.int32)
+   apputils.procMessage("tbMax = {0}   numSpectLines = {1}".format(tbMax, numSpectLines), msg_type='DEBUG')
+   sys.exit(1)
    ts = np.zeros(tbMax + numSpectLines, dtype=np.float32)
    tstotal = np.zeros(ts.shape[0], dtype=np.float32)
 
