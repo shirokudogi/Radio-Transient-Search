@@ -121,7 +121,7 @@ def main(args):
 
    freqStep = samplerate/(numSamplesPerFrame*1000.0)
    timeStep = integTime * int(numSpectLines/decimation)
-   plt.imshow(waterfall.T, cmap='summer', origin = 'low', aspect = 'auto')
+   plt.imshow(waterfall.T, cmap='viridis', origin = 'low', aspect = 'auto')
    plt.suptitle('{label} RFI {std:.2f}$\sigma$'.format(label=cmdlnOpts.label,
                   std=cmdlnOpts.RFIStd), fontsize = 24)
    plt.xlabel('Time ({step:.4f} sec)'.format(step=timeStep),fontdict={'fontsize':16})
