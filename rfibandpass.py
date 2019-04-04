@@ -9,7 +9,15 @@ from ConfigParser import ConfigParser
 import apputils 
 
 def bpf(x, windows = 40):
+   if len(np.where(np.isnan(x))[0]) > 0:
+      apputils.procMessage('rfibandpass.py: NaNs in x', msg_type='DEBUG')
+      apputils.MPIAbort(1)
+   # endif
    bp = apputils.savitzky_golay(x, windows, 1)
+   if len(np.where(np.isnan(bp))[0]) > 0:
+      apputils.procMessage('rfibandpass.py: NaNs in bp', msg_type='DEBUG')
+      apputils.MPIAbort(1)
+   # endif
    mask = np.logical_and( (bp == 0.0), (x == 0.0) )
    x2 = np.divide(x, bp)
    x2[mask] = 1.0
@@ -39,18 +47,12 @@ def RFImask(spr):
 
 
 def massagesp(spectrometer, windows_x=43,windows_y=100):
+   apputils.procMessage('rfibandpass.py: Doing bandpass division.', msg_type='DEBUG')
    bpfSpectrometer = bpf(spectrometer.mean(0), windows_x) 
-   if len(np.where(np.isnan(bpfSpectrometer))[0]) > 0:
-      apputils.procMessage('NaNs in bpfSpectrogram', msg_type='DEBUG')
-      apputils.MPIAbort(1)
-   # endif
    mask = np.logical_and((bpfSpectrometer == 0.0), (spectrometer == 0.0))
    spectrometer = np.divide(spectrometer, bpfSpectrometer)
    spectrometer[mask] = 1.0
-   if len(np.where(np.isnan(spectrometer))[0]) > 0:
-      apputils.procMessage('NaNs in spectrometer after bandpass division', msg_type='DEBUG')
-      apputils.MPIAbort(1)
-   # endif
+   apputils.procMessage('rfibandpass.py: Doing baseline subtraction.', msg_type='DEBUG')
    spectrometer = (spectrometer.T - bpf(spectrometer.mean(1), windows_y)).T
 
    mask  = np.array ( RFImask(spectrometer) )
