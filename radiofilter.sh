@@ -412,7 +412,7 @@ resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff 5.0 \
    --savitzky-golay "151,2,151,2" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0.png" \
-   --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0.npy"
+   --snr-cutoff 3.0 "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
 echo "radiofilter: Generating coarse RFI-bandpass spectrogram image for tuning 1..."
 resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
@@ -421,7 +421,7 @@ resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff 5.0 \
    --savitzky-golay "111,2,151,2" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1.png" \
-   --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1.npy"
+   --snr-cutoff 3.0 "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 
 # Clean up temporary files.
