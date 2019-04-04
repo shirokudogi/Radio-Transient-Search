@@ -10,23 +10,9 @@ import apputils
 
 def bpf(x, windows = 40):
    bp = apputils.savitzky_golay(x, windows, 1)
-   mask1 = (bp == 0.0)
-   mask2 = np.logical_and( (bp == 0.0), (x == 0.0) )
+   mask = np.logical_and( (bp == 0.0), (x == 0.0) )
    x2 = np.divide(x, bp)
-   # DEBUG - Looking for Nan in either bp or x2.
-   nanX2 = np.where(np.isnan(x2))[0]
-   nanBP = np.where(np.isnan(bp))[0]
-   if len(nanX2) > 0 or len(nanBP) > 0:
-      if len(nanX2) > 0:
-         apputils.procMessage("Found NaN in x2: {0}".format(nanX2), msg_type='DEBUG')
-      # endif
-      if len(nanBP) > 0:
-         apputils.procMessage("Found NaN in bp: {0}".format(nanBP), msg_type='DEBUG')
-      # endif
-      apputils.MPIAbort(1)
-   # endif
-   x2[mask1] = np.inf
-   x2[mask2] = 1.0
+   x2[mask] = 1.0
    mask = (apputils.snr(x2) > 1)
    y = np.ma.array(x, mask = mask)
    indices = np.arange(len(y))
@@ -53,7 +39,10 @@ def RFImask(spr):
 
 
 def massagesp(spectrometer, windows_x=43,windows_y=100):
-   spectrometer /= bpf(spectrometer.mean(0), windows_x)
+   bpfSpectrometer = bpf(spectrometer.mean(0), windows_x) 
+   mask = np.logical_and((bpfSpectrometer == 0.0), (spectrometer == 0.0))
+   spectrometer = np.divide(spectrometer, bpfSpectrometer)
+   spectrometer[mask] = 1.0
    spectrometer = (spectrometer.T - bpf(spectrometer.mean(1), windows_y)).T
 
    mask  = np.array ( RFImask(spectrometer) )

@@ -359,6 +359,10 @@ fi
 
 LBL_RFIBANDPASS0="RFIBandpass_Tune0"
 LBL_RFIBANDPASS1="RFIBandpass_Tune1"
+LBL_COARSERFIBP0="CoarseRFIBandpass_Tune0"
+LBL_COARSERFIBP1="CoarseRFIBandpass_Tune1"
+LBL_COARSEIMG0="RFIBandpass_Tune0IMG"
+LBL_COARSEIMG1="RFIBandpass_Tune1IMG"
 LBL_CLEAN="Cleanup_filter"
 
 
@@ -382,6 +386,42 @@ resumecmd -l ${LBL_RFIBANDPASS1} -k ${RESUME_LASTCMD_SUCCESS} \
    --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW} \
    --output-file "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --work-dir ${WORK_DIR} 
+report_resumecmd
+
+
+# Create coarse versions of the RFI-bandpass filtered spectrograms.
+echo "radioreduce.sh: Creating coarse RFI-bandpass filtered spectrogram for tuning 0..."
+resumecmd -l ${LBL_COARSERFIBP0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/coarse_rfibp.py \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
+report_resumecmd
+echo "radioreduce.sh: Creating coarse RFI-bandpass filtered spectrogram for tuning 1..."
+resumecmd -l ${LBL_COARSERFIBP0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/coarse_rfibp.py \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
+report_resumecmd
+
+
+# Create images of the coarse RFI-bandpass filtered spectrograms for tuning 0 and tuning 1.
+echo "radiofilter: Generating coarse RFI-bandpass spectrogram image for tuning 0..."
+resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
+   --lower-FFT-index 0 --upper-FFT-index 4095 --label "${LABEL}_Low" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff 5.0 \
+   --savitzky-golay "151,2,151,2" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0.png" \
+   --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0.npy"
+report_resumecmd
+echo "radiofilter: Generating coarse RFI-bandpass spectrogram image for tuning 1..."
+resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
+   --lower-FFT-index 0 --upper-FFT-index 4095 --label "${LABEL}_High" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff 5.0 \
+   --savitzky-golay "111,2,151,2" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1.png" \
+   --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 
 # Clean up temporary files.
