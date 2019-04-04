@@ -19,7 +19,14 @@ def bpf(x, windows = 40):
       apputils.MPIAbort(1)
    # endif
    mask = np.logical_and( (bp == 0.0), (x == 0.0) )
+   if len(np.where(mask)[0]) > 0:
+      apputils.procMessage('rfibandpass.py: Found cases of 0.0 / 0.0', msg_type='DEBUG')
+   # endif
    x2 = np.divide(x, bp)
+   if len(np.where(np.isnan(x2))[0]) > 0:
+      apputils.procMessage('rfibandpass.py: NaNs in x2', msg_type='DEBUG')
+      apputils.MPIAbort(1)
+   # endif
    x2[mask] = 1.0
    mask = (apputils.snr(x2) > 1)
    y = np.ma.array(x, mask = mask)
