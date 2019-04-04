@@ -33,7 +33,6 @@ BPW_STR="Bandpass smoothing window"
 BLW_STR="Baseline smoothing window"
 
 # Process parameters.
-NUM_PROCS=$(nproc --all)   # Number of processes to use in the MPI environment.
 MEM_LIMIT=32768            # Memory limit, in MBs, for creating waterfall tiles in memory.
 RUN_STATUS=0
 SKIP_RFIBP=0
@@ -150,6 +149,14 @@ if [[ ${#} -gt 0 ]]; then
             MEM_LIMIT=16384
             shift
             ;;
+         -N | --num-procs) # Specify the number of processes to use.
+            if [ -z "${NUM_PROCS}" ]; then
+               if [[ "${2}" =~ ${INTEGER_NUM} ]]; then
+                  NUM_PROCS=${2}
+               fi
+            fi
+            shift; shift
+            ;;
          -U | --data-utilization) # Specify RFI standard deviation cutoff.
             if [ -z "${DATA_UTILIZE}" ]; then
                if [[ "${2}" =~ ${REAL_NUM} ]]; then
@@ -252,6 +259,11 @@ fi
 if [ ${#LABELS[@]} -eq 0 ]; then
    echo "radiotrans_run.sh: No runs specified to do."
    exit 1
+fi
+
+# Check that number of processors to use is specified.
+if [ -z "${NUM_PROCS}" ]; then
+   NUM_PROCS=$(nproc --all)   # Number of processes to use in the MPI environment.
 fi
 
 

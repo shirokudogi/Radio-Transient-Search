@@ -9,14 +9,17 @@ from ConfigParser import ConfigParser
 import apputils 
 
 def bpf(x, windows = 40):
-   x2 = np.divide(x, apputils.savitzky_golay(x, windows, 1) )
-   x2[ np.isnan(x2) ] = 1.0
-   mask = apputils.snr(x2) > 1
+   bp = apputils.savitzky_golay(x, windows, 1)
+   mask = np.logical_and( (bp == 0.0), (x == 0.0) )
+   x2 = np.divide(x, np.ma.array(bp, mask=mask) )
+   x2[mask] = 1.0
+   mask = (apputils.snr(x2) > 1)
    y = np.ma.array(x, mask = mask)
    indices = np.arange(len(y))
    fit = np.ma.polyfit(indices, y, 4)
-   x[mask] = np.poly1d(fit)(indices)[mask]
-   return apputils.savitzky_golay(x, windows, 2)
+   bp = x
+   bp[mask] = np.poly1d(fit)(indices)[mask]
+   return apputils.savitzky_golay(bp, windows, 2)
 # end bpf()
 
 
