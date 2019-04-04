@@ -11,8 +11,8 @@ import apputils
 def bpf(x, windows = 40):
    bp = apputils.savitzky_golay(x, windows, 1)
    mask = np.logical_and( (bp == 0.0), (x == 0.0) )
-   x2 = np.divide(x, bp)
-   x2[mask] = 1.0
+   x2 = np.divide(x, bp, where=np.logical_not(mask))
+   x2[mask] = 0.0
    mask = (apputils.snr(x2) > 1)
    y = np.ma.array(x, mask = mask)
    indices = np.arange(len(y))
@@ -41,13 +41,8 @@ def RFImask(spr):
 def massagesp(spectrometer, windows_x=43,windows_y=100):
    bpfSpectrometer = bpf(spectrometer.mean(0), windows_x) 
    mask = np.logical_and((bpfSpectrometer == 0.0), (spectrometer == 0.0))
-   if len(np.where(mask)[0]) > 0:
-      apputils.procMessage('rfibandpass.py: 0.0 / 0.0 divide found with spectrometer.',
-                           msg_type='DEBUG')
-      apputils.MPIAbort(1)
-   # endif
    spectrometer = np.divide(spectrometer, bpfSpectrometer)
-   spectrometer[mask] = 1.0
+   spectrometer[mask] = 0.0
    spectrometer = (spectrometer.T - bpf(spectrometer.mean(1), windows_y)).T
 
    mask  = np.array ( RFImask(spectrometer) )
