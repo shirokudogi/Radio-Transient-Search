@@ -270,6 +270,12 @@ def main(argv):
       hannWindow[:] = 0.5*(1 - numpy.cos(hannWindow[:]))
    # endif
 
+   # Compute the normalization factor for the spectrogram.
+   normFactor = (4.0*LFFT)
+   if cmdlnOpts.noTimeAvg == False:     # Toggle averaging spectral power over integration time.
+      normFactor = normFactor*numpy.float32(numDFTsPerSpectLine) 
+   # endif
+   #
    # If waterfall injections enabled, create waterfall injections.
    injSpect0 = None  # Injection spectrogram for tuning 0.
    injSpect1 = None  # Injection spectrogram for tuning 1.
@@ -282,7 +288,8 @@ def main(argv):
          apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 0.', root=0)
          freqs = apputils.computeFreqs(rawDataTuningFreq0/1.0e6, bandwidth, numBins=DFTLength)
          injSpect0 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
-                                                       rawDataFrameTime, cmdlnOpts.injPower*(4.0*LFFT),
+                                                       rawDataFrameTime, 
+                                                       cmdlnOpts.injPower*(normFactor),
                                                        cmdlnOpts.injSpectIndex,
                                                        cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
                                                        cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
@@ -291,7 +298,8 @@ def main(argv):
          apputils.procMessage('waterfall.py: Generating waterfall injections for tuning 1.', root=0)
          freqs = apputils.computeFreqs(rawDataTuningFreq1/1.0e6, bandwidth, numBins=DFTLength)
          injSpect1 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
-                                                       rawDataFrameTime, cmdlnOpts.injPower*(4.0*LFFT),
+                                                       rawDataFrameTime, 
+                                                       cmdlnOpts.injPower*(normFactor),
                                                        cmdlnOpts.injSpectIndex,
                                                        cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
                                                        cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
@@ -315,10 +323,6 @@ def main(argv):
    # Create spectrogram tiles.
    lineOffset = numSpectLinesPerProc*procRank
    injOffset = lineOffset*numDFTsPerSpectLine
-   normFactor = (4.0*LFFT)
-   if cmdlnOpts.noTimeAvg == False:     # Toggle averaging spectral power over integration time.
-      normFactor *= numpy.float32(numDFTsPerSpectLine) 
-   # endif
    while fileOffset < endFileOffset:
       rawDataFile.seek(fileOffset, os.SEEK_CUR)
       apputils.procMessage("Integrating lines {start} to {end}...".format(start=lineOffset,
