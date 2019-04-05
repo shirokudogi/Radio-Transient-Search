@@ -230,11 +230,6 @@ def main_routine(args):
    bottomFreqBP = chFreqs[0]    # Bottom frequency in the bandpass.
    topFreqBP = chFreqs[-1] + channelWidth   # Top frequency in the bandpass.
    numChannels = len(chFreqs)
-   # Compute dispersed frequencies.
-   freqs = np.zeros(numChannels + 1, dtype=np.float32)
-   freqs[0:numChannels] = chFreqs[0:numChannels] + 0.5*channelWidth
-   freqs[-1] = topFreqBP
-   # Create list of indices for the dispersed channels.
    chIndices = np.arange(numChannels, dtype=np.int32)
 
    # Setup pulse search parameters and add the maximum pulse-width to the common parameters file..
@@ -243,7 +238,8 @@ def main_routine(args):
 
    # Determine dispersion measure trials and scaled dispersion delays.
    DMtrials = np.arange(cmdlnOpts.DMStart, cmdlnOpts.DMEnd, cmdlnOpts.DMStep, dtype=np.float32)
-   scaledDelays = apputils.scaleDelays(freqs)/tInt
+   scaledDelays = apputils.scaleDelays(chFreqs)/tInt
+   topScaledDelay = apputils.scaleDelays(np.array([chFreqs[-1], topFreqBP]))[0]/tInt
 
    # Allocate the de-dispersed time series. Yes, this is allocating the worst case, which results in
    # some wasted space, but it should run much faster without having to perform an allocation for each
@@ -311,11 +307,12 @@ def main_routine(args):
             if len(pulseIndices) > 0:
                apputils.procMessage( "dv.py: {num} pulses found.  Writing to file.".format(
                                     num=len(pulseIndices)) )
+               timeOffset = topScaledDelay*DM
                for index in pulseIndices:# Now record all pulses above threshold
                   pulse.pulse = "{idnum}_{rank}".format(rank=rank, idnum=pulseID)
                   pulse.SNR = snr[index]
                   pulse.DM = DM
-                  pulse.time = (index + 0.5)*tInt*ndown
+                  pulse.time = index*tInt*ndown - timeOffset
                   pulse.dtau = tInt*ndown
                   pulse.dnu = channelWidth
                   pulse.nu = centerFreq
