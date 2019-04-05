@@ -53,7 +53,7 @@ def main(argv):
                            action='store',
                            help='Fraction (0 < abs(x) <= 1.0) of total spectrogram lines to create.',
                            metavar='FRAC')
-   cmdlnParser.add_option("--inject-power", dest="injPower", default=10.0, type='float',
+   cmdlnParser.add_option("--inject-power", dest="injectPower", default=10.0, type='float',
                            action='store',
                            help='Total spectral power of injected simulated burst signals.',
                            metavar='POWR')
@@ -100,10 +100,10 @@ def main(argv):
    # endif
    #
    # Check waterfall injection specifications.
-   cmdlnOpts.injectPower = numpy.maximum(0.0, cmdlnOpts.injPower)
+   cmdlnOpts.injectPower = numpy.maximum(0.0, cmdlnOpts.injectPower)
    cmdlnOpts.numInjects = apputils.forceIntValue(cmdlnOpts.numInjects, 0, 50)
    cmdlnOpts.injectSpectIndex = numpy.maximum(-2.0, numpy.minimum(2.0, cmdlnOpts.injSpectIndex))
-   if cmdlnOpts.injPower == 0.0:
+   if cmdlnOpts.injectPower == 0.0:
       cmdlnOpts.numInjects = 0
    # endif
 
@@ -289,7 +289,7 @@ def main(argv):
          freqs = apputils.computeFreqs(rawDataTuningFreq0/1.0e6, bandwidth, numBins=DFTLength)
          injSpect0 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
                                                        rawDataFrameTime, 
-                                                       cmdlnOpts.injPower*(normFactor),
+                                                       cmdlnOpts.injectPower*(normFactor),
                                                        cmdlnOpts.injSpectIndex,
                                                        cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
                                                        cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
@@ -299,7 +299,7 @@ def main(argv):
          freqs = apputils.computeFreqs(rawDataTuningFreq1/1.0e6, bandwidth, numBins=DFTLength)
          injSpect1 = waterfallinject.create_injections(freqs, channelWidth, rawDataNumFramesPerTune,
                                                        rawDataFrameTime, 
-                                                       cmdlnOpts.injPower*(normFactor),
+                                                       cmdlnOpts.injectPower*(normFactor),
                                                        cmdlnOpts.injSpectIndex,
                                                        cmdlnOpts.injTimeSpan, cmdlnOpts.injDMSpan,
                                                        cmdlnOpts.numInjects, cmdlnOpts.injRegularTimes,
