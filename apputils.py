@@ -418,7 +418,7 @@ def snr(a):
    # number of data points, the two are not substantially different.
    diff = (a - a.mean())
    stddev = a.std()
-   mask = np.logical_and(diff == 0.0. stddev == 0.0)
+   mask = np.logical_and(diff == 0.0, stddev == 0.0)
    result = np.divide(diff, stddev, where=np.logical_not(mask))
    result[mask] = 0.0
    return result
