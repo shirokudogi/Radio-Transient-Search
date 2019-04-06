@@ -416,7 +416,12 @@ def snr(a):
    # Numpy std function computes the standard deviation from the theoretical variance, not the proper
    # sample variance since the mean is being derived from the data. However, for an extremely large
    # number of data points, the two are not substantially different.
-   return (a - a.mean() )/a.std()
+   diff = (a - a.mean())
+   stddev = a.std()
+   mask = np.logical_and(diff == 0.0. stddev == 0.0)
+   result = np.divide(diff, stddev, where=np.logical_not(mask))
+   result[mask] = 0.0
+   return result
 # end snr()
 #
 
