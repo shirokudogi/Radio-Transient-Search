@@ -440,8 +440,14 @@ LBL_RFIBANDPASS0="RFIBandpass_Tune0"
 LBL_RFIBANDPASS1="RFIBandpass_Tune1"
 LBL_COARSERFIBP0="CoarseRFIBandpass_Tune0"
 LBL_COARSERFIBP1="CoarseRFIBandpass_Tune1"
-LBL_COARSEIMG0="RFIBandpass_Tune0IMG"
-LBL_COARSEIMG1="RFIBandpass_Tune1IMG"
+LBL_COARSEIMG0="RFICoarseIMG_Tune0"
+LBL_COARSEIMG1="RFICoarseIMG_Tune1"
+LBL_BANDPASSIMG0="RFIBandpassIMG_Tune0"
+LBL_BANDPASSIMG1="RFIBandpassIMG_Tune1"
+LBL_BASELINEIMG0="RFIBaselineIMG_Tune0"
+LBL_BASELINEIMG1="RFIBaselineIMG_Tune1"
+LBL_STDBANDPASSIMG0="RFISTDBandpassIMG_Tune0"
+LBL_STDBANDPASSIMG1="RFISTDBandpassIMG_Tune1"
 LBL_CLEAN="Cleanup_filter"
 
 
@@ -482,6 +488,53 @@ resumecmd -l ${LBL_COARSERFIBP0} -k ${RESUME_LASTCMD_SUCCESS} \
    --decimation ${DECIMATION} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
+report_resumecmd
+
+
+# Create bandpass and baseline plots of the RFI-bandpass filtered spectrograms.
+echo "radiofilter.sh: Generating bandpass and baseline images of RFI-bandpass filtered "
+echo "                spectrogram for tuning 0..."
+resumecmd -l ${LBL_BANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --lowerx ${LOWER_FFT0} --upperx ${UPPER_FFT0} \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpbandpass-${CMBPREFIX}-T0.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
+report_resumecmd
+resumecmd -l ${LBL_BASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpbaseline-${CMBPREFIX}-T0.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
+report_resumecmd
+resumecmd -l ${LBL_STDBANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --standard-dev \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --lowerx ${LOWER_FFT0} --upperx ${UPPER_FFT0} \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpSTDbandpass-${CMBPREFIX}-T0.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
+report_resumecmd
+echo "radiofilter.sh: Generating bandpass and baseline images of RFI-bandpass filtered "
+echo "                spectrogram for tuning 1..."
+resumecmd -l ${LBL_BANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --lowerx ${LOWER_FFT1} --upperx ${UPPER_FFT1} \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpbandpass-${CMBPREFIX}-T1.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
+report_resumecmd
+resumecmd -l ${LBL_BASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpbaseline-${CMBPREFIX}-T1.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
+report_resumecmd
+resumecmd -l ${LBL_STDBANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
+   mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --standard-dev \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
+   --lowerx ${LOWER_FFT1} --upperx ${UPPER_FFT1} \
+   --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpSTDbandpass-${CMBPREFIX}-T1.png" \
+   --label "${LABEL}_Low" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
 report_resumecmd
 
 

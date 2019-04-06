@@ -32,6 +32,10 @@ def main(args):
                            action='store', help='Savitzky-Golay parameters', metavar='PARAMS')
    cmdlnParser.add_option("--standard-dev", dest="fStdDev", default=False, action="store_true",
                            help="Flag denoting to produce plot of standard deviations instead of mean")
+   cmdlnParser.add_option("--lowerx", dest="lowerX", default=0.0, type="float",
+                           help="Lower bound for the X-axis.", metavar="NUM")
+   cmdlnParser.add_option("--upperx", dest="upperX", default=0.0, type="float",
+                           help="Lower bound for the X-axis.", metavar="NUM")
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
 
    # Check that a spectrogram file has been provided and that it exists.
@@ -114,10 +118,17 @@ def main(args):
       plotCurve = apputils.savitzky_golay(plotCurve, SGParams[0], SGParams[1])
    # endif
 
+   numXTicks = 9
    plt.plot(plotCurve)
    plt.suptitle(plotTitle, fontsize = 24)
    plt.ylabel('Mean Power', fontdict={'fontsize':16})
    plt.xlabel(plotXLabel, fontdict={'fontsize':16})
+   if (cmdlnOpts.lowerX != cmdlnOpts.upperX):
+      plt.xticks(np.linspace(0.0, 1.0, numXTicks), 
+                 np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks))
+   else:
+      plt.xticks(np.linspace(0.0, 1.0, numXTicks)) 
+   # endif
    plt.savefig(cmdlnOpts.outFilepath)
    plt.clf()
 # end main()

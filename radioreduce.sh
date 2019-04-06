@@ -630,86 +630,86 @@ report_resumecmd
 
 
 # Create bandpass and baseline images of the coarse combined waterfalls for tunings 0 and 1.
-echo "radioreduce.sh: Generating bandpass images of coarse combined waterfall for tuning 0..."
+echo "radioreduce.sh: Generating bandpass images of spectrogram for tuning 0..."
 resumecmd -l ${LBL_BANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/bandpass-${CMBPREFIX}-T0.png" \
-   --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+   --label "${LABEL}_Low" "${WORK_DIR}/${CMBPREFIX}-T0.npy"
 report_resumecmd
 resumecmd -l ${LBL_SGBANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --savitzky-golay "${SG_PARAMS0[0]},${SG_PARAMS0[1]}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbandpass-${CMBPREFIX}-T0.png" \
-   --label "SG-${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+   --label "SG-${LABEL}_Low" "${WORK_DIR}/${CMBPREFIX}-T0.npy"
 report_resumecmd
 resumecmd -l ${LBL_STDBANDPASSIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --standard-dev \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbandpass-${CMBPREFIX}-T0.png" \
-   --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+   --label "${LABEL}_Low" "${WORK_DIR}/${CMBPREFIX}-T0.npy"
 report_resumecmd
-echo "radioreduce.sh: Generating baseline images of coarse combined waterfall for tuning 0..."
+echo "radioreduce.sh: Generating baseline images of spectrogram for tuning 0..."
 resumecmd -l ${LBL_BASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/baseline-${CMBPREFIX}-T0.png" \
-   --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+   --label "${LABEL}_Low" "${WORK_DIR}/${CMBPREFIX}-T0.npy"
 report_resumecmd
 resumecmd -l ${LBL_SGBASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --savitzky-golay "${SG_PARAMS0[2]},${SG_PARAMS0[3]}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbaseline-${CMBPREFIX}-T0.png" \
-   --label "SG-${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+   --label "SG-${LABEL}_Low" "${WORK_DIR}/${CMBPREFIX}-T0.npy"
 report_resumecmd
 resumecmd -l ${LBL_STDBASELINEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline --standard-dev \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbaseline-${CMBPREFIX}-T0.png" \
-   --label "${LABEL}_Low" "${WORK_DIR}/coarse-${CMBPREFIX}-T0.npy"
+   --label "${LABEL}_Low" "${WORK_DIR}/${CMBPREFIX}-T0.npy"
 report_resumecmd
 
-echo "radioreduce.sh: Generating bandpass images of coarse combined waterfall for tuning 1..."
+echo "radioreduce.sh: Generating bandpass images of spectrogram for tuning 1..."
 resumecmd -l ${LBL_BANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/bandpass-${CMBPREFIX}-T1.png" \
-   --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+   --label "${LABEL}_High" "${WORK_DIR}/${CMBPREFIX}-T1.npy"
 report_resumecmd
 resumecmd -l ${LBL_SGBANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --savitzky-golay "${SG_PARAMS1[0]},${SG_PARAMS1[1]}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbandpass-${CMBPREFIX}-T1.png" \
-   --label "SG-${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+   --label "SG-${LABEL}_High" "${WORK_DIR}/${CMBPREFIX}-T1.npy"
 report_resumecmd
 resumecmd -l ${LBL_STDBANDPASSIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --standard-dev \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbandpass-${CMBPREFIX}-T1.png" \
-   --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+   --label "${LABEL}_High" "${WORK_DIR}/${CMBPREFIX}-T1.npy"
 report_resumecmd
-echo "radioreduce.sh: Generating baseline images of coarse combined waterfall for tuning 1..."
+echo "radioreduce.sh: Generating baseline images of spectrogram for tuning 1..."
 resumecmd -l ${LBL_BASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/baseline-${CMBPREFIX}-T1.png" \
-   --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+   --label "${LABEL}_High" "${WORK_DIR}/${CMBPREFIX}-T1.npy"
 report_resumecmd
 resumecmd -l ${LBL_SGBASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --savitzky-golay "${SG_PARAMS1[2]},${SG_PARAMS1[3]}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/SGbaseline-${CMBPREFIX}-T1.png" \
-   --label "SG-${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+   --label "SG-${LABEL}_High" "${WORK_DIR}/${CMBPREFIX}-T1.npy"
 report_resumecmd
 resumecmd -l ${LBL_STDBASELINEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/bandpasscheck.py --baseline --standard-dev \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/STDbaseline-${CMBPREFIX}-T1.png" \
-   --label "${LABEL}_High" "${WORK_DIR}/coarse-${CMBPREFIX}-T1.npy"
+   --label "${LABEL}_High" "${WORK_DIR}/${CMBPREFIX}-T1.npy"
 report_resumecmd
 
 
