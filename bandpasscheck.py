@@ -124,8 +124,8 @@ def main(args):
    plt.ylabel('Mean Power', fontdict={'fontsize':16})
    plt.xlabel(plotXLabel, fontdict={'fontsize':16})
    if (cmdlnOpts.lowerX != cmdlnOpts.upperX):
-      plt.xticks(np.linspace(0.0, 1.0, numXTicks), 
-                 np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks))
+      plt.xticks(np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks), 
+                 np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks).astype(np.int))
    else:
       plt.xticks(np.linspace(0.0, 1.0, numXTicks)) 
    # endif
