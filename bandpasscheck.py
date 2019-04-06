@@ -57,7 +57,6 @@ def main(args):
       commConfigObj.readfp(configFile, cmdlnOpts.configFilepath)
       samplerate = commConfigObj.getfloat('Raw Data', 'samplerate')
       numSamplesPerFrame = commConfigObj.getint('Raw Data', 'numsamplesperframe')
-      decimation = commConfigObj.getint('Spectrogram Plot', 'decimation')
       integTime = commConfigObj.getfloat('Reduced DFT Data', 'integrationtime')
       numSpectLines = commConfigObj.getint('Reduced DFT Data', 'numspectrogramlines')
       configFile.close()
@@ -94,7 +93,7 @@ def main(args):
          plotCurve = spectrogram.std(1)
          plotTitle = '{label} StdDev Baseline'.format(label=cmdlnOpts.label)
       # endif
-      timeStep = integTime * int(numSpectLines/decimation)
+      timeStep = integTime * int(numSpectLines)
       plotXLabel = 'Time ({step:.4f} sec)'.format(step=timeStep)
       commConfigObj.set('Reduced DFT Data', 'meanbaselinepower', plotCurve.mean())
       commConfigObj.set('Reduced DFT Data', 'medianbaselinepower', np.median(plotCurve))
@@ -123,12 +122,13 @@ def main(args):
    plt.suptitle(plotTitle, fontsize = 24)
    plt.ylabel('Mean Power', fontdict={'fontsize':16})
    plt.xlabel(plotXLabel, fontdict={'fontsize':16})
+   xTicksPos = np.linspace(0, len(plotCurve) - 1, numXTicks).astype(np.int)
    if (cmdlnOpts.lowerX != cmdlnOpts.upperX):
-      plt.xticks(np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks), 
-                 np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks).astype(np.int))
+      xTicksLabels = np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks).astype(np.int))
    else:
-      plt.xticks(np.linspace(0.0, 1.0, numXTicks)) 
+      xTicksLabels = np.linspace(0, len(plotCurve) - 1, numXTicks).astype(np.int)
    # endif
+   plt.xticks(xTicksPos, xTicksLabels)
    plt.savefig(cmdlnOpts.outFilepath)
    plt.clf()
 # end main()

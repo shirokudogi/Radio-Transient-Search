@@ -273,6 +273,10 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift; shift; shift; shift
             ;;
+         --disable-rfi-filter) # Disable the RFI filter.
+            DISABLE_RFI_OPT="--disable-rfi-filter"
+            shift
+            ;;
          --no-interact) # Turn off user interaction.
             NO_INTERACT=1
             shift
@@ -461,7 +465,7 @@ resumecmd -l ${LBL_RFIBANDPASS0} \
    mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/rfibandpass.py "${WORK_DIR}/${CMBPREFIX}-T0.npy" \
    --lower-fft-index ${LOWER_FFT0} --upper-fft-index ${UPPER_FFT0} \
    --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW} \
-   --output-file "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" \
+   --output-file "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" ${DISABLE_RFI_OPT} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --work-dir ${WORK_DIR} 
 report_resumecmd
 echo "    Performing RFI-bandpass filtering of tuning 1 spectrogram..."
@@ -469,7 +473,7 @@ resumecmd -l ${LBL_RFIBANDPASS1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/rfibandpass.py "${WORK_DIR}/${CMBPREFIX}-T1.npy" \
    --lower-fft-index ${LOWER_FFT1} --upper-fft-index ${UPPER_FFT1} --tuning1 \
    --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW} \
-   --output-file "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
+   --output-file "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" ${DISABLE_RFI_OPT} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --work-dir ${WORK_DIR} 
 report_resumecmd
 

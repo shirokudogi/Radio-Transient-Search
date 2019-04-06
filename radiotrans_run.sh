@@ -191,6 +191,10 @@ if [[ ${#} -gt 0 ]]; then
             DO_DDISP_SEARCH=1
             shift
             ;;
+         --disable-rfi-filter) # Disable RFI filtering.
+            DISABLE_RFI_OPT="--disable-rfi-filter"
+            shift
+            ;;
          --delete-waterfalls) # Delete waterfall file from the working directory at the end of the run.
             DELWATERFALLS_OPT="--delete-waterfalls"
             shift
@@ -921,7 +925,7 @@ do
       if [ ${RUN_STATUS} -eq 0 ]; then
          # Build the command-line to perform the RFI-bandpass filtration.
          CMD_FILTER="${INSTALL_DIR}/radiofilter.sh"
-         CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" \
+         CMD_FILTER_OPTS=(--install-dir "${INSTALL_DIR}" ${DISABLE_RFI_OPT} \
                --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} --no-interact \
                --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
                --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SUPERCLUSTER_OPT} \

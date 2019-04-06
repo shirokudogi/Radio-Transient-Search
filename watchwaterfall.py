@@ -127,7 +127,7 @@ def main(args):
                   std=cmdlnOpts.RFIStd), fontsize = 24)
    plt.xlabel('Time ({step:.4f} sec)'.format(step=timeStep),fontdict={'fontsize':16})
    plt.ylabel('Frequency ({step:.3f} kHz)'.format(step=freqStep),fontdict={'fontsize':16})
-   yTicksPos = np.linspace(lowerIndex, upperIndex, numYTicks)
+   yTicksPos = np.linspace(0, waterfall.T.shape[0] - 1, numYTicks).astype(np.int)
    yTicksLabels = np.linspace(lowerIndex, upperIndex, numYTicks).astype(np.int)
    plt.yticks(yTicksPos, yTicksLabels)
    plt.colorbar().set_label('SNR',size=16)

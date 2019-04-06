@@ -91,6 +91,8 @@ def main_routine(args):
                            metavar='INT')
    cmdlnParser.add_option('--tuning1', dest='enableTuning1', default=False, action='store_true',
                            help='Flag denoting tuning 1.')
+   cmdlnParser.add_option('--disable-rfi-filter', dest='disableRFI', default=False, action='store_true',
+                           help='Disable RFI filtering.')
    (cmdlnOpts, cmdlnArgs) = cmdlnParser.parse_args(args)
 
    lowerFFTIndex = apputils.forceIntValue(cmdlnOpts.lowerFFTIndex, 0, 4095)
@@ -205,8 +207,12 @@ def main_routine(args):
    rfibpSegment = np.memmap(filename=tempFilepath, shape=(segmentSize[rank], bandpassLength), 
                               dtype=np.float32, mode='w+')
    apputils.procMessage('rfibandpass.py: Performing RFI and bandpass filtration on segment.')
-   rfibpSegment[:, :] = massagesp(segment[ : , lowerFFTIndex:upperFFTIndex + 1], 
-                                    bpWindow, blWindow)[:, :]
+   if cmdlnOpts.disableRFI:
+      rfibpSegment[:, :] = segment[ : , lowerFFTIndex:upperFFTIndex + 1] 
+   else:
+      rfibpSegment[:, :] = massagesp(segment[ : , lowerFFTIndex:upperFFTIndex + 1], 
+                                     bpWindow, blWindow)[:, :]
+   # endif
 
    # Gather the pieces of the RFI-bandpass filtered spectrogram and integrate them into the final
    # RFI-bandpass filtered spectrogram.
