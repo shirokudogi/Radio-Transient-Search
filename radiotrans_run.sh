@@ -927,7 +927,9 @@ do
                --label "${LABEL}" --results-dir "${RESULTS_DIR}" ${SUPERCLUSTER_OPT} \
                --lower-fft-index0 ${LOWER_FFT0} --upper-fft-index0 ${UPPER_FFT0} \
                --lower-fft-index1 ${LOWER_FFT1} --upper-fft-index1 ${UPPER_FFT1} \
-               --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW})
+               --bandpass-window ${BP_WINDOW} --baseline-window ${BL_WINDOW} \
+               --decimation ${DECIMATION} --rfi-std-cutoff ${RFI_STD} --snr-cutoff ${SNR_CUTOFF} \
+               --savitzky-golay0 "${SG_PARAMS0[*]}" --savitzky-golay1 "${SG_PARAMS1[*]}")
          # Perform the RFI-bandpass filtration.
          ${CMD_FILTER} ${CMD_FILTER_OPTS[*]}
          RUN_STATUS=${?}

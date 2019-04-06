@@ -217,6 +217,62 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
+         --decimation) # Specify decimation for the coarse spectrogram.
+            if [ -z "${DECIMATION}" ]; then
+               if [[ "${2}" =~ ${INTEGER_NUM} ]]; then
+                  if [ ${2} -gt 0 ]; then
+                     DECIMATION=${2}
+                  fi
+               fi
+            fi
+            shift; shift
+            ;;
+         --rfi-std-cutoff) # Specify RFI standard deviation cutoff.
+            if [ -z "${RFI_STD}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  RFI_STD=${2}
+               fi
+            fi
+            shift; shift
+            ;;
+         --snr-cutoff) # Specify SNR ceiling cutoff.
+            if [ -z "${SNR_CUTOFF}" ]; then
+               if [[ "${2}" =~ ${REAL_NUM} ]]; then
+                  SNR_CUTOFF=${2}
+               fi
+            fi
+            shift; shift
+            ;;
+         -sg0 | --savitzky-golay0) # Specify Savitzky-Golay smoothing parameters for tuning 0.
+            if [ -z "${SG_PARAMS0}" ]; then
+               ARGS=(${2} ${3} ${4} ${5})
+               for param in ${AGRS[*]}
+               do
+                  if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
+                     SG_PARAMS0=("${SG_PARAMS0[*]}" "${param}")
+                  else
+                     echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
+                     exit -1
+                  fi
+               done
+            fi
+            shift; shift; shift; shift; shift
+            ;;
+         -sg1 | --savitzky-golay1) # Specify Savitzky-Golay smoothing parameters for tuning 0.
+            if [ -z "${SG_PARAMS1}" ]; then
+               ARGS=(${2} ${3} ${4} ${5})
+               for param in ${AGRS[*]}
+               do
+                  if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
+                     SG_PARAMS1=("${SG_PARAMS1[*]}" "${param}")
+                  else
+                     echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
+                     exit -1
+                  fi
+               done
+            fi
+            shift; shift; shift; shift; shift
+            ;;
          --no-interact) # Turn off user interaction.
             NO_INTERACT=1
             shift
@@ -280,6 +336,29 @@ fi
 # Check that the memory limits are specified.
 if [ -z "${MEM_LIMIT}" ]; then
    MEM_LIMIT=16384
+fi
+
+# Check that the coarse spectrogram decimation is specified.
+if [ -z "${DECIMATION}" ]; then
+   DECIMATION=10000
+fi
+
+# Check that the RFI standard deviation cut-off is specified.
+if [ -z "${RFI_STD}" ]; then
+   RFI_STD=5.0
+fi
+
+# Check that the SNR ceiling cutoff is specified.
+if [ -z "${SNR_CUTOFF}" ]; then
+   SNR_CUTOFF=3.0
+fi
+
+# Check Savitzky-Golay smoothing parameters are specified.
+if [ -z "${SG_PARAMS0}" ]; then
+   SG_PARAMS0=(151 2 151 2)
+fi
+if [ -z "${SG_PARAMS1}" ]; then
+   SG_PARAMS1=(111 2 151 2)
 fi
 
 
@@ -393,12 +472,14 @@ report_resumecmd
 echo "radioreduce.sh: Creating coarse RFI-bandpass filtered spectrogram for tuning 0..."
 resumecmd -l ${LBL_COARSERFIBP0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/coarse_rfibp.py \
+   --decimation ${DECIMATION} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
 report_resumecmd
 echo "radioreduce.sh: Creating coarse RFI-bandpass filtered spectrogram for tuning 1..."
 resumecmd -l ${LBL_COARSERFIBP0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/coarse_rfibp.py \
+   --decimation ${DECIMATION} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1" \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy"
 report_resumecmd
@@ -408,20 +489,20 @@ report_resumecmd
 echo "radiofilter: Generating coarse RFI-bandpass spectrogram image for tuning 0..."
 resumecmd -l ${LBL_COARSEIMG0} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
-   --lower-FFT-index 0 --upper-FFT-index 4095 --label "${LABEL}_Low" \
-   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff 5.0 \
-   --savitzky-golay "151,2,151,2" \
+   --lower-FFT-index ${LOWER_FFT0} --upper-FFT-index ${UPPER_FFT0} --label "${LABEL}_Low" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff ${RFI_STD} \
+   --savitzky-golay "${SG_PARAMS0[0]},${SG_PARAMS0[1]},${SG_PARAMS0[2]},${SG_PARAMS0[3]}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0.png" \
-   --snr-cutoff 3.0 "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0.npy"
+   --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T0.npy"
 report_resumecmd
 echo "radiofilter: Generating coarse RFI-bandpass spectrogram image for tuning 1..."
 resumecmd -l ${LBL_COARSEIMG1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/watchwaterfall.py \
-   --lower-FFT-index 0 --upper-FFT-index 4095 --label "${LABEL}_High" \
-   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff 5.0 \
-   --savitzky-golay "111,2,151,2" \
+   --lower-FFT-index ${LOWER_FFT1} --upper-FFT-index ${UPPER_FFT1} --label "${LABEL}_High" \
+   --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" --rfi-std-cutoff ${RFI_STD} \
+   --savitzky-golay "${SG_PARAMS1[0]},${SG_PARAMS1[1]},${SG_PARAMS1[2]},${SG_PARAMS1[3]}" \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1.png" \
-   --snr-cutoff 3.0 "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1.npy"
+   --snr-cutoff ${SNR_CUTOFF} "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1.npy"
 report_resumecmd
 
 # Clean up temporary files.

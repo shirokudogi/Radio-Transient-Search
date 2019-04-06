@@ -90,6 +90,7 @@ def main(args):
       print 'Error (watchwaterfall.py): Upper FFT index must be greater than lower FFT index'
       sys.exit(1)
    # endif
+   numYTicks = 9
 
    # Parse Savitzky-Golay parameters.
    SGParams = [151, 2, 151, 2]
@@ -126,6 +127,9 @@ def main(args):
                   std=cmdlnOpts.RFIStd), fontsize = 24)
    plt.xlabel('Time ({step:.4f} sec)'.format(step=timeStep),fontdict={'fontsize':16})
    plt.ylabel('Frequency ({step:.3f} kHz)'.format(step=freqStep),fontdict={'fontsize':16})
+   yTicksPos = np.linspace(0.0, 1.0, numYTicks, dtype=np.float32)
+   yTicksLabels = np.linspace(lowerIndex, upperIndex, numYTicks, dtype=np.int)
+   plt.yticks(yTicksPos, yTicksLabels)
    plt.colorbar().set_label('SNR',size=16)
    plt.savefig(cmdlnOpts.outFilepath)
    plt.clf()

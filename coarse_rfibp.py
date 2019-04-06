@@ -29,6 +29,9 @@ def main(args):
                            default="./radiotrans.ini", action="store",
                            help="Path to the common parameters file.",
                            metavar="PATH")
+   cmdlnParser.add_option("-d", "--decimation", dest="decimation", type="int", default=10000,
+                           action="store", help="Decimation number for coarse spectrogram.", 
+                           metavar="NUM")
    # Parse command line
    (cmdlnOpts, inFilepath) = cmdlnParser.parse_args(args)
    if len(inFilepath) == 0:
@@ -36,24 +39,7 @@ def main(args):
       sys.exit(1)
    # endif
 
-   # Read common parameters file for the decimation factor.
-   try:
-      commConfigObj = ConfigParser()
-
-      # Read current common parameters.
-      configFile = open(cmdlnOpts.configFilepath,"r")
-      commConfigObj.readfp(configFile, cmdlnOpts.configFilepath)
-      decimation = commConfigObj.getint('Spectrogram Plot', 'decimation')
-      configFile.close()
-   except Exception as anError:
-      print 'Could not read common parameters configuration file: ', cmdlnOpts.configFilepath
-      print anError
-      configFile.close()
-      sys.exit(1)
-   # endtry
-
-
-   # Load spectrogram file into memory-mapped array.
+   # Load RFI-bandpass filtered spectrogram file into memory-mapped array.
    try:
       print 'coarse_rfibp.py: Loading RFI-bandpass spectrogram...'
       spectrogram = np.load(inFilepath[0], mmap_mode='r')
@@ -65,7 +51,7 @@ def main(args):
    #
    # Save the coarse version of the spectrogram.
    print 'coarse_rfibp.py: Writing coarse RFI-bandpass spectrogram...'
-   decimateFactor = np.int(spectrogram.shape[0]/decimation)
+   decimateFactor = np.int(spectrogram.shape[0]/cmdlnOpts.decimation)
    np.save(cmdlnOpts.outFilepath, apputils.DecimateNPY(spectrogram, decimateFactor))
 # end main_radiotrans()
 
