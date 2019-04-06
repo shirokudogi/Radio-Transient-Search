@@ -41,7 +41,7 @@ def RFImask(spr):
 def massagesp(spectrometer, windows_x=43,windows_y=100):
    bpfSpectrometer = bpf(spectrometer.mean(0), windows_x) 
    mask = np.logical_and((bpfSpectrometer == 0.0), (spectrometer == 0.0))
-   spectrometer = np.divide(spectrometer, bpfSpectrometer)
+   spectrometer = np.divide(spectrometer, bpfSpectrometer, where=np.logical_not(mask))
    spectrometer[mask] = 0.0
    spectrometer = (spectrometer.T - bpf(spectrometer.mean(1), windows_y)).T
 
