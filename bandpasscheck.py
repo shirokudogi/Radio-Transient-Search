@@ -122,7 +122,7 @@ def main(args):
    plt.suptitle(plotTitle, fontsize = 24)
    plt.ylabel('Mean Power', fontdict={'fontsize':16})
    plt.xlabel(plotXLabel, fontdict={'fontsize':16})
-   plt.margins(x=0)
+   plt.margins(0.0)
    xTicksPos = np.linspace(0, len(plotCurve) - 1, numXTicks).astype(np.int)
    if (cmdlnOpts.lowerX != cmdlnOpts.upperX):
       xTicksLabels = np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks).astype(np.int)
