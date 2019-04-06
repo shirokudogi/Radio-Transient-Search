@@ -93,7 +93,7 @@ def main(args):
          plotCurve = spectrogram.std(1)
          plotTitle = '{label} StdDev Baseline'.format(label=cmdlnOpts.label)
       # endif
-      timeStep = integTime * int(numSpectLines)
+      timeStep = integTime
       plotXLabel = 'Time ({step:.4f} sec)'.format(step=timeStep)
       commConfigObj.set('Reduced DFT Data', 'meanbaselinepower', plotCurve.mean())
       commConfigObj.set('Reduced DFT Data', 'medianbaselinepower', np.median(plotCurve))
@@ -122,11 +122,11 @@ def main(args):
    plt.suptitle(plotTitle, fontsize = 24)
    plt.ylabel('Mean Power', fontdict={'fontsize':16})
    plt.xlabel(plotXLabel, fontdict={'fontsize':16})
-   xTicksPos = np.linspace(0, len(plotCurve) - 1, numXTicks).astype(np.int)
+   xTicksPos = np.linspace(0, len(plotCurve), numXTicks).astype(np.int)
    if (cmdlnOpts.lowerX != cmdlnOpts.upperX):
       xTicksLabels = np.linspace(cmdlnOpts.lowerX, cmdlnOpts.upperX, numXTicks).astype(np.int)
    else:
-      xTicksLabels = np.linspace(0, len(plotCurve) - 1, numXTicks).astype(np.int)
+      xTicksLabels = np.linspace(0, len(plotCurve), numXTicks).astype(np.int)
    # endif
    plt.xticks(xTicksPos, xTicksLabels)
    plt.savefig(cmdlnOpts.outFilepath)
