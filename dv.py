@@ -236,15 +236,15 @@ def main_routine(args):
    log2MaxPulseWidth = np.round( np.log2(cmdlnOpts.maxPulseWidth/tInt) ).astype(np.int32) + 1 
    pulseID = 0
 
-   # Determine dispersion measure trials and scaled dispersion delays.
+   # Determine dispersion measure trials and scaled dispersion delays between the frequency bins.
    DMtrials = np.arange(cmdlnOpts.DMStart, cmdlnOpts.DMEnd, cmdlnOpts.DMStep, dtype=np.float32)
-   scaledDelays = apputils.scaleDelays(chFreqs)/tInt
-   topScaledDelay = apputils.scaleDelays(np.array([chFreqs[-1], topFreqBP]))[0]/tInt
+   freqs = chFreqs + channelWidth
+   scaledDelays = apputils.scaleDelays(freqs)/tInt
 
    # Allocate the de-dispersed time series. Yes, this is allocating the worst case, which results in
    # some wasted space, but it should run much faster without having to perform an allocation for each
    # DM trial.  Also, the time series occupy far, far less space than the spectrogram.
-   tbMax = np.floor(cmdlnOpts.DMEnd*scaledDelays[0]).astype(np.int32)
+   tbMax = np.floor(cmdlnOpts.DMEnd*scaledDelays[0] + 0.5).astype(np.int32)
    ts = np.zeros(tbMax + numSpectLines, dtype=np.float32)
    tstotal = np.zeros(ts.shape[0], dtype=np.float32)
 
@@ -282,7 +282,7 @@ def main_routine(args):
    for DM in DMtrials:
       apputils.procMessage("dv.py: De-dispersion with DM = {dm}".format(dm=DM), root=0)
       # Compute array of dispersion delays as an index in units of tInt.
-      tShifts = np.floor(DM*scaledDelays).astype(np.int32)
+      tShifts = np.floor(DM*scaledDelays + 0.5).astype(np.int32)
       fShifts = tShifts[0] - tShifts
       # De-disperse the frequencies assigned to this process.
       for chIndex in chIndices: 
@@ -307,12 +307,11 @@ def main_routine(args):
             if len(pulseIndices) > 0:
                apputils.procMessage( "dv.py: {num} pulses found.  Writing to file.".format(
                                     num=len(pulseIndices)) )
-               timeOffset = topScaledDelay*DM
                for index in pulseIndices:# Now record all pulses above threshold
                   pulse.pulse = "{idnum}_{rank}".format(rank=rank, idnum=pulseID)
                   pulse.SNR = snr[index]
                   pulse.DM = DM
-                  pulse.time = index*tInt*ndown - timeOffset
+                  pulse.time = index*tInt*ndown
                   pulse.dtau = tInt*ndown
                   pulse.dnu = channelWidth
                   pulse.nu = centerFreq
