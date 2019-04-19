@@ -165,29 +165,35 @@ if [[ ${#} -gt 0 ]]; then
             fi
             shift; shift
             ;;
-         -s | --dm-start) # Specify the starting dispersion measure for search.
-            if [ -z "${DM_START}" ]; then
-               if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                  DM_START=${2}
-               fi
+         --dm-search0) # Specify the dispersion measure search parameters for tuning 0.
+            if [ -z "${DM_SEARCH0[*]}" ]; then
+               ARGS=(${2} ${3} ${4})
+               for param in ${AGRS[*]}
+               do
+                  if [[ "${param}" =~ ${REAL_NUM} ]]; then
+                     DM_SEARCH0=("${DM_SEARCH0[*]}" "${param}")
+                  else
+                     echo "radiosearch.sh: ERROR => Tuning 0 search parameters must be real numbers."
+                     exit 1
+                  fi
+               done
             fi
-            shift; shift
+            shift; shift; shift; shift
             ;;
-         -e | --dm-end) # Specify the ending dispersion measure for search.
-            if [ -z "${DM_END}" ]; then
-               if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                  DM_END=${2}
-               fi
+         --dm-search1) # Specify the dispersion measure search parameters for tuning 1.
+            if [ -z "${DM_SEARCH1[*]}" ]; then
+               ARGS=(${2} ${3} ${4})
+               for param in ${AGRS[*]}
+               do
+                  if [[ "${param}" =~ ${REAL_NUM} ]]; then
+                     DM_SEARCH1=("${DM_SEARCH1[*]}" "${param}")
+                  else
+                     echo "radiosearch.sh: ERROR => Tuning 1 search parameters must be real numbers."
+                     exit 1
+                  fi
+               done
             fi
-            shift; shift
-            ;;
-         -t | --dm-step) # Specify the stepping of dispersion measures.
-            if [ -z "${DM_STEP}" ]; then
-               if [[ "${2}" =~ ${REAL_NUM} ]]; then
-                  DM_STEP=${2}
-               fi
-            fi
-            shift; shift
+            shift; shift; shift; shift
             ;;
          -p | --max-pulse-width) # Specify the maximum pulse width for search.
             if [ -z "${MAX_PULSE}" ]; then
@@ -282,19 +288,12 @@ if [ -z "${MAX_PULSE}" ]; then
    MAX_PULSE=5.0
 fi
 
-# Ensure that the starting dispersion measure is specified.
-if [ -z "${DM_START}" ]; then
-   DM_START=30.0
+# Ensure that the dispersion measure search parameters are specified.
+if [ -z "${DM_SEARCH0[*]}" ]; then
+   DM_SEARCH0=(30.0 1000.0 1.0)
 fi
-
-# Ensure that the ending dispersion measure is specified.
-if [ -z "${DM_END}" ]; then
-   DM_END=5.0
-fi
-
-# Check if a dispersion measure step-size is specified.
-if [ -n "${DM_STEP}" ]; then
-   DM_STEP_OPT="--dm-step ${DM_STEP}"
+if [ -z "${DM_SEARCH1[*]}" ]; then
+   DM_SEARCH1=(30.0 1000.0 1.0)
 fi
 
 
@@ -374,8 +373,8 @@ echo "     Performing de-dispersed search on tuning 0 data..."
 resumecmd -l ${LBL_SEARCH0} \
    mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy" \
    --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
-   --dm-start ${DM_START} --dm-end ${DM_END} --max-pulse-width ${MAX_PULSE} \
-   ${DM_STEP_OPT} \
+   --dm-start ${DM_SEARCH0[0]} --dm-end ${DM_SEARCH0[1]} --dm-step ${DM_SEARCH0[2]} \
+   --max-pulse-width ${MAX_PULSE} \
    --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T0.txt"
 report_resumecmd
 
@@ -383,8 +382,8 @@ echo "     Performing de-dispersed search on tuning 1 data..."
 resumecmd -l ${LBL_SEARCH1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np ${NUM_PROCS} python ${INSTALL_DIR}/dv.py "${WORK_DIR}/rfibp-${CMBPREFIX}-T1.npy" \
    --memory-limit ${MEM_LIMIT} --work-dir "${WORK_DIR}" --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" \
-   --dm-start ${DM_START} --dm-end ${DM_END} --max-pulse-width ${MAX_PULSE} --tuning1 \
-   ${DM_STEP_OPT} \
+   --dm-start ${DM_SEARCH1[0]} --dm-end ${DM_SEARCH1[1]} --dm-step ${DM_SEARCH1[2]} \
+   --max-pulse-width ${MAX_PULSE} --tuning1 \
    --snr-threshold ${SNR_THRESHOLD} --output-file "${WORK_DIR}/${PULSEPREFIX}-T1.txt"
 report_resumecmd
 

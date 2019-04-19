@@ -251,7 +251,7 @@ if [[ ${#} -gt 0 ]]; then
                   if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
                      SG_PARAMS0=("${SG_PARAMS0[*]}" "${param}")
                   else
-                     echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
+                     echo "radiofilter.sh: ERROR => Savitzky-Golay0 values must be integers."
                      exit -1
                   fi
                done
@@ -266,7 +266,7 @@ if [[ ${#} -gt 0 ]]; then
                   if [[ "${param}" =~ ${INTEGER_NUM} ]]; then
                      SG_PARAMS1=("${SG_PARAMS1[*]}" "${param}")
                   else
-                     echo "radiorun_lwa.sh: ERROR => Savitzky-Golay0 values must be integers."
+                     echo "radiofilter.sh: ERROR => Savitzky-Golay0 values must be integers."
                      exit -1
                   fi
                done

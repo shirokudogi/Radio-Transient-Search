@@ -516,9 +516,8 @@ do
          BP_WINDOW=10
          BL_WINDOW=50
          SNR_THRESHOLD=5.0
-         DM_START=30.0
-         DM_END=5000.0
-         DM_STEP=1.0
+         DM_SEARCH0=(30.0 5000.0 1.0)
+         DM_SEARCH1=(30.0 5000.0 1.0)
          MAX_PULSE_WIDTH=2.0
          ;;
       2) # Configure parameters for Cleague.
@@ -536,9 +535,8 @@ do
          BP_WINDOW=11
          BL_WINDOW=51
          SNR_THRESHOLD=5.0
-         DM_START=30.0
-         DM_END=2000.0
-         DM_STEP=1.0
+         DM_SEARCH0=(30.0 2000.0 1.0)
+         DM_SEARCH1=(30.0 2000.0 1.0)
          MAX_PULSE_WIDTH=2.0
          ;;
       3) # Configure parameters for DEBUGGING.
@@ -557,9 +555,8 @@ do
          BP_WINDOW=10
          BL_WINDOW=50
          SNR_THRESHOLD=5.0
-         DM_START=30.0
-         DM_END=1000.0
-         DM_STEP=1.0
+         DM_SEARCH0=(30.0 2000.0 1.0)
+         DM_SEARCH1=(30.0 2000.0 1.0)
          MAX_PULSE_WIDTH=2.0
          ;;
       *) # Configure basic, default parameters.
@@ -576,9 +573,8 @@ do
          BP_WINDOW=10
          BL_WINDOW=50
          SNR_THRESHOLD=5.0
-         DM_START=30.0
-         DM_END=3600.0
-         DM_STEP=1.0
+         DM_SEARCH0=(30.0 3000.0 1.0)
+         DM_SEARCH1=(30.0 3000.0 1.0)
          MAX_PULSE_WIDTH=2.0
          ;;
    esac
@@ -631,9 +627,8 @@ do
    echo "     BP_WINDOW = ${BP_WINDOW}"
    echo "     BL_WINDOW = ${BL_WINDOW}"
    echo "     SNR_THRESHOLD = ${SNR_THRESHOLD}"
-   echo "     DM_START = ${DM_START}"
-   echo "     DM_END = ${DM_END}"
-   echo "     DM_STEP = ${DM_STEP}"
+   echo "     DM_SEARCH0 = ${DM_SEARCH0[*]}"
+   echo "     DM_SEARCH1 = ${DM_SEARCH1[*]}"
    echo "     MAX_PULSE_WDITH = ${MAX_PULSE_WIDTH}"
    echo "     INJ_NUM = ${INJ_NUM}"
    echo "     INJ_POWER = ${INJ_POWER}"
@@ -1103,7 +1098,7 @@ do
             --nprocs ${NUM_PROCS} --memory-limit ${MEM_LIMIT} ${NO_SEARCH_INTERACT_OPT} \
             --work-dir "${WORK_DIR}" --config-file "${COMMCONFIG_FILE}" \
             --label "${LABEL}" --results-dir "${RESULTS_DIR}" \
-            --dm-start ${DM_START} --dm-end ${DM_END} --dm-step ${DM_STEP} \
+            --dm-search0 "${DM_SEARCH0[*]}" --dm-search1 "${DM_SEARCH1[*]}" \
             --snr-threshold ${SNR_THRESHOLD} --max-pulse-width ${MAX_PULSE_WIDTH})
       # Perform the RFI-bandpass filtration.
       ${CMD_SEARCH} ${CMD_SEARCH_OPTS[*]}
