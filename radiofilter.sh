@@ -487,7 +487,7 @@ resumecmd -l ${LBL_COARSERFIBP0} -k ${RESUME_LASTCMD_SUCCESS} \
    --commconfig "${WORK_DIR}/${COMMCONFIG_FILE}" "${WORK_DIR}/rfibp-${CMBPREFIX}-T0.npy"
 report_resumecmd
 echo "radioreduce.sh: Creating coarse RFI-bandpass filtered spectrogram for tuning 1..."
-resumecmd -l ${LBL_COARSERFIBP0} -k ${RESUME_LASTCMD_SUCCESS} \
+resumecmd -l ${LBL_COARSERFIBP1} -k ${RESUME_LASTCMD_SUCCESS} \
    mpirun -np 1 python ${INSTALL_DIR}/coarse_rfibp.py \
    --decimation ${DECIMATION} \
    --work-dir "${WORK_DIR}" --outfile "${WORK_DIR}/rfibpcoarse-${CMBPREFIX}-T1" \
