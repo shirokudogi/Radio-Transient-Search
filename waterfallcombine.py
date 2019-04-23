@@ -99,6 +99,24 @@ def main(args):
    # endfor
    combWaterfall.flush()
 
+   # Compute the mean and standard deviations of the combined spectrogram and write those to the common
+   # parameters file
+   try:
+      meanPower = np.mean(combWaterfall)
+      stddevPower = np.std(combWaterfall)
+
+      configFile = open(cmdlnOpts.configFilepath,"w")
+      commConfigObj.set('Reduced DFT Data', 'meanpower', meanPower)
+      commConfigObj.set('Reduced DFT Data', 'stddevpower', stddevPower)
+      commConfigObj.write(configFile)
+      configFile.close()
+   except Exception as anError:
+      print 'Could not update common parameters configuration file: ', cmdlnOpts.configFilepath
+      print anError
+      configFile.close()
+      sys.exit(1)
+   # endtry
+
    # Save the final combined waterfall file.
    print 'waterfallcombine.py: Writing combined waterfall spectrogram...'
    np.save(cmdlnOpts.outFilepath, combWaterfall)
