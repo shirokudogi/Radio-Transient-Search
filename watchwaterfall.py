@@ -117,8 +117,8 @@ def main(args):
    # Correct RFI.
    waterfall = apputils.RFI(waterfall, cmdlnOpts.RFIStd*waterfall.std())
    waterfall = apputils.snr(waterfall)
-   #mask = np.where( abs(waterfall) > cmdlnOpts.SNRCutoff*(waterfall[:,:].std()) )
-   #waterfall[:,:][mask] = waterfall[:,:].mean()
+   mask = np.where( abs(waterfall) > cmdlnOpts.SNRCutoff*(waterfall[:,:].std()) )
+   waterfall[:,:][mask] = waterfall[:,:].mean()
 
    freqStep = samplerate/(numSamplesPerFrame*1000.0)
    timeStep = integTime * int(numSpectLines/decimation)
