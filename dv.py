@@ -238,8 +238,11 @@ def main_routine(args):
 
    # Determine dispersion measure trials and scaled dispersion delays between the frequency bins.
    DMtrials = np.arange(cmdlnOpts.DMStart, cmdlnOpts.DMEnd, cmdlnOpts.DMStep, dtype=np.float32)
-   freqs = chFreqs + channelWidth
+   freqs = np.zeros(len(chFreqs) + 1, dtype=np.float32)
+   freqs[0:-2] = chFreqs + 0.5*channelWidth
+   freqs[-1] = topFreqBP
    scaledDelays = apputils.scaleDelays(freqs)/tInt
+   bottomSmear = apputils.scaleDelays(chFreqs[0:2])[0]/tInt
 
    # Allocate the de-dispersed time series. Yes, this is allocating the worst case, which results in
    # some wasted space, but it should run much faster without having to perform an allocation for each
@@ -282,7 +285,7 @@ def main_routine(args):
    for DM in DMtrials:
       apputils.procMessage("dv.py: De-dispersion with DM = {dm}".format(dm=DM), root=0)
       # Compute array of dispersion delays as an index in units of tInt.
-      tShifts = np.floor(DM*scaledDelays + 0.5).astype(np.int32)
+      tShifts = np.floor(DM*scaledDelays[0:-2] + 0.5).astype(np.int32)
       fShifts = tShifts[0] - tShifts
       # De-disperse the frequencies assigned to this process.
       for chIndex in chIndices: 
@@ -294,13 +297,19 @@ def main_routine(args):
       # Merge the de-dispersed time-series from all processes.
       MPIComm.Allreduce(ts, tstotal, op=MPI.SUM)
 
+      # Trim the de-dispersed time-series to the observation period.
+      halfBottomSmear = np.floor(0.5*DM*bottomSmear + 0.5).astype(np.int32)
+      trimBegin = tShifts[0] - tShifts[-1] - halfBottomSmear
+      trimEnd = numSpectLines
+      trimTS = tstotal[trimBegin : trimEnd]
+
       # Search for signal with decimated timeseries
       if rank < log2MaxPulseWidth:
          apputils.procMessage("dv.py: Searching for pulses".format(dm=DM))
 
          # Cut the dispersed time lag.
          ndown = 2**rank #decimate the time series
-         dedispTS = apputils.DecimateNPY(tstotal[tShifts[0] : numSpectLines], ndown)
+         dedispTS = apputils.DecimateNPY(trimTS[tShifts[0] : numSpectLines], ndown)
          if len(dedispTS) != 0:
             (snr, mean, rms) =  Threshold(dedispTS, cmdlnOpts.SNRThreshold, niter=0)
             pulseIndices = np.where(snr != -1)[0]
@@ -311,7 +320,7 @@ def main_routine(args):
                   pulse.pulse = "{idnum}_{rank}".format(rank=rank, idnum=pulseID)
                   pulse.SNR = snr[index]
                   pulse.DM = DM
-                  pulse.time = index*tInt*ndown
+                  pulse.time = index*tInt*ndown + 0.5*tInt*ndown
                   pulse.dtau = tInt*ndown
                   pulse.dnu = channelWidth
                   pulse.nu = centerFreq
